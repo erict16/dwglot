@@ -1,4 +1,5 @@
 """Small no-network checks for persistent batch scheduling."""
+import asyncio
 import json
 import os
 import shutil
@@ -19,7 +20,7 @@ from backend import queue as batch_queue
 from backend.drawings import extract_preview
 from backend.providers.azure import AzureFreeQuotaExceededError
 from backend.storage import atomic_output_path
-from backend.api import DROPPED_FILE_RETENTION_SECONDS, SSE_QUEUE_SIZE, TranslationService, app, service
+from backend.api import DROPPED_FILE_RETENTION_SECONDS, SSE_QUEUE_SIZE, TranslationService, app, service, stream_logs
 from backend.queue import _calm_error, _retryable
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -1180,6 +1181,45 @@ class BatchApiTests(unittest.TestCase):
         self.assertEqual(_calm_error(RuntimeError("boom\nTraceback (most recent call last):\n x")), "翻译失败")
         self.assertNotIn("Traceback", _calm_error(RuntimeError("boom\nTraceback (most recent call last):\n x")))
         self.assertNotIn("boom", _calm_error(RuntimeError("boom\nTraceback (most recent call last):\n x")))
+
+
+class LogsStreamTests(unittest.TestCase):
+    def test_logs_stream_emits_log_and_status(self):
+        queues_before = list(service._log_queues)
+        status_before = service.status
+        message_before = service.last_message
+        marker = "测试日志一行"
+
+        async def collect():
+            response = await stream_logs()
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.media_type, "text/event-stream")
+            service.emit_log(marker)
+            service.set_status("running", "翻译中")
+            buf = ""
+            try:
+                async for chunk in response.body_iterator:
+                    if isinstance(chunk, bytes):
+                        chunk = chunk.decode("utf-8")
+                    buf += chunk
+                    if marker in buf and '"type": "status"' in buf:
+                        break
+            finally:
+                await response.body_iterator.aclose()
+            return buf
+
+        try:
+            text = asyncio.run(asyncio.wait_for(collect(), 3))
+        finally:
+            service._log_queues[:] = queues_before
+            service.status = status_before
+            service.last_message = message_before
+
+        self.assertIn(marker, text)
+        self.assertIn('"type": "log"', text)
+        self.assertIn('"type": "status"', text)
+        self.assertIn("翻译中", text)
+        self.assertNotIn("Traceback", text)
 
 
 if __name__ == "__main__":

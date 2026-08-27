@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: `GET /api/logs/stream` is 200 `text/event-stream`. A log line is `data: {"type":"log",...}`; `set_status` is a status event; idle ticks are `: keepalive`. No Traceback. TestClient.stream hangs on the infinite generator; the lock hits `stream_logs()` directly. `python -m unittest discover -s tests` 151 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/{id}/retry` of a failed task is 200, `queued` / `等待重翻`, progress 0, output_file empty. `python -m unittest discover -s tests` 150 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/{id}/remove` of a running task was 200 with the task still in the snapshot. Now 409 `请先停止队列`. After stop, remove is 200 and `tasks` []. `python -m unittest discover -s tests` 149 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/pause` JSON `{"paused": false}` was ignored (query default still paused). Query `paused=false` already worked. JSON body now wins when `paused` is present. `python -m unittest discover -s tests` 148 ok. Do not edit landing/, README*, docs/icons/.
