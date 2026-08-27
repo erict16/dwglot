@@ -11,6 +11,26 @@ from backend.providers.base import TranslationProvider, TranslationProviderError
 
 DEFAULT_BASE = "https://api.deepseek.com/v1"
 DEFAULT_MODEL = "deepseek-chat"
+PROBE_TIMEOUT = 2.0
+TRANSLATE_TIMEOUT = 15.0
+UNREACHABLE = "无法连接自定义接口"
+
+
+def openai_reachable(base_url: str = "", timeout: float = PROBE_TIMEOUT) -> bool:
+    target = (base_url or "").strip().rstrip("/")
+    if not target:
+        return False
+    try:
+        urllib.request.urlopen(f"{target}/models", timeout=timeout)
+        return True
+    except urllib.error.HTTPError as exc:
+        try:
+            exc.read()
+        except Exception:
+            pass
+        return True
+    except Exception:
+        return False
 
 
 class OpenAICompatProvider(TranslationProvider):
@@ -59,7 +79,7 @@ class OpenAICompatProvider(TranslationProvider):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with urllib.request.urlopen(request, timeout=TRANSLATE_TIMEOUT) as response:
                 body = json.loads(response.read().decode("utf-8"))
             return body["choices"][0]["message"]["content"].strip()
         except urllib.error.HTTPError as exc:
@@ -67,5 +87,11 @@ class OpenAICompatProvider(TranslationProvider):
             error = TranslationProviderError(f"OpenAI 兼容接口失败 ({exc.code}): {detail[:300]}")
             error.retryable = exc.code not in {400, 401, 403}
             raise error from exc
-        except (OSError, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-            raise TranslationProviderError(f"OpenAI 兼容接口失败: {exc}") from exc
+        except (OSError, TimeoutError):
+            error = TranslationProviderError(UNREACHABLE)
+            error.retryable = False
+            raise error
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+            error = TranslationProviderError("自定义接口返回无法读取")
+            error.retryable = False
+            raise error

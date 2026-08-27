@@ -290,7 +290,7 @@ export default function App() {
         const hint = engine === "local"
           ? "请先启动 Ollama。"
           : engine === "custom"
-            ? "请配置自定义接口地址和 Key。"
+            ? "无法连接自定义接口。"
             : "剩下的要填云引擎 Key，或手填译文。";
         setStatus(`${bits.join("，")}。${hint}`);
         if (engine !== "local") setSheet(true);

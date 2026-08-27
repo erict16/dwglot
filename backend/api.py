@@ -327,7 +327,13 @@ class TranslationService:
         if provider == "azure":
             return bool(engine.get("azure_key", "").strip())
         if provider == "openai":
-            return bool(engine.get("openai_key", "").strip()) and bool(engine.get("openai_base", "").strip())
+            key = str(engine.get("openai_key") or "").strip()
+            base = str(engine.get("openai_base") or "").strip()
+            if not key or not base:
+                return False
+            from backend.providers.openai_compat import openai_reachable
+
+            return openai_reachable(base)
         return bool(engine.get("deepl_key", "").strip())
 
     @staticmethod
@@ -338,7 +344,9 @@ class TranslationService:
         if provider == "openai":
             if not str(engine.get("openai_base") or "").strip():
                 return "请配置自定义接口地址"
-            return "请配置自定义接口的 API Key"
+            if not str(engine.get("openai_key") or "").strip():
+                return "请配置自定义接口的 API Key"
+            return "无法连接自定义接口"
         if provider == "ollama":
             return "请先启动 Ollama"
         return "请配置 DeepL API Key"

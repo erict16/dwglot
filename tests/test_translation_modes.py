@@ -1,4 +1,6 @@
 import json
+import socket
+import time
 import unittest
 import tempfile
 import ezdxf
@@ -14,7 +16,7 @@ from backend.providers.azure import AzureFreeQuotaExceededError, AzureTranslator
 from backend.providers.base import TranslationProviderError
 from backend.providers.deepl_provider import DeepLProvider
 from backend.providers.ollama import ollama_reachable
-from backend.providers.openai_compat import OpenAICompatProvider
+from backend.providers.openai_compat import OpenAICompatProvider, openai_reachable
 from backend.language_assets import LanguageAssets
 from backend.drawings import translate_rows
 from backend import translator
@@ -338,6 +340,70 @@ class EngineAndGlossaryTests(unittest.TestCase):
         self.assertEqual(result["mt"], 0)
         self.assertTrue(any(item["target"] == "ceiling" for item in result["items"]))
 
+    def _closed_port(self) -> int:
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+        sock.close()
+        return port
+
+    def test_dead_custom_url_fails_fast_without_success(self):
+        closed = f"http://127.0.0.1:{self._closed_port()}/v1"
+        start = time.monotonic()
+        self.assertFalse(openai_reachable(closed))
+        self.assertLess(time.monotonic() - start, 3.0)
+
+        hanging = socket.socket()
+        hanging.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        hanging.bind(("127.0.0.1", 0))
+        hanging.listen(1)
+        hang_url = f"http://127.0.0.1:{hanging.getsockname()[1]}/v1"
+        try:
+            start = time.monotonic()
+            self.assertFalse(openai_reachable(hang_url, timeout=2.0))
+            elapsed = time.monotonic() - start
+        finally:
+            hanging.close()
+        self.assertLess(elapsed, 4.0)
+
+        engine = {"openai_key": "sk-test", "openai_base": closed}
+        self.assertFalse(service._engine_ready("openai", engine))
+        self.assertIn("无法连接", service._engine_missing_message("openai", engine))
+
+        start = time.monotonic()
+        result = translate_rows(GLOSSARY_ROWS, mode="zh_to_en", provider="openai", engine=engine)
+        self.assertLess(time.monotonic() - start, 4.0)
+        self.assertFalse(result["has_engine"])
+        self.assertEqual(result["mt"], 0)
+        self.assertTrue(any(item["target"] == "ceiling" for item in result["items"]))
+        self.assertTrue(any(item["via"] == "needs_engine" for item in result["items"]))
+
+        start = time.monotonic()
+        batch = self.client.post(
+            "/api/batch/start",
+            json={"provider": "openai", "openai_key": "sk-test", "openai_base": closed, "output_dir": self.tmp.name},
+        )
+        self.assertLess(time.monotonic() - start, 4.0)
+        self._assert_calm(batch, 400, "无法连接自定义接口")
+
+        start = time.monotonic()
+        drawn = self.client.post(
+            "/api/drawings/translate",
+            json={
+                "items": GLOSSARY_ROWS,
+                "translation_mode": "zh_to_en",
+                "provider": "openai",
+                "openai_key": "sk-test",
+                "openai_base": closed,
+            },
+        )
+        self.assertLess(time.monotonic() - start, 4.0)
+        self.assertEqual(drawn.status_code, 200, drawn.text)
+        self.assertNotIn("Traceback", drawn.text)
+        payload = drawn.json()
+        self.assertFalse(payload["has_engine"])
+        self.assertEqual(payload["mt"], 0)
+
     def test_ollama_down_is_fast_and_skips_mt(self):
         with patch("backend.providers.ollama.urllib.request.urlopen", side_effect=OSError("down")) as open_url:
             self.assertFalse(ollama_reachable("http://127.0.0.1:9"))
@@ -408,7 +474,7 @@ class EngineAndGlossaryTests(unittest.TestCase):
     def test_frontend_engine_and_glossary_hints(self):
         text = Path(__file__).resolve().parents[1].joinpath("frontend", "src", "App.jsx").read_text(encoding="utf-8")
         self.assertIn("请先启动 Ollama。", text)
-        self.assertIn("请配置自定义接口地址和 Key。", text)
+        self.assertIn("无法连接自定义接口。", text)
         self.assertIn("剩下的要填云引擎 Key，或手填译文。", text)
         self.assertIn('setStatus("术语表是空的")', text)
         self.assertIn("术语表读不出来。", text)

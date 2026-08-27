@@ -498,6 +498,18 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertEqual(glossary.status_code, 400, glossary.text)
         self.assertIn("术语表不存在", glossary.json()["detail"])
         self.assertNotIn("Traceback", glossary.text)
+        gone = str(Path(self.tmp.name) / "gone.dxf")
+        extracted = self.client.post("/api/drawings/extract", json={"path": gone, "translation_mode": "zh_to_en"})
+        self.assertEqual(extracted.status_code, 404, extracted.text)
+        self.assertEqual(extracted.json()["detail"], "图纸不存在")
+        self.assertNotIn("Traceback", extracted.text)
+        pdf = self.client.post(
+            "/api/drawings/export-pdf",
+            json={"path": gone, "output_dir": self.tmp.name, "output_name": "gone.pdf"},
+        )
+        self.assertEqual(pdf.status_code, 404, pdf.text)
+        self.assertIn("不存在", pdf.json()["detail"])
+        self.assertNotIn("Traceback", pdf.text)
 
     def test_frontend_import_tab_is_honest(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"

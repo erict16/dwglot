@@ -272,7 +272,9 @@ class CADChineseTranslator:
                 self.translation_provider = "azure"
             return
         if provider == "openai":
-            if openai_key.strip() and openai_base.strip():
+            from backend.providers.openai_compat import openai_reachable
+
+            if openai_key.strip() and openai_base.strip() and openai_reachable(openai_base):
                 self.configure_openai(openai_key, openai_base, openai_model)
             else:
                 self.translation_provider = "openai"
