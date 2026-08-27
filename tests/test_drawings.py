@@ -1512,6 +1512,26 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertNotIn("Traceback", written.text)
         self.assertNotIn("Errno", written.text)
 
+    def test_export_pdf_save_fail_is_400(self):
+        with patch("backend.drawings.atomic_output_path", side_effect=OSError("No space left on device")):
+            pdf = self.client.post(
+                "/api/drawings/export-pdf",
+                json={"path": str(self.dxf), "output_dir": self.tmp.name, "output_name": "x.pdf"},
+            )
+            printed = self.client.post(
+                "/api/drawings/print",
+                json={"path": str(self.dxf), "output_dir": self.tmp.name, "output_name": "p.pdf"},
+            )
+        self.assertEqual(pdf.status_code, 400, pdf.text)
+        self.assertIn("文件保存失败", pdf.json()["detail"])
+        self.assertNotIn("No space", pdf.text)
+        self.assertNotIn("OSError", pdf.text)
+        self.assertNotIn("Traceback", pdf.text)
+        self.assertEqual(printed.status_code, 400, printed.text)
+        self.assertIn("文件保存失败", printed.json()["detail"])
+        self.assertNotIn("No space", printed.text)
+        self.assertNotIn("Traceback", printed.text)
+
     def test_extract_digits_only_drawing_is_200(self):
         path = Path(self.tmp.name) / "digits.dxf"
         doc = ezdxf.new("R2010")

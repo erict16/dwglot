@@ -628,20 +628,25 @@ def _render_pdf(layouts, dest: Path) -> None:
     from ezdxf.addons.drawing.properties import LayoutProperties, RenderContext
 
     dpi = 150
-    with atomic_output_path(str(dest)) as temporary_output, PdfPages(temporary_output) as pdf:
-        for layout in layouts:
-            fig = plt.figure(dpi=dpi)
-            ax = fig.add_axes((0, 0, 1, 1))
-            ctx = RenderContext(layout.doc)
-            props = LayoutProperties.from_layout(layout)
-            backend = MatplotlibBackend(ax)
-            Frontend(ctx, backend, Configuration()).draw_layout(
-                layout,
-                finalize=True,
-                layout_properties=props,
-            )
-            pdf.savefig(fig, dpi=dpi, facecolor=ax.get_facecolor())
-            plt.close(fig)
+    try:
+        with atomic_output_path(str(dest)) as temporary_output, PdfPages(temporary_output) as pdf:
+            for layout in layouts:
+                fig = plt.figure(dpi=dpi)
+                ax = fig.add_axes((0, 0, 1, 1))
+                ctx = RenderContext(layout.doc)
+                props = LayoutProperties.from_layout(layout)
+                backend = MatplotlibBackend(ax)
+                Frontend(ctx, backend, Configuration()).draw_layout(
+                    layout,
+                    finalize=True,
+                    layout_properties=props,
+                )
+                pdf.savefig(fig, dpi=dpi, facecolor=ax.get_facecolor())
+                plt.close(fig)
+    except (ValueError, RuntimeError):
+        raise
+    except OSError:
+        raise ValueError("文件保存失败") from None
 
 
 PRINT_TIMEOUT = 5.0
