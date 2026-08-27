@@ -288,7 +288,8 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("partition location plan", model)
         self.assertIn("distribution board", model)
 
-        pdf = export_pdf(str(dxf), str(self.root / "floor_plan.pdf"))
+        pdf = export_pdf(output["path"], str(self.root / "floor_plan.pdf"))
+        self.assertEqual(pdf["cad_path"], output["path"])
         self.assertGreater(pdf["bytes"], 2500)
         self.assertGreaterEqual(pdf["pages"], 2)
         _assert_cjk_pdf(self, Path(pdf["path"]), min_ink=800)
@@ -408,7 +409,8 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("bill of materials", reread_sources)
         self.assertNotIn("安装高度", {item["source"] for item in reread["items"] if item["type"] == "DIMENSION"})
 
-        pdf = export_pdf(str(dxf), str(self.root / "dims_tables.pdf"))
+        pdf = export_pdf(output["path"], str(self.root / "dims_tables.pdf"))
+        self.assertEqual(pdf["cad_path"], output["path"])
         self.assertGreater(pdf["bytes"], 800)
         self.assertGreaterEqual(pdf["pages"], 1)
         _assert_cjk_pdf(self, Path(pdf["path"]), min_ink=800)
@@ -525,16 +527,32 @@ class DrawingsApiTests(unittest.TestCase):
             },
         )
         self.assertEqual(written.status_code, 200, written.text)
-        self.assertTrue(Path(written.json()["path"]).is_file())
+        written_path = written.json()["path"]
+        self.assertTrue(Path(written_path).is_file())
+        reread = extract_preview(written_path)
+        self.assertTrue(any(item["source"] == "reflected ceiling plan" for item in reread["items"]))
+        self.assertFalse(any(item["source"] == "天花图" for item in reread["items"]))
 
+        source_pdf = self.client.post(
+            "/api/drawings/export-pdf",
+            json={"path": path, "output_dir": self.tmp.name, "output_name": "source.pdf"},
+        )
+        self.assertEqual(source_pdf.status_code, 200, source_pdf.text)
         pdf = self.client.post(
             "/api/drawings/export-pdf",
-            json={"path": path, "output_dir": self.tmp.name, "output_name": "api.pdf"},
+            json={"path": written_path, "output_dir": self.tmp.name, "output_name": "api.pdf"},
         )
         self.assertEqual(pdf.status_code, 200, pdf.text)
-        pdf_path = Path(pdf.json()["path"])
+        body = pdf.json()
+        pdf_path = Path(body["path"])
         self.assertTrue(pdf_path.is_file())
         self.assertEqual(pdf_path.read_bytes()[:5], b"%PDF-")
+        self.assertEqual(body["cad_path"], written_path)
+        self.assertNotEqual(pdf_path.read_bytes(), Path(source_pdf.json()["path"]).read_bytes())
+        extracted = _pdf_text(pdf_path)
+        if extracted.strip():
+            self.assertIn("ceiling", extracted.lower())
+            self.assertNotIn("天花", extracted)
 
         updates = self.client.get("/api/updates/check")
         self.assertEqual(updates.status_code, 200, updates.text)
@@ -663,6 +681,9 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertIn("先打开图纸。", text)
         self.assertIn("disabled={busy || !current} onClick={() => exportPdf(true)}", text)
         self.assertIn("已送到系统打印", text)
+        self.assertIn("function cadPathForPdf()", text)
+        self.assertIn("PDF 已导出（写回图纸）", text)
+        self.assertIn("原图，还未写回译文", text)
 
     def test_frontend_empty_filter_is_calm(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"

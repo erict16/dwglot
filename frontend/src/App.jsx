@@ -123,6 +123,7 @@ export default function App() {
   const [updateMsg, setUpdateMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [lastOutput, setLastOutput] = useState("");
+  const [writtenPath, setWrittenPath] = useState("");
   const cadInput = useRef(null);
   const glossaryInput = useRef(null);
 
@@ -206,6 +207,7 @@ export default function App() {
       return;
     }
     setFiles(next);
+    setWrittenPath("");
     setCurrent(next[0].path);
     await extractFile(next[0].path);
   }
@@ -346,6 +348,7 @@ export default function App() {
           translation_mode: modeKey(sourceLang, targetLang),
         }),
       });
+      setWrittenPath(data.path || "");
       setLastOutput(data.path || "");
       setStatus(`已写回 ${data.written} 条 → ${data.path}`);
       const native = py();
@@ -357,30 +360,46 @@ export default function App() {
     }
   }
 
+  function cadPathForPdf() {
+    const written = asText(writtenPath);
+    if (written && /\.(dxf|dwg)$/i.test(written)) return written;
+    return current;
+  }
+
   async function exportPdf(andPrint = false) {
     if (!current) {
       setStatus("先打开图纸。");
       return;
     }
+    const sourcePath = cadPathForPdf();
+    const fromWriteback = Boolean(writtenPath) && sourcePath === writtenPath;
+    const stem = (fromWriteback ? sourcePath : selected?.name || "drawing")
+      .replace(/^.*[/\\]/, "")
+      .replace(/\.[^.]+$/, "") || "drawing";
     setBusy(true);
     setStatus(andPrint ? "正在导出并打印…" : "正在导出 PDF…");
     try {
       const data = await api(andPrint ? "/api/drawings/print" : "/api/drawings/export-pdf", {
         method: "POST",
         body: JSON.stringify({
-          path: current,
+          path: sourcePath,
           output_dir: config.output_dir,
-          output_name: `${selected?.name?.replace(/\.[^.]+$/, "") || "drawing"}.pdf`,
+          output_name: `${stem}.pdf`,
         }),
       });
       setLastOutput(data.path || "");
       if (andPrint) {
         const printed = data.print || {};
-        setStatus(printed.ok ? `已送到系统打印：${data.path}` : `${printed.message || data.message || "打印没发出去"}。PDF：${data.path}`);
+        const where = fromWriteback ? "写回图纸" : "原图，还未写回译文";
+        setStatus(printed.ok ? `已送到系统打印（${where}）：${data.path}` : `${printed.message || data.message || "打印没发出去"}。PDF：${data.path}`);
         const native = py();
         if (native?.print_pdf && data.path && !printed.ok) native.print_pdf(data.path);
+      } else if (fromWriteback) {
+        setStatus(`PDF 已导出（写回图纸）→ ${data.path}`);
+        const native = py();
+        if (native?.reveal_file && data.path) native.reveal_file(data.path);
       } else {
-        setStatus(`PDF 已导出（ezdxf drawing，不是 AutoCAD 出图）→ ${data.path}`);
+        setStatus(`PDF 已导出（原图，还未写回译文。ezdxf drawing，不是 AutoCAD 出图）→ ${data.path}`);
         const native = py();
         if (native?.reveal_file && data.path) native.reveal_file(data.path);
       }
@@ -567,6 +586,7 @@ export default function App() {
               key={file.path}
               className={`item${file.path === current ? " on" : ""}`}
               onClick={() => {
+                if (file.path !== current) setWrittenPath("");
                 setCurrent(file.path);
                 if (tab === "regular") extractFile(file.path);
               }}

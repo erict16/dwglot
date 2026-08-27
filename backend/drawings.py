@@ -362,7 +362,12 @@ def export_pdf(path: str, output_path: str = "", layout_name: str = "") -> dict:
         _render_pdf(pages, dest)
     if not dest.is_file() or dest.stat().st_size < 8:
         raise RuntimeError("PDF 导出失败")
-    return {"path": str(dest), "pages": len(pages), "bytes": dest.stat().st_size}
+    return {
+        "path": str(dest),
+        "pages": len(pages),
+        "bytes": dest.stat().st_size,
+        "cad_path": str(path),
+    }
 
 
 def _render_pdf(layouts, dest: Path) -> None:
