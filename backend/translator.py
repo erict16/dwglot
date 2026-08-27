@@ -1142,7 +1142,7 @@ class CADChineseTranslator:
             doc = ezdxf.readfile(input_file) 
             self.safe_log("✅ 成功读取文件 (自动检测编码)")
         except Exception as e:
-            self.safe_log(f"❌ 读取文件失败: {e}")
+            self.safe_log("❌ 无法读取DXF文件")
             raise ValueError("无法读取DXF文件") from e
 
         if doc is None:

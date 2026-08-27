@@ -780,6 +780,11 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("无法读取", task["message"])
         self.assertNotIn("Traceback", task["message"])
         self.assertEqual(task.get("retries") or 0, 0)
+        logs = "\n".join(task.get("logs") or [])
+        self.assertIn("无法读取", logs)
+        self.assertNotIn("is not a DXF", logs)
+        self.assertNotIn("OSError", logs)
+        self.assertNotIn("Traceback", logs)
 
     def test_start_skips_stale_missing_paths(self):
         live = Path(self.tmp.name) / "live.dxf"

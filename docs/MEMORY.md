@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: Batch of junk DXF already failed 无法读取DXF文件, but logs were `读取文件失败: File '…' is not a DXF file.` Now logs 无法读取DXF文件, no English ezdxf OSError. `python -m unittest discover -s tests` 130 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `lp` exit 1 with English stderr (`No such file or directory`) or empty stderr was leaking English / claiming 系统没有打印命令. Now 打印失败，PDF 已留下. Missing `lp` still 系统没有打印命令. `python -m unittest discover -s tests` 130 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: export-pdf/print `style=译原对照` + `layout=A1` is 200, 1 CJK page, different bytes than 纯译文 A1 and 原译对照 A1. Missing `lp` leaves the PDF. Batch has no PDF layout. `python -m unittest discover -s tests` 129 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: 译原对照 write-back of floor_plan A1: original handles become `grounding` / `floor plan`, stacked `接地` / `平面布置图` stay on A1 (4 TEXT). Those stay off Model. `python -m unittest discover -s tests` 128 ok. Do not edit landing/, README*, docs/icons/.
