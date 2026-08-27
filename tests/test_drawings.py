@@ -1054,6 +1054,49 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertIn("打印命令", printed_body["print"]["message"])
         self.assertNotIn("Traceback", printed_body["print"]["message"])
 
+    def test_export_pdf_print_after(self):
+        with patch("backend.drawings.shutil.which", return_value=None), patch(
+            "backend.drawings.subprocess.run", side_effect=AssertionError("lp must not run")
+        ):
+            missing = self.client.post(
+                "/api/drawings/export-pdf",
+                json={
+                    "path": str(self.dxf),
+                    "output_dir": self.tmp.name,
+                    "output_name": "print_after_none.pdf",
+                    "print_after": True,
+                },
+            )
+        self.assertEqual(missing.status_code, 200, missing.text)
+        self.assertNotIn("Traceback", missing.text)
+        none_body = missing.json()
+        self.assertIn("print", none_body)
+        self.assertFalse(none_body["print"]["ok"])
+        self.assertIn("打印命令", none_body["print"]["message"])
+        self.assertNotIn("Traceback", none_body["print"]["message"])
+        _assert_cjk_pdf(self, Path(none_body["path"]), min_ink=800)
+
+        fake = subprocess.CompletedProcess(["/usr/bin/lp", "print_after_ok.pdf"], 0, "", "")
+        with patch("backend.drawings.shutil.which", return_value="/usr/bin/lp"), patch(
+            "backend.drawings.subprocess.run", return_value=fake
+        ) as run:
+            ok = self.client.post(
+                "/api/drawings/export-pdf",
+                json={
+                    "path": str(self.dxf),
+                    "output_dir": self.tmp.name,
+                    "output_name": "print_after_ok.pdf",
+                    "print_after": True,
+                },
+            )
+        self.assertEqual(ok.status_code, 200, ok.text)
+        self.assertNotIn("Traceback", ok.text)
+        ok_body = ok.json()
+        self.assertTrue(ok_body["print"]["ok"])
+        self.assertIn("lp", ok_body["print"]["command"])
+        self.assertEqual(run.call_count, 1)
+        _assert_cjk_pdf(self, Path(ok_body["path"]), min_ink=800)
+
     def test_print_without_lp_keeps_cjk_pdf(self):
         dest = Path(self.tmp.name) / "print.pdf"
         pdf = export_pdf(str(self.dxf), str(dest))
