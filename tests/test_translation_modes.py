@@ -229,6 +229,26 @@ class TranslationModeTests(unittest.TestCase):
         self.assertNotIn("Traceback", joined)
         self.assertNotIn('File "', joined)
 
+    def test_translate_cad_file_save_fail_is_chinese(self):
+        logs = []
+        cad = CADChineseTranslator(log_callback=lambda message, level="INFO": logs.append(message))
+        with tempfile.TemporaryDirectory() as tmp:
+            dxf = Path(tmp) / "ok.dxf"
+            doc = ezdxf.new("R2010")
+            doc.modelspace().add_text("天花图", dxfattribs={"insert": (0, 0)})
+            doc.saveas(dxf)
+            out = Path(tmp) / "out.dxf"
+            with patch("backend.translator.atomic_output_path", side_effect=OSError("No space left on device")):
+                with self.assertRaises(ValueError) as raised:
+                    cad.translate_cad_file(str(dxf), str(out), "zh_to_en")
+        self.assertIn("文件保存失败", str(raised.exception))
+        self.assertNotIn("No space", str(raised.exception))
+        joined = "\n".join(str(line) for line in logs)
+        self.assertIn("文件保存失败", joined)
+        self.assertNotIn("No space", joined)
+        self.assertNotIn("Traceback", joined)
+        self.assertNotIn("OSError", joined)
+
     def test_local_api_has_no_permissive_cors_middleware(self):
         self.assertFalse(any(middleware.cls.__name__ == "CORSMiddleware" for middleware in app.user_middleware))
 

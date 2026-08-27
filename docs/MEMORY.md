@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: `translate_cad_file` save fail logged `文件保存失败: No space left on device` and re-raised the English OSError (batch would retry). Now log/raise `文件保存失败` (ValueError). `python -m unittest discover -s tests` 135 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/translate` (`start_translation`) logged `ERROR: traceback.format_exc()` on fail. Now Chinese: English exceptions → 翻译失败; 无法读取DXF文件 stays. UI still uses `/api/drawings/translate`. `python -m unittest discover -s tests` 134 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: batch `write_back_translation` logged `traceback.format_exc()` (English File/line). Now `写回失败` only; batch wrapper is `写回 CAD 实体失败` without `{e}`. 常规 写回 never dumped a traceback. `python -m unittest discover -s tests` 133 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: 写回 / export-pdf / print with `output_dir` as a file is 400 `输出目录无法创建` (no FileExistsError). Batch start already locked. `python -m unittest discover -s tests` 133 ok. Do not edit landing/, README*, docs/icons/.

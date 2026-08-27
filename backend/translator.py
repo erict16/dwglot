@@ -1267,9 +1267,11 @@ class CADChineseTranslator:
             with atomic_output_path(output_file) as temporary_output:
                 doc.saveas(temporary_output)
             self.safe_log(f"✅ 文件成功保存: {output_file}")
-        except Exception as e:
-            self.safe_log(f"❌ 文件保存失败: {e}")
-            raise e
+        except InterruptedError:
+            raise
+        except Exception:
+            self.safe_log("文件保存失败")
+            raise ValueError("文件保存失败") from None
 
         self.safe_log("🎉 全部任务完成！")
 
