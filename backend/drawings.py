@@ -109,7 +109,10 @@ def extract_preview(
     translator = CADChineseTranslator()
     translator.enable_v02_entities = bool(enable_v02)
     with open_work_dxf(path) as work_dxf:
-        doc = ezdxf.readfile(work_dxf)
+        try:
+            doc = ezdxf.readfile(work_dxf)
+        except Exception as exc:
+            raise ValueError("无法读取DXF文件") from exc
         raw = translator.extract_text_entities(doc, mode, include_blocks=include_blocks)
         rows = []
         seen = {}
@@ -449,6 +452,7 @@ def apply_pdf_style(doc, items: list[dict] | None, style: str) -> int:
                 else:
                     continue
             elif kind in {"ATTRIB", "ATTDEF"} and field == "text":
+                # ATTRIB/ATTDEF are single-line AutoCAD attributes; \P is not valid here.
                 entity.dxf.text = f"{first} / {second}"
             elif kind == "DIMENSION" and field == "text":
                 entity.dxf.text = f"{first} / {second}"

@@ -337,8 +337,39 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("\\C1;", mtext.dxf.text)
         self.assertIn("\\P", mtext.dxf.text)
 
+    def test_unreadable_dxf_fails_calmly_without_retry(self):
+        src = Path(self.tmp.name) / "junk.dxf"
+        src.write_text("not a dxf at all", encoding="utf-8")
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"):
+            added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            task = None
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.05)
+        self.assertEqual(task["status"], "failed", task)
+        self.assertIn("无法读取", task["message"])
+        self.assertNotIn("Traceback", task["message"])
+        self.assertEqual(task.get("retries") or 0, 0)
+
     def test_missing_file_and_oda_are_not_retried(self):
         self.assertFalse(_retryable(FileNotFoundError("图纸不存在")))
+        self.assertFalse(_retryable(ValueError("无法读取DXF文件")))
         self.assertFalse(_retryable(RuntimeError("未检测到 ODA，无法处理 DWG；请安装 ODA 或将 DWG 另存为 DXF")))
         fatal = RuntimeError("请配置 DeepL API Key")
         fatal.retryable = False

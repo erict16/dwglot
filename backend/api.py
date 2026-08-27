@@ -288,7 +288,7 @@ class TranslationService:
             )
         except FileNotFoundError as exc:
             raise _fatal_batch_error("图纸不存在") from exc
-        except RuntimeError as exc:
+        except (ValueError, RuntimeError) as exc:
             raise _fatal_batch_error(str(exc)[:240] or "翻译失败") from exc
         return output
 

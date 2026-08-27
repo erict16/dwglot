@@ -837,6 +837,17 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertTrue(any(item["source"] == "1234" for item in body["items"]))
         self.assertTrue(all(isinstance(item.get("layer"), str) for item in body["items"]))
 
+    def test_extract_unreadable_dxf_is_400(self):
+        path = Path(self.tmp.name) / "junk.dxf"
+        path.write_text("not a dxf at all", encoding="utf-8")
+        extracted = self.client.post(
+            "/api/drawings/extract",
+            json={"path": str(path), "translation_mode": "zh_to_en"},
+        )
+        self.assertEqual(extracted.status_code, 400, extracted.text)
+        self.assertIn("无法读取", extracted.json()["detail"])
+        self.assertNotIn("Traceback", extracted.text)
+
 
 REAL_DWG_DIR = Path("/workspace/dwglot-drawings")
 

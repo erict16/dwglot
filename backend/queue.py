@@ -265,7 +265,7 @@ def _retryable(exc: BaseException) -> bool:
     if isinstance(exc, (FileNotFoundError, PermissionError, ValueError)):
         return False
     text = str(exc)
-    if "ODA" in text or "图纸不存在" in text or "无效 CAD" in text:
+    if "ODA" in text or "图纸不存在" in text or "无效 CAD" in text or "无法读取DXF" in text:
         return False
     return True
 

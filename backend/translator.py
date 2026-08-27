@@ -1083,10 +1083,10 @@ class CADChineseTranslator:
             self.safe_log("✅ 成功读取文件 (自动检测编码)")
         except Exception as e:
             self.safe_log(f"❌ 读取文件失败: {e}")
-            raise Exception("无法读取DXF文件")
+            raise ValueError("无法读取DXF文件") from e
 
         if doc is None:
-            raise Exception("无法读取DXF文件")
+            raise ValueError("无法读取DXF文件")
 
         # ============================================================
         # 🔥 核心逻辑：直接提取 (不再炸开块)
