@@ -378,6 +378,14 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertGreater(result["bytes"], 200)
         self.assertGreaterEqual(result["pages"], 1)
 
+    def test_export_pdf_unknown_layout_is_400(self):
+        dest = self.root / "nope.pdf"
+        with self.assertRaises(ValueError) as raised:
+            export_pdf(str(self.dxf), str(dest), "NOPE")
+        self.assertIn("没有这个布局", str(raised.exception))
+        self.assertNotIn("Traceback", str(raised.exception))
+        self.assertFalse(dest.exists())
+
     def test_floor_plan_glossary_writeback_pdf_and_paperspace(self):
         committed = FIXTURES / "floor_plan.dxf"
         dxf = committed if committed.is_file() else _floor_plan_dxf(self.root / "floor_plan.dxf")
@@ -876,6 +884,22 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertEqual(missing.json()["detail"], "图纸不存在")
         self.assertNotIn("Errno", missing.text)
         self.assertNotIn("Traceback", missing.text)
+
+    def test_export_pdf_and_print_unknown_layout_is_400(self):
+        pdf = self.client.post(
+            "/api/drawings/export-pdf",
+            json={"path": str(self.dxf), "output_dir": self.tmp.name, "output_name": "nope.pdf", "layout": "NOPE"},
+        )
+        self.assertEqual(pdf.status_code, 400, pdf.text)
+        self.assertIn("没有这个布局", pdf.json()["detail"])
+        self.assertNotIn("Traceback", pdf.text)
+        printed = self.client.post(
+            "/api/drawings/print",
+            json={"path": str(self.dxf), "output_dir": self.tmp.name, "layout": "NOPE"},
+        )
+        self.assertEqual(printed.status_code, 400, printed.text)
+        self.assertIn("没有这个布局", printed.json()["detail"])
+        self.assertNotIn("Traceback", printed.text)
 
     def test_print_without_lp_keeps_cjk_pdf(self):
         dest = Path(self.tmp.name) / "print.pdf"

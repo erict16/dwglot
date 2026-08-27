@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: Unknown PDF layout is 400 `没有这个布局` on `/api/drawings/export-pdf` and `/api/drawings/print`. Batch has no PDF layout. `python -m unittest discover -s tests` 114 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: Locked + off layers: extract skip TITLE `天花图`, batch `include_locked/include_off` False leaves it and still writes `剪力墙` → shear wall. Same as 常规. `python -m unittest discover -s tests` 112 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: 常规 翻译 posts `visibleRows` and `/api/drawings/translate` applies skip_numbers/dupes/nonsource (default on). Hidden rows stay in state without a target. Proof: 天花图 + duplicate + 1234 + HELLO → only 天花图 gets `reflected ceiling plan`. `python -m unittest discover -s tests` 110 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: 常规 写回 posts `visibleRows`, not the full extract `rows`. Toggling 过滤 after extract no longer writes hidden rows that already have a target. skip_dupes write-back of floor_plan leaves paperspace `平面布置图`, still writes unique `接地` and model `floor plan`. `python -m unittest discover -s tests` 108 ok. Do not edit landing/, README*, docs/icons/.
