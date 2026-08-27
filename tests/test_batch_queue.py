@@ -1038,6 +1038,44 @@ class BatchApiTests(unittest.TestCase):
             self.assertEqual(removed.status_code, 200, removed.text)
             self.assertEqual(removed.json()["tasks"], [])
 
+    def test_batch_retry_http_queues_waiting(self):
+        src = Path(self.tmp.name) / "junk.dxf"
+        src.write_text("not a dxf at all", encoding="utf-8")
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"):
+            added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            task_id = added.json()["tasks"][0]["id"]
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            deadline = time.monotonic() + 8
+            task = None
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.02)
+            self.assertEqual(task["status"], "failed", task)
+            with patch.object(service.batch, "_schedule"):
+                retried = self.client.post(f"/api/batch/{task_id}/retry")
+            self.assertEqual(retried.status_code, 200, retried.text)
+            self.assertNotIn("Traceback", retried.text)
+            waiting = retried.json()["tasks"][0]
+            self.assertEqual(waiting["id"], task_id)
+            self.assertEqual(waiting["status"], "queued")
+            self.assertEqual(waiting["message"], "等待重翻")
+            self.assertEqual(waiting["progress"], 0)
+            self.assertEqual(waiting["output_file"], "")
+
     def test_start_skips_stale_missing_paths(self):
         live = Path(self.tmp.name) / "live.dxf"
         shutil.copy(FIXTURES / "floor_plan.dxf", live)
