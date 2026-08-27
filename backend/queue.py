@@ -137,7 +137,10 @@ class BatchQueue:
 
     def remove(self, task_id: str):
         with self.lock:
-            self.tasks = [t for t in self.tasks if not (t["id"] == task_id and t["status"] != "running")]
+            task = self._task(task_id)
+            if task and task["status"] == "running":
+                raise RuntimeError("请先停止队列")
+            self.tasks = [t for t in self.tasks if t["id"] != task_id]
             self._save()
         return self.snapshot()
 

@@ -1105,7 +1105,10 @@ def clear_batch():
 
 @app.post("/api/batch/{task_id}/remove")
 def remove_batch_task(task_id: str):
-    return service.batch.remove(task_id)
+    try:
+        return service.batch.remove(task_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.post("/api/batch/{task_id}/retry")

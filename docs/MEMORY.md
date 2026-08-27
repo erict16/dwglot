@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: `/api/batch/{id}/remove` of a running task was 200 with the task still in the snapshot. Now 409 `请先停止队列`. After stop, remove is 200 and `tasks` []. `python -m unittest discover -s tests` 149 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/pause` JSON `{"paused": false}` was ignored (query default still paused). Query `paused=false` already worked. JSON body now wins when `paused` is present. `python -m unittest discover -s tests` 148 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/clear` while the queue is running is 409 `请先停止队列`. After stop, clear is 200 and `tasks` []. `python -m unittest discover -s tests` 147 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/stop` during a running job is 200, task `cancelled` / `已停止` (stop() writes that before the worker). InterruptedError without cancel flag is `failed` / `翻译已取消`, retries 0. `python -m unittest discover -s tests` 146 ok. Do not edit landing/, README*, docs/icons/.
