@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: 批量导出 honors 版式. `translate_cad_file(..., style=)` reuses `apply_pdf_style`. 纯译文 unchanged; 原译对照 / 译原对照 stack TEXT and MTEXT `\\P` with `\\C1;`. floor_plan.dxf batch 对照 re-reads 天花图 and reflected ceiling plan. `python -m unittest discover -s tests` 90 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: 对照 write-back. 写回 纯译文 is translation only. 原译对照 / 译原对照 reuse `apply_pdf_style`: stacked TEXT, MTEXT/MULTILEADER `\\P` with `\\C1;` kept. Re-read DXF has both 天花图 and reflected ceiling plan. PDF of the write-back is the file as written. `python -m unittest discover -s tests` 88 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: Batch `translate_cad_file` kept MTEXT/MULTILEADER codes (`{\\C1;天花}` / `隔墙定位图`). Same run mapper as 常规. floor_plan.dxf batch output still has `\\C1;`. 对照 write-back DXF still 纯译文 (PDF stamp only). `python -m unittest discover -s tests` 87 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: 批量导出 glossary-only. Empty DeepL/Azure/OpenAI/Ollama is allowed; bundled zh→en hits write a prefixed DXF. Unmatched rows stay source (`未译（无引擎）`); if nothing hits, the task fails calmly (not success-with-source). floor_plan.dxf 天花图/平面布置图 → English, no network. DWG without ODA still 400; 批量导入 still 501. `python -m unittest discover -s tests` 86 ok. Do not edit landing/, README*, docs/icons/.

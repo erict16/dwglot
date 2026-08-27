@@ -131,6 +131,7 @@ class BatchStartBody(BaseModel):
     openai_model: str = ""
     ollama_host: str = ""
     ollama_model: str = ""
+    style: str = "纯译文"
 
 
 class ExtractBody(BaseModel):
@@ -274,7 +275,17 @@ class TranslationService:
         translator.configure_language_assets(task.get("project_package_path") or config.get("project_package_path", ""))
         translator.configure_engine(provider, **engine)
         try:
-            translator.translate_cad_file(path, output, task["translation_mode"], task["translate_blocks"], fmt, task.get("output_version", ""), resume_event, cancel_event)
+            translator.translate_cad_file(
+                path,
+                output,
+                task["translation_mode"],
+                task["translate_blocks"],
+                fmt,
+                task.get("output_version", ""),
+                resume_event,
+                cancel_event,
+                style=task.get("style") or "纯译文",
+            )
         except FileNotFoundError as exc:
             raise _fatal_batch_error("图纸不存在") from exc
         except RuntimeError as exc:

@@ -12,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import ezdxf
 from fastapi.testclient import TestClient
 
 from backend import queue as batch_queue
@@ -292,6 +293,49 @@ class BatchApiTests(unittest.TestCase):
         mtext = next(item for item in preview["items"] if item["type"] == "MTEXT")
         self.assertIn("partition", mtext["source"].lower())
         self.assertIn("\\C1;", mtext["raw"])
+
+    def test_batch_bilingual_style_writes_two_lines(self):
+        fixture = FIXTURES / "floor_plan.dxf"
+        src = Path(self.tmp.name) / "floor_plan.dxf"
+        shutil.copy(fixture, src)
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"), patch(
+            "urllib.request.urlopen"
+        ) as open_url:
+            open_url.side_effect = AssertionError("batch 对照 must not call the network")
+            added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                    "style": "原译对照",
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            task = None
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.05)
+            open_url.assert_not_called()
+        self.assertEqual(task["status"], "succeeded", task)
+        out = Path(task["output_file"])
+        self.assertTrue(out.is_file(), task)
+        sources = {item["source"] for item in extract_preview(str(out), include_attribs=True, include_paper=True)["items"]}
+        self.assertIn("天花图", sources)
+        self.assertIn("reflected ceiling plan", sources)
+        self.assertIn("平面布置图", sources)
+        self.assertIn("floor plan", sources)
+        mtext = next(entity for entity in ezdxf.readfile(out).modelspace() if entity.dxftype() == "MTEXT")
+        self.assertIn("\\C1;", mtext.dxf.text)
+        self.assertIn("\\P", mtext.dxf.text)
 
     def test_missing_file_and_oda_are_not_retried(self):
         self.assertFalse(_retryable(FileNotFoundError("图纸不存在")))

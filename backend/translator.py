@@ -1054,7 +1054,7 @@ class CADChineseTranslator:
             self.safe_log(f"写回失败: {e}\n{traceback.format_exc()}")
             raise
 
-    def translate_cad_file(self, input_file, output_file, lang_config, include_blocks=False, output_format="source", output_version="", resume_event=None, cancel_event=None):
+    def translate_cad_file(self, input_file, output_file, lang_config, include_blocks=False, output_format="source", output_version="", resume_event=None, cancel_event=None, style="纯译文"):
         from backend.cad import CadConversionSession
 
         wait_for_translation(resume_event, cancel_event)
@@ -1062,13 +1062,15 @@ class CADChineseTranslator:
             work_input = session.work_input
             work_output = session.work_output_path() or output_file
             wait_for_translation(resume_event, cancel_event)
-            self._translate_cad_file_dxf(work_input, work_output, lang_config, include_blocks, input_file, "", resume_event, cancel_event)
+            self._translate_cad_file_dxf(
+                work_input, work_output, lang_config, include_blocks, input_file, "", resume_event, cancel_event, style=style
+            )
             if session.meta.is_dwg or output_version or output_format == "dwg":
                 wait_for_translation(resume_event, cancel_event)
                 session.finalize(work_output, output_file)
 
     def _translate_cad_file_dxf(
-        self, input_file, output_file, lang_config, include_blocks=False, source_label=None, output_version="", resume_event=None, cancel_event=None
+        self, input_file, output_file, lang_config, include_blocks=False, source_label=None, output_version="", resume_event=None, cancel_event=None, style="纯译文"
     ):
         display_name = source_label or input_file
         self.safe_log(f"正在读取: {display_name}")
@@ -1101,6 +1103,10 @@ class CADChineseTranslator:
         else:
             self.safe_log(f"🚀 开始翻译，共发现 {total_items} 个文本对象...")
             
+            from backend.drawings import apply_pdf_style, normalize_pdf_style
+
+            style = normalize_pdf_style(style)
+            bilingual = []
             successful_translations = 0
             skipped_invalid = 0
 
@@ -1135,21 +1141,33 @@ class CADChineseTranslator:
                     changed = translated != original_text
 
                 if changed:
-                    try:
-                        if kind == "MTEXT" and formatted:
-                            self._write_mtext_entity(entity, payload)
-                        else:
-                            self.write_back_translation(entity, payload, field)
-                        if field == 'tag':
-                            self._sync_attrib_tags(
-                                doc,
-                                item.get('raw_source', original_text),
-                                translated,
-                            )
+                    bilingual.append({
+                        "handle": item.get("handle") or "",
+                        "source": original_text,
+                        "target": translated,
+                        "raw": raw,
+                        "target_raw": payload if formatted else translated,
+                        "field": field,
+                        "type": kind,
+                    })
+                    if style == "纯译文":
+                        try:
+                            if kind == "MTEXT" and formatted:
+                                self._write_mtext_entity(entity, payload)
+                            else:
+                                self.write_back_translation(entity, payload, field)
+                            if field == 'tag':
+                                self._sync_attrib_tags(
+                                    doc,
+                                    item.get('raw_source', original_text),
+                                    translated,
+                                )
+                            successful_translations += 1
+                        except Exception as e:
+                            self.safe_log(f" ❌ 写回实体失败: {e}", level="error")
+                            raise RuntimeError(f"写回 CAD 实体失败: {e}") from e
+                    else:
                         successful_translations += 1
-                    except Exception as e:
-                        self.safe_log(f" ❌ 写回实体失败: {e}", level="error")
-                        raise RuntimeError(f"写回 CAD 实体失败: {e}") from e
                 
                 if i % 10 == 0 or i == total_items:
                     self.safe_log(f"   进度: {i}/{total_items} ({i/total_items*100:.1f}%)")
@@ -1157,6 +1175,9 @@ class CADChineseTranslator:
             unmatched = total_items - skipped_invalid - successful_translations
             if unmatched > 0:
                 self.safe_log(f"未译 {unmatched} 条（术语表未命中，无引擎）。")
+            if style != "纯译文" and bilingual:
+                stamped = apply_pdf_style(doc, bilingual, style)
+                self.safe_log(f"版式 {style}：已叠 {stamped} 条。")
             self.safe_log(f"翻译统计：成功 {successful_translations}, 跳过 {skipped_invalid}")
             if successful_translations == 0 and unmatched > 0:
                 raise RuntimeError("术语表没有命中，请配置翻译引擎或手填译文")

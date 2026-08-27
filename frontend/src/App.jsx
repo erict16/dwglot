@@ -428,6 +428,7 @@ export default function App() {
           translation_mode: modeKey(sourceLang, targetLang),
           translate_blocks: params.attribs,
           output_format: "source",
+          style: layout,
           ...enginePayload(engine, config),
         }),
       });

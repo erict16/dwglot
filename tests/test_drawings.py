@@ -225,6 +225,21 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("\\C1;", mtext.dxf.text)
         self.assertIn("ceiling", mtext.dxf.text.lower())
 
+    def test_translate_cad_file_bilingual_style(self):
+        dest = self.root / "en_batch_bilingual.dxf"
+        translator = CADChineseTranslator(log_callback=lambda *_a, **_k: None)
+        translator.configure_engine("deepl")
+        translator.translate_cad_file(str(self.dxf), str(dest), "zh_to_en", False, style="原译对照")
+        reread = extract_preview(str(dest), include_attribs=True, include_paper=True)
+        sources = {item["source"] for item in reread["items"]}
+        self.assertIn("天花图", sources)
+        self.assertIn("reflected ceiling plan", sources)
+        mtext = next(entity for entity in ezdxf.readfile(dest).modelspace() if entity.dxftype() == "MTEXT")
+        self.assertIn("\\C1;", mtext.dxf.text)
+        self.assertIn("\\P", mtext.dxf.text)
+        self.assertIn("天花", mtext.dxf.text)
+        self.assertIn("ceiling", mtext.dxf.text.lower())
+
     def test_multileader_glossary_writeback_keeps_mtext_codes(self):
         dxf = _multileader_dxf(self.root / "mleader.dxf")
         preview = extract_preview(str(dxf), include_attribs=True, include_paper=True)
