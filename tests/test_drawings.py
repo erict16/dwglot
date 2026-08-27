@@ -16,7 +16,15 @@ from fastapi.testclient import TestClient
 from backend.api import app
 from unittest.mock import patch
 
-from backend.drawings import PRINT_TIMEOUT, extract_preview, export_pdf, print_pdf, translate_rows, writeback_rows
+from backend.drawings import (
+    PRINT_TIMEOUT,
+    apply_pdf_style,
+    extract_preview,
+    export_pdf,
+    print_pdf,
+    translate_rows,
+    writeback_rows,
+)
 from backend.styles import bundled_font_path, looks_like_shx, register_cjk_font, rewrite_shx_styles
 from backend.translator import CADChineseTranslator
 from backend.updates import check_github_release
@@ -240,6 +248,47 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("grounding", sources)
         leader_out = next(item for item in reread["items"] if item["type"] == "MULTILEADER")
         self.assertIn("\\C1;", leader_out["raw"])
+
+    def test_pdf_style_changes_bytes_and_labels(self):
+        preview = extract_preview(str(self.dxf), include_attribs=True, include_paper=True)
+        translated = translate_rows(preview["items"], mode="zh_to_en", provider="deepl", engine={})
+        output = writeback_rows(
+            str(self.dxf),
+            translated["items"],
+            output_dir=str(self.root),
+            output_name="en_style",
+            mode="zh_to_en",
+        )
+        written = output["path"]
+        items = translated["items"]
+        plain = export_pdf(written, str(self.root / "plain.pdf"), style="纯译文", items=items)
+        source_first = export_pdf(written, str(self.root / "src_tgt.pdf"), style="原译对照", items=items)
+        target_first = export_pdf(written, str(self.root / "tgt_src.pdf"), style="译原对照", items=items)
+        self.assertEqual(plain["style"], "纯译文")
+        self.assertEqual(source_first["style"], "原译对照")
+        self.assertEqual(target_first["style"], "译原对照")
+        self.assertEqual(plain["cad_path"], written)
+        plain_bytes = Path(plain["path"]).read_bytes()
+        src_bytes = Path(source_first["path"]).read_bytes()
+        tgt_bytes = Path(target_first["path"]).read_bytes()
+        self.assertEqual(plain_bytes[:5], b"%PDF-")
+        self.assertNotEqual(plain_bytes, src_bytes)
+        self.assertNotEqual(src_bytes, tgt_bytes)
+
+        labeled = ezdxf.readfile(written)
+        applied = apply_pdf_style(labeled, items, "原译对照")
+        self.assertGreater(applied, 0)
+        texts = [entity.dxf.text for entity in labeled.modelspace() if entity.dxftype() == "TEXT"]
+        self.assertIn("天花图", texts)
+        self.assertIn("reflected ceiling plan", texts)
+
+        reversed_doc = ezdxf.readfile(written)
+        apply_pdf_style(reversed_doc, items, "译原对照")
+        ceiling = next(entity for entity in reversed_doc.modelspace() if entity.dxftype() == "TEXT" and "ceiling" in entity.dxf.text)
+        self.assertEqual(ceiling.dxf.text, "reflected ceiling plan")
+
+        source_pdf = export_pdf(str(self.dxf), str(self.root / "source_style.pdf"), style="原译对照", items=items)
+        self.assertEqual(source_pdf["style"], "原译对照")
 
     def test_export_pdf_is_real_pdf(self):
         dest = self.root / "sample.pdf"
@@ -682,8 +731,9 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertIn("disabled={busy || !current} onClick={() => exportPdf(true)}", text)
         self.assertIn("已送到系统打印", text)
         self.assertIn("function cadPathForPdf()", text)
-        self.assertIn("PDF 已导出（写回图纸）", text)
+        self.assertIn("PDF 已导出（写回图纸 · ${layout}）", text)
         self.assertIn("原图，还未写回译文", text)
+        self.assertIn("style: fromWriteback ? layout : \"纯译文\"", text)
 
     def test_frontend_empty_filter_is_calm(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"

@@ -350,14 +350,103 @@ def _layout_pages(doc, layout_name: str = ""):
     return pages or [doc.modelspace()]
 
 
-def export_pdf(path: str, output_path: str = "", layout_name: str = "") -> dict:
+PDF_STYLES = {"纯译文", "原译对照", "译原对照"}
+
+
+def normalize_pdf_style(style: str) -> str:
+    text = str(style or "").strip() or "纯译文"
+    return text if text in PDF_STYLES else "纯译文"
+
+
+def _pair_labels(source: str, target: str, style: str) -> tuple[str, str] | None:
+    src = str(source or "").strip()
+    tgt = str(target or "").strip()
+    if not tgt or src == tgt:
+        return None
+    if style == "译原对照":
+        return tgt, src or tgt
+    if style == "原译对照":
+        return src or tgt, tgt
+    return None
+
+
+def _stack_text_entity(entity, first: str, second: str) -> None:
+    entity.dxf.text = first
+    try:
+        layout = entity.get_layout()
+    except Exception:
+        layout = None
+    if layout is None:
+        entity.dxf.text = f"{first} / {second}"
+        return
+    height = float(getattr(entity.dxf, "height", 2.5) or 2.5)
+    insert = entity.dxf.insert
+    attribs = {
+        "insert": (insert.x, insert.y - height * 1.3, getattr(insert, "z", 0)),
+        "height": height,
+        "layer": entity.dxf.layer,
+    }
+    try:
+        attribs["rotation"] = entity.dxf.rotation
+    except Exception:
+        pass
+    try:
+        attribs["style"] = entity.dxf.style
+    except Exception:
+        pass
+    layout.add_text(second, dxfattribs=attribs)
+
+
+def apply_pdf_style(doc, items: list[dict] | None, style: str) -> int:
+    """Stamp 对照 labels onto an in-memory drawing. Does not save the DXF."""
+    style = normalize_pdf_style(style)
+    if style == "纯译文" or not items:
+        return 0
+    applied = 0
+    for item in items:
+        pair = _pair_labels(item.get("source") or "", item.get("target") or "", style)
+        if not pair:
+            continue
+        entity = _entity_from_handle(doc, item.get("handle") or "")
+        if entity is None:
+            continue
+        first, second = pair
+        kind = entity.dxftype()
+        field = str(item.get("field") or "text")
+        two = f"{first}\\P{second}"
+        try:
+            if kind == "TEXT" and field == "text":
+                _stack_text_entity(entity, first, second)
+            elif kind == "MTEXT" and field == "text":
+                entity.dxf.text = two
+            elif kind == "MULTILEADER" and field == "mtext":
+                if hasattr(entity, "set_mtext_content"):
+                    entity.set_mtext_content(two)
+                else:
+                    continue
+            elif kind in {"ATTRIB", "ATTDEF"} and field == "text":
+                entity.dxf.text = f"{first} / {second}"
+            elif kind == "DIMENSION" and field == "text":
+                entity.dxf.text = f"{first} / {second}"
+            else:
+                continue
+        except Exception:
+            continue
+        applied += 1
+    return applied
+
+
+def export_pdf(path: str, output_path: str = "", layout_name: str = "", *, style: str = "纯译文", items=None) -> dict:
     """DWG → ODA → DXF → PDF via ezdxf drawing (matplotlib). Not AutoCAD plot quality."""
     dest = Path(output_path) if output_path else Path(default_output_dir()) / f"{Path(path).stem}.pdf"
     dest.parent.mkdir(parents=True, exist_ok=True)
+    style = normalize_pdf_style(style)
     register_cjk_font()
     with open_work_dxf(path) as work_dxf:
         doc = ezdxf.readfile(work_dxf)
         rewrite_shx_styles(doc)
+        if style != "纯译文":
+            apply_pdf_style(doc, items or [], style)
         pages = _layout_pages(doc, layout_name)
         _render_pdf(pages, dest)
     if not dest.is_file() or dest.stat().st_size < 8:
@@ -367,6 +456,7 @@ def export_pdf(path: str, output_path: str = "", layout_name: str = "") -> dict:
         "pages": len(pages),
         "bytes": dest.stat().st_size,
         "cad_path": str(path),
+        "style": style,
     }
 
 

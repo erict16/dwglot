@@ -175,6 +175,8 @@ class PdfBody(BaseModel):
     output_dir: str = ""
     output_name: str = ""
     layout: str = ""
+    style: str = "纯译文"
+    items: list[dict] = []
     print_after: bool = False
 
 
@@ -698,7 +700,7 @@ def drawings_export_pdf(body: PdfBody):
         if not name.lower().endswith(".pdf"):
             name = f"{name}.pdf"
         dest = str(Path(output_dir) / Path(name).name)
-        result = export_pdf(body.path, dest, body.layout)
+        result = export_pdf(body.path, dest, body.layout, style=body.style, items=body.items)
         if body.print_after:
             result["print"] = print_pdf(result["path"])
         return result
@@ -718,7 +720,15 @@ def drawings_print(body: PdfBody):
         raise HTTPException(status_code=400, detail="图纸不存在")
     try:
         exported = drawings_export_pdf(
-            PdfBody(path=body.path, output_dir=body.output_dir, output_name=body.output_name, layout=body.layout, print_after=False)
+            PdfBody(
+                path=body.path,
+                output_dir=body.output_dir,
+                output_name=body.output_name,
+                layout=body.layout,
+                style=body.style,
+                items=body.items,
+                print_after=False,
+            )
         )
         printed = print_pdf(exported["path"])
         exported["print"] = printed
