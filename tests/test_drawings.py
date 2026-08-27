@@ -300,6 +300,43 @@ class DrawingsLoopTests(unittest.TestCase):
         source_pdf = export_pdf(str(self.dxf), str(self.root / "source_style.pdf"), style="原译对照", items=items)
         self.assertEqual(source_pdf["style"], "原译对照")
 
+    def test_writeback_bilingual_style_rereads_two_lines(self):
+        preview = extract_preview(str(self.dxf), include_attribs=True, include_paper=True)
+        translated = translate_rows(preview["items"], mode="zh_to_en", provider="deepl", engine={})
+        output = writeback_rows(
+            str(self.dxf),
+            translated["items"],
+            output_dir=str(self.root),
+            output_name="bilingual",
+            mode="zh_to_en",
+            style="原译对照",
+        )
+        self.assertEqual(output["style"], "原译对照")
+        self.assertGreater(output["written"], 0)
+        reread = extract_preview(output["path"], include_attribs=True, include_paper=True)
+        sources = {item["source"] for item in reread["items"]}
+        self.assertIn("天花图", sources)
+        self.assertIn("reflected ceiling plan", sources)
+        mtext = next(entity for entity in ezdxf.readfile(output["path"]).modelspace() if entity.dxftype() == "MTEXT")
+        self.assertIn("\\C1;", mtext.dxf.text)
+        self.assertIn("\\P", mtext.dxf.text)
+        self.assertIn("天花", mtext.dxf.text)
+        self.assertIn("ceiling", mtext.dxf.text.lower())
+
+        reversed_out = writeback_rows(
+            str(self.dxf),
+            translated["items"],
+            output_dir=str(self.root),
+            output_name="bilingual_rev",
+            mode="zh_to_en",
+            style="译原对照",
+        )
+        rev = ezdxf.readfile(reversed_out["path"])
+        ceiling = next(entity for entity in rev.modelspace() if entity.dxftype() == "TEXT" and "ceiling" in entity.dxf.text)
+        self.assertEqual(ceiling.dxf.text, "reflected ceiling plan")
+        mtext_rev = next(entity for entity in rev.modelspace() if entity.dxftype() == "MTEXT")
+        self.assertTrue(mtext_rev.dxf.text.lower().startswith("{\\c1;ceiling") or "ceiling" in mtext_rev.dxf.text.split("\\P", 1)[0].lower())
+
     def test_export_pdf_is_real_pdf(self):
         dest = self.root / "sample.pdf"
         result = export_pdf(str(self.dxf), str(dest))
@@ -741,9 +778,9 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertIn("disabled={busy || !current} onClick={() => exportPdf(true)}", text)
         self.assertIn("已送到系统打印", text)
         self.assertIn("function cadPathForPdf()", text)
-        self.assertIn("PDF 已导出（写回图纸 · ${layout}）", text)
+        self.assertIn("PDF 已导出（写回图纸）", text)
         self.assertIn("原图，还未写回译文", text)
-        self.assertIn("style: fromWriteback ? layout : \"纯译文\"", text)
+        self.assertIn("style: layout", text)
 
     def test_frontend_empty_filter_is_calm(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"

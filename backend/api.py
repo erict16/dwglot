@@ -168,6 +168,7 @@ class WritebackBody(BaseModel):
     output_name: str = ""
     translation_mode: str = "zh_to_en"
     include_blocks: bool = False
+    style: str = "纯译文"
 
 
 class PdfBody(BaseModel):
@@ -680,6 +681,7 @@ def drawings_writeback(body: WritebackBody):
             output_name=named,
             mode=body.translation_mode,
             include_blocks=body.include_blocks,
+            style=body.style,
         )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="图纸不存在")

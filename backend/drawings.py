@@ -262,6 +262,7 @@ def writeback_rows(
     output_name: str = "",
     mode: str = "zh_to_en",
     include_blocks: bool = False,
+    style: str = "纯译文",
 ) -> dict:
     if not path or not os.path.isfile(path):
         raise FileNotFoundError("图纸不存在")
@@ -278,6 +279,7 @@ def writeback_rows(
     writable = [item for item in items if _should_write(item)]
     if not writable:
         raise ValueError("没有勾选且已填译文的条目")
+    style = normalize_pdf_style(style)
     output_dir = output_dir or default_output_dir()
     os.makedirs(output_dir, exist_ok=True)
     meta = analyze_source(path)
@@ -297,29 +299,33 @@ def writeback_rows(
         doc = ezdxf.readfile(work_input)
         written = 0
         missing = 0
-        for item in writable:
-            entity = _entity_from_handle(doc, item.get("handle") or "")
-            if entity is None:
-                missing += 1
-                continue
-            field = item.get("field") or "text"
-            kind = entity.dxftype()
-            target = item.get("target") or ""
-            target_raw = item.get("target_raw") or ""
-            formatted = (
-                bool(target_raw)
-                and ("\\" in target_raw or "{" in target_raw)
-                and item.get("via") != "edit"
-            )
-            if kind == "MTEXT" and formatted:
-                translator._write_mtext_entity(entity, target_raw)
-            elif kind == "MULTILEADER" and formatted:
-                translator.write_back_translation(entity, target_raw, field)
-            else:
-                translator.write_back_translation(entity, target, field)
-            if field == "tag":
-                translator._sync_attrib_tags(doc, item.get("source") or "", target)
-            written += 1
+        if style != "纯译文":
+            missing = sum(1 for item in writable if _entity_from_handle(doc, item.get("handle") or "") is None)
+            written = apply_pdf_style(doc, writable, style)
+        else:
+            for item in writable:
+                entity = _entity_from_handle(doc, item.get("handle") or "")
+                if entity is None:
+                    missing += 1
+                    continue
+                field = item.get("field") or "text"
+                kind = entity.dxftype()
+                target = item.get("target") or ""
+                target_raw = item.get("target_raw") or ""
+                formatted = (
+                    bool(target_raw)
+                    and ("\\" in target_raw or "{" in target_raw)
+                    and item.get("via") != "edit"
+                )
+                if kind == "MTEXT" and formatted:
+                    translator._write_mtext_entity(entity, target_raw)
+                elif kind == "MULTILEADER" and formatted:
+                    translator.write_back_translation(entity, target_raw, field)
+                else:
+                    translator.write_back_translation(entity, target, field)
+                if field == "tag":
+                    translator._sync_attrib_tags(doc, item.get("source") or "", target)
+                written += 1
         rewrite_shx_styles(doc, translator.safe_log)
         with atomic_output_path(work_output) as temporary_output:
             doc.saveas(temporary_output)
@@ -330,6 +336,7 @@ def writeback_rows(
         "written": written,
         "missing": missing,
         "skipped": len(items) - len(writable),
+        "style": style,
     }
 
 
@@ -370,6 +377,18 @@ def _pair_labels(source: str, target: str, style: str) -> tuple[str, str] | None
     return None
 
 
+def _label_payload(item: dict, side: str) -> str:
+    if side == "source":
+        coded = str(item.get("raw") or item.get("raw_source") or "").strip()
+        plain = str(item.get("source") or "").strip()
+    else:
+        coded = str(item.get("target_raw") or "").strip()
+        plain = str(item.get("target") or "").strip()
+    if coded and ("\\" in coded or "{" in coded):
+        return coded
+    return plain or coded
+
+
 def _stack_text_entity(entity, first: str, second: str) -> None:
     entity.dxf.text = first
     try:
@@ -398,7 +417,7 @@ def _stack_text_entity(entity, first: str, second: str) -> None:
 
 
 def apply_pdf_style(doc, items: list[dict] | None, style: str) -> int:
-    """Stamp 对照 labels onto an in-memory drawing. Does not save the DXF."""
+    """Stamp 对照 labels onto an in-memory drawing (PDF or 写回)."""
     style = normalize_pdf_style(style)
     if style == "纯译文" or not items:
         return 0
@@ -413,6 +432,11 @@ def apply_pdf_style(doc, items: list[dict] | None, style: str) -> int:
         first, second = pair
         kind = entity.dxftype()
         field = str(item.get("field") or "text")
+        if kind in {"MTEXT", "MULTILEADER"}:
+            if style == "译原对照":
+                first, second = _label_payload(item, "target"), _label_payload(item, "source")
+            else:
+                first, second = _label_payload(item, "source"), _label_payload(item, "target")
         two = f"{first}\\P{second}"
         try:
             if kind == "TEXT" and field == "text":

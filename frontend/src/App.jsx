@@ -346,11 +346,12 @@ export default function App() {
           output_dir: config.output_dir,
           output_name: named.name,
           translation_mode: modeKey(sourceLang, targetLang),
+          style: layout,
         }),
       });
       setWrittenPath(data.path || "");
       setLastOutput(data.path || "");
-      setStatus(`已写回 ${data.written} 条 → ${data.path}`);
+      setStatus(`已写回 ${data.written} 条（${layout}）→ ${data.path}`);
       const native = py();
       if (native?.reveal_file && data.path) native.reveal_file(data.path);
     } catch (error) {
@@ -385,19 +386,19 @@ export default function App() {
           path: sourcePath,
           output_dir: config.output_dir,
           output_name: `${stem}.pdf`,
-          style: fromWriteback ? layout : "纯译文",
-          items: fromWriteback && layout !== "纯译文" ? rows : [],
+          style: "纯译文",
+          items: [],
         }),
       });
       setLastOutput(data.path || "");
       if (andPrint) {
         const printed = data.print || {};
-        const where = fromWriteback ? `写回图纸 · ${layout}` : "原图，还未写回译文";
+        const where = fromWriteback ? "写回图纸" : "原图，还未写回译文";
         setStatus(printed.ok ? `已送到系统打印（${where}）：${data.path}` : `${printed.message || data.message || "打印没发出去"}。PDF：${data.path}`);
         const native = py();
         if (native?.print_pdf && data.path && !printed.ok) native.print_pdf(data.path);
       } else if (fromWriteback) {
-        setStatus(`PDF 已导出（写回图纸 · ${layout}）→ ${data.path}`);
+        setStatus(`PDF 已导出（写回图纸）→ ${data.path}`);
         const native = py();
         if (native?.reveal_file && data.path) native.reveal_file(data.path);
       } else {
