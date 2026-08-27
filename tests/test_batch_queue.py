@@ -238,6 +238,38 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("CAD", response.json()["detail"])
         self.assertNotIn("Traceback", response.text)
 
+    def test_add_same_path_does_not_duplicate(self):
+        src = Path(self.tmp.name) / "floor_plan.dxf"
+        shutil.copy(FIXTURES / "floor_plan.dxf", src)
+        first = self.client.post("/api/batch/add", json={"files": [str(src), str(src)]})
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(len(first.json()["tasks"]), 1)
+        task_id = first.json()["tasks"][0]["id"]
+        second = self.client.post("/api/batch/add", json={"files": [str(src)]})
+        self.assertEqual(second.status_code, 200, second.text)
+        self.assertEqual(len(second.json()["tasks"]), 1)
+        self.assertEqual(second.json()["tasks"][0]["id"], task_id)
+        other = Path(self.tmp.name) / "other.dxf"
+        shutil.copy(FIXTURES / "floor_plan.dxf", other)
+        mixed = self.client.post("/api/batch/add", json={"files": [str(src), str(other)]})
+        self.assertEqual(mixed.status_code, 200, mixed.text)
+        self.assertEqual(len(mixed.json()["tasks"]), 2)
+        self.assertEqual(mixed.json()["tasks"][0]["id"], task_id)
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"):
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+        self.assertEqual(started.status_code, 200, started.text)
+        self.assertEqual(len(started.json()["tasks"]), 2)
+
     def test_add_missing_path_is_400(self):
         response = self.client.post("/api/batch/add", json={"files": [str(Path(self.tmp.name) / "nope.dxf")]})
         self.assertEqual(response.status_code, 400, response.text)

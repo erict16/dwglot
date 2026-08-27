@@ -19,6 +19,10 @@ ACTIVE = {"queued", "retrying", "running"}
 MAX_TASK_HISTORY = 100
 
 
+def _queue_path_key(path: str) -> str:
+    return os.path.normcase(os.path.abspath(path or ""))
+
+
 class BatchQueue:
     def __init__(self, run: Callable[[dict, Callable[[str], None], threading.Event, threading.Event], str], emit: Callable[[str], None], key_for: Callable[[dict], str]):
         self.run, self.emit, self.key_for = run, emit, key_for
@@ -118,7 +122,12 @@ class BatchQueue:
 
     def add(self, files: list[str]):
         with self.lock:
+            seen = {_queue_path_key(task.get("input_file") or "") for task in self.tasks}
             for path in files:
+                key = _queue_path_key(path)
+                if not key or key in seen:
+                    continue
+                seen.add(key)
                 self.tasks.append({
                     "id": uuid.uuid4().hex, "input_file": path,
                     "status": "queued", "progress": 0, "retries": 0, "output_file": "", "message": "等待中", "logs": [],
