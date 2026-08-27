@@ -13,6 +13,10 @@
   <meta property="og:image" content="shots/regular.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="shots/mark.svg" type="image/svg+xml" />
+  <script>
+    // Fill these when a GitHub Release has the installer files. Empty = button stays, click says 安装包还没放上来.
+    const DL = { mac: "", win: "" };
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -41,11 +45,10 @@
       </a>
       <nav class="hidden items-center gap-8 text-sm text-slate-600 sm:flex">
         <a href="#features" class="hover:text-ink">功能</a>
-        <a href="#install" class="hover:text-ink">安装</a>
+        <a href="#download" class="hover:text-ink">下载</a>
         <a href="#faq" class="hover:text-ink">FAQ</a>
-        <a href="https://github.com/erict16/dwglot" class="hover:text-ink">GitHub</a>
       </nav>
-      <a href="https://github.com/erict16/dwglot/releases" class="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white hover:brightness-110">下载</a>
+      <a href="#download" class="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white hover:brightness-110">下载</a>
     </div>
   </header>
 
@@ -54,8 +57,8 @@
       <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">DWG / DXF CAD translator</h1>
       <p class="mx-auto mt-4 max-w-xl text-lg text-slate-600">图译 Dwglot 做图纸翻译。打开图纸，译文字，写回。不装 AutoCAD。</p>
       <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-        <a href="https://github.com/erict16/dwglot/releases" class="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white">GitHub Releases</a>
-        <a href="https://github.com/erict16/dwglot" class="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-ink ring-1 ring-black/10">源码 MIT</a>
+        <a href="#download" class="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110">下载图译</a>
+        <a href="#features" class="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-ink ring-1 ring-black/10 hover:bg-mist">看看功能</a>
       </div>
       <div class="mx-auto mt-12 max-w-5xl">
         <img src="shots/regular.png" alt="图译常规处理：原文和译文表" width="1280" height="800" class="rounded-2xl shadow-xl ring-1 ring-black/10" />
@@ -84,18 +87,31 @@
         <ul class="mt-6 space-y-2 text-slate-700">
           <li>默认中 → 英，可换方向</li>
           <li>过滤纯数字、重复、非源语言</li>
-          <li>检查更新走 GitHub Releases</li>
+          <li>有新版本时，软件里可以检查更新</li>
         </ul>
       </div>
       <img src="shots/export.png" alt="批量导出" width="1280" height="800" class="rounded-2xl shadow-lg ring-1 ring-black/10" />
     </div>
   </section>
 
-  <section id="install" class="bg-accent py-16 text-white">
+  <section id="download" class="scroll-mt-20 bg-accent py-16 text-white">
     <div class="mx-auto max-w-3xl px-4 text-center">
-      <h2 class="text-3xl font-semibold tracking-tight">v0.1 未签名，先从 Releases 装</h2>
-      <p class="mt-3 text-white/90">Mac：Control-点图标 → 打开，或系统设置 → 隐私与安全性 → 仍要打开。Windows：更多信息 → 仍要运行。证书以后会消掉这层。</p>
-      <a href="https://github.com/erict16/dwglot/releases" class="mt-8 inline-block rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-accent">打开 Releases</a>
+      <h2 class="text-3xl font-semibold tracking-tight">下载图译</h2>
+      <p class="mt-3 text-white/90">点一下就开始下。Mac 和 Windows 各一个安装包。</p>
+      <div class="mt-8 flex flex-col items-stretch justify-center gap-4 sm:flex-row sm:items-center">
+        <button type="button" data-dl="mac" class="dl-btn min-h-14 min-w-[15rem] rounded-2xl bg-white px-8 py-4 text-lg font-semibold text-accent hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+          下载 macOS 版
+        </button>
+        <button type="button" data-dl="win" class="dl-btn min-h-14 min-w-[15rem] rounded-2xl bg-white px-8 py-4 text-lg font-semibold text-accent hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+          下载 Windows 版
+        </button>
+      </div>
+      <p class="mt-8 text-left text-sm leading-7 text-white/90 sm:text-center">
+        第一次打开，系统会拦一下。<br />
+        Mac：右键图标，选「打开」。<br />
+        Windows：点「更多信息」，再点「仍要运行」。
+      </p>
+      <p id="dl-msg" class="mt-4 hidden text-sm font-semibold text-white" role="status" aria-live="polite"></p>
     </div>
   </section>
 
@@ -109,26 +125,29 @@
         </div>
         <div class="py-5">
           <dt class="font-semibold">ODA 打进安装包了吗？</dt>
-          <dd class="mt-2 text-slate-600">没有，也不会。Community 协议不允许随应用分发。设 <code>CAD_ODA_EXEC</code> 或按系统路径检测。</dd>
+          <dd class="mt-2 text-slate-600">没有，也不会。协议不允许跟软件一起发。你自己在电脑上装 ODA File Converter 就行；只译 DXF 可以先不装。</dd>
         </div>
         <div class="py-5">
-          <dt class="font-semibold">为什么 Gatekeeper / SmartScreen 拦我？</dt>
-          <dd class="mt-2 text-slate-600">v0.1 未签名。Mac 用右键打开；Windows 点仍要运行。这是预期行为，写在 README 安装里。</dd>
+          <dt class="font-semibold">第一次打不开？</dt>
+          <dd class="mt-2 text-slate-600">正常。Mac 右键图标，选打开。Windows 点更多信息，再点仍要运行。</dd>
         </div>
         <div class="py-5">
           <dt class="font-semibold">收费吗？有授权码吗？</dt>
-          <dd class="mt-2 text-slate-600">没有。MIT，无试用、无收款码。引擎密钥是你自己的 Azure / DeepL / Ollama / 自定义 API。</dd>
+          <dd class="mt-2 text-slate-600">没有。MIT，无试用、无收款码。翻译要用的密钥是你自己的 Azure / DeepL / Ollama / 自定义接口。</dd>
         </div>
       </dl>
     </div>
   </section>
 
-  <footer class="border-t border-black/5 py-8">
+  <footer class="border-t border-black/5 py-5">
     <div class="mx-auto flex max-w-6xl items-center justify-between px-4 text-sm text-slate-500">
       <span>图译 Dwglot · MIT</span>
-      <a href="https://github.com/erict16/dwglot" class="text-slate-500 hover:text-ink" aria-label="GitHub">
-        <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/></svg>
-      </a>
+      <div class="flex items-center gap-4">
+        <a href="https://github.com/erict16/dwglot" class="text-slate-500 hover:text-ink" aria-label="GitHub">
+          <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/></svg>
+        </a>
+        <a href="https://github.com/erict16/dwglot/releases" class="hover:text-ink">Releases</a>
+      </div>
     </div>
   </footer>
 
@@ -147,6 +166,45 @@
       });
     });
     document.querySelector('.tab[data-tab="regular"]').classList.add("bg-white", "text-navy");
+
+    const ua = navigator.userAgent;
+    let os = "";
+    if (/Windows/i.test(ua)) os = "win";
+    else if (/Mac OS X|Macintosh/i.test(ua) && !/iPhone|iPad|iPod/i.test(ua)) os = "mac";
+
+    const solid = ["bg-white", "text-accent", "hover:brightness-110"];
+    const ghost = ["bg-white/10", "text-white", "ring-2", "ring-white/70", "hover:bg-white/20"];
+    document.querySelectorAll(".dl-btn").forEach((btn) => {
+      if (!os) return;
+      if (btn.dataset.dl === os) {
+        ghost.forEach((c) => btn.classList.remove(c));
+        solid.forEach((c) => btn.classList.add(c));
+        btn.setAttribute("aria-current", "true");
+      } else {
+        solid.forEach((c) => btn.classList.remove(c));
+        ghost.forEach((c) => btn.classList.add(c));
+        btn.removeAttribute("aria-current");
+      }
+    });
+
+    const msg = document.getElementById("dl-msg");
+    document.querySelectorAll(".dl-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const url = (DL[btn.dataset.dl] || "").trim();
+        if (!url) {
+          msg.textContent = "安装包还没放上来";
+          msg.classList.remove("hidden");
+          return;
+        }
+        msg.classList.add("hidden");
+        const a = document.createElement("a");
+        a.href = url;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+    });
   </script>
 </body>
 </html>
