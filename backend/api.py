@@ -706,8 +706,8 @@ def drawings_translate(body: TranslateRowsBody):
         )
     except (ValueError, TranslationProviderError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"翻译失败: {exc}") from exc
+    except Exception:
+        raise HTTPException(status_code=400, detail="翻译失败") from None
 
 
 @app.post("/api/drawings/writeback")

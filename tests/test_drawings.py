@@ -1544,6 +1544,22 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertNotIn("OSError", extracted.text)
         self.assertNotIn("Traceback", extracted.text)
 
+    def test_translate_unknown_error_is_400(self):
+        with patch("backend.api.translate_rows", side_effect=OSError("No space left on device")):
+            translated = self.client.post(
+                "/api/drawings/translate",
+                json={
+                    "items": [{"source": "天花图", "type": "TEXT", "layer": "0"}],
+                    "translation_mode": "zh_to_en",
+                    "provider": "deepl",
+                },
+            )
+        self.assertEqual(translated.status_code, 400, translated.text)
+        self.assertEqual(translated.json()["detail"], "翻译失败")
+        self.assertNotIn("No space", translated.text)
+        self.assertNotIn("OSError", translated.text)
+        self.assertNotIn("Traceback", translated.text)
+
     def test_extract_digits_only_drawing_is_200(self):
         path = Path(self.tmp.name) / "digits.dxf"
         doc = ezdxf.new("R2010")
