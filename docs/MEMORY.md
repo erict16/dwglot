@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: floor_plan `layout=Model` is named modelspace (not paperspace). export-pdf and print are 200, 1 CJK page, fewer pages than all layouts. Missing `lp` still leaves the PDF. Batch has no PDF layout. `python -m unittest discover -s tests` 120 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: floor_plan `Layout1` is empty paperspace. export-pdf and print with `layout=Layout1` is 200, 1-page `%PDF-` (no CJK ink required), no traceback. Missing `lp` still leaves the PDF. Batch has no PDF layout. `python -m unittest discover -s tests` 118 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: floor_plan layouts Model / Layout1 / A1. export-pdf and print with `layout=A1` is 200, 1 page, CJK PDF (fewer pages than all layouts). Batch has no PDF layout. `python -m unittest discover -s tests` 116 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: Unknown PDF layout is 400 `没有这个布局` on `/api/drawings/export-pdf` and `/api/drawings/print`. Batch has no PDF layout. `python -m unittest discover -s tests` 114 ok. Do not edit landing/, README*, docs/icons/.

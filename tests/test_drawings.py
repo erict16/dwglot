@@ -399,6 +399,23 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertGreater(a1["bytes"], 800)
         _assert_cjk_pdf(self, Path(a1["path"]), min_ink=800)
 
+    def test_export_pdf_named_model_layout(self):
+        dxf = FIXTURES / "floor_plan.dxf"
+        self.assertTrue(dxf.is_file(), "tests/fixtures/floor_plan.dxf")
+        model = ezdxf.readfile(dxf).layouts.get("Model")
+        self.assertEqual(model.name, "Model")
+        self.assertTrue(model.is_modelspace)
+        self.assertFalse(model.is_any_paperspace)
+        texts = [entity.dxf.text for entity in model if entity.dxftype() == "TEXT"]
+        self.assertIn("天花图", texts)
+        all_pages = export_pdf(str(dxf), str(self.root / "floor_all_for_model.pdf"))
+        named = export_pdf(str(dxf), str(self.root / "floor_model.pdf"), "Model")
+        self.assertEqual(named["pages"], 1, named)
+        self.assertGreater(all_pages["pages"], named["pages"])
+        self.assertEqual(Path(named["path"]).read_bytes()[:5], b"%PDF-")
+        self.assertGreater(named["bytes"], 800)
+        _assert_cjk_pdf(self, Path(named["path"]), min_ink=800)
+
     def test_export_pdf_named_empty_layout1(self):
         dxf = FIXTURES / "floor_plan.dxf"
         self.assertTrue(dxf.is_file(), "tests/fixtures/floor_plan.dxf")
@@ -952,6 +969,44 @@ class DrawingsApiTests(unittest.TestCase):
                     "output_dir": self.tmp.name,
                     "output_name": "a1_print.pdf",
                     "layout": "A1",
+                },
+            )
+        self.assertEqual(printed.status_code, 200, printed.text)
+        self.assertNotIn("Traceback", printed.text)
+        printed_body = printed.json()
+        self.assertEqual(printed_body["pages"], 1)
+        self.assertFalse(printed_body["print"]["ok"])
+        _assert_cjk_pdf(self, Path(printed_body["path"]), min_ink=800)
+
+    def test_export_pdf_and_print_model_layout(self):
+        dxf = FIXTURES / "floor_plan.dxf"
+        self.assertTrue(dxf.is_file(), "tests/fixtures/floor_plan.dxf")
+        model = ezdxf.readfile(dxf).layouts.get("Model")
+        self.assertTrue(model.is_modelspace)
+        self.assertFalse(model.is_any_paperspace)
+        pdf = self.client.post(
+            "/api/drawings/export-pdf",
+            json={
+                "path": str(dxf),
+                "output_dir": self.tmp.name,
+                "output_name": "model.pdf",
+                "layout": "Model",
+            },
+        )
+        self.assertEqual(pdf.status_code, 200, pdf.text)
+        self.assertNotIn("Traceback", pdf.text)
+        body = pdf.json()
+        self.assertEqual(body["pages"], 1)
+        self.assertGreater(body["bytes"], 800)
+        _assert_cjk_pdf(self, Path(body["path"]), min_ink=800)
+        with patch("backend.drawings.shutil.which", return_value=None):
+            printed = self.client.post(
+                "/api/drawings/print",
+                json={
+                    "path": str(dxf),
+                    "output_dir": self.tmp.name,
+                    "output_name": "model_print.pdf",
+                    "layout": "Model",
                 },
             )
         self.assertEqual(printed.status_code, 200, printed.text)
