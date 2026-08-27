@@ -397,6 +397,36 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("天花图", model)
         self.assertIn("reflected ceiling plan", model)
 
+    def test_writeback_target_first_a1_stays_on_paperspace(self):
+        dxf = FIXTURES / "floor_plan.dxf"
+        self.assertTrue(dxf.is_file(), "tests/fixtures/floor_plan.dxf")
+        preview = extract_preview(str(dxf), include_paper=True, skip_dupes=False)
+        items = translate_rows(preview["items"], mode="zh_to_en", provider="deepl", engine={})["items"]
+        output = writeback_rows(
+            str(dxf),
+            items,
+            output_dir=str(self.root),
+            output_name="a1_yi_yuan",
+            mode="zh_to_en",
+            style="译原对照",
+        )
+        self.assertEqual(output["style"], "译原对照")
+        doc = ezdxf.readfile(output["path"])
+        paper = doc.layouts.get("A1")
+        a1 = [entity.dxf.text for entity in paper if entity.dxftype() == "TEXT"]
+        model = [entity.dxf.text for entity in doc.modelspace() if entity.dxftype() == "TEXT"]
+        self.assertEqual(len(a1), 4, a1)
+        grounding = next(entity for entity in paper if entity.dxftype() == "TEXT" and entity.dxf.handle == "44")
+        plan = next(entity for entity in paper if entity.dxftype() == "TEXT" and entity.dxf.handle == "45")
+        self.assertEqual(grounding.dxf.text, "grounding")
+        self.assertEqual(plan.dxf.text, "floor plan")
+        self.assertIn("接地", a1)
+        self.assertIn("平面布置图", a1)
+        self.assertNotIn("grounding", model)
+        self.assertNotIn("接地", model)
+        self.assertIn("天花图", model)
+        self.assertIn("reflected ceiling plan", model)
+
     def test_export_pdf_is_real_pdf(self):
         dest = self.root / "sample.pdf"
         result = export_pdf(str(self.dxf), str(dest))

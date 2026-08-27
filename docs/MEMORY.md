@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: 译原对照 write-back of floor_plan A1: original handles become `grounding` / `floor plan`, stacked `接地` / `平面布置图` stay on A1 (4 TEXT). Those stay off Model. `python -m unittest discover -s tests` 128 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: 对照 write-back of floor_plan A1 paperspace TEXT stacks `接地`/`grounding` on A1 (4 TEXT). `grounding`/`接地` stay off Model. Model still has `天花图` + `reflected ceiling plan`. Batch has no PDF layout. `python -m unittest discover -s tests` 127 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: export-pdf/print `style=原译对照` + `layout=A1` is 200, 1 CJK page, different bytes than 纯译文 A1. Missing `lp` leaves the PDF. Batch has no PDF layout. `python -m unittest discover -s tests` 126 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: Empty-entity DXF extract is 200, `count`/`unique` 0, `items` []. Stop adding empty-file tests. Batch has no PDF layout. `python -m unittest discover -s tests` 125 ok. Do not edit landing/, README*, docs/icons/.
