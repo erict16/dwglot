@@ -15,6 +15,7 @@ Checked 2026-08-27 against Honsen GitHub and 轻语’s public pages.
 - Chinese name: **图译**
 - English / repo: **Dwglot**
 - Open-source desktop app in the 轻语 genre: translate text inside DWG/DXF, no AutoCAD.
+- Public MIT repo: `https://github.com/erict16/dwglot`. v0.1 unsigned. Gatekeeper / SmartScreen steps live in README 安装.
 - Windows x64 + macOS Intel + Apple Silicon.
 - MIT (keep Honsen’s MIT notice; add Dwglot copyright).
 

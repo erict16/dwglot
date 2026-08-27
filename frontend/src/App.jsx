@@ -74,6 +74,32 @@ export default function App() {
   const [updateMsg, setUpdateMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    const shot = new URLSearchParams(window.location.search).get("shot");
+    if (!shot) return;
+    setFiles([
+      { path: "/demo/电气原理图.dwg", name: "电气原理图.dwg", ext: "DWG" },
+      { path: "/demo/配电箱.dxf", name: "配电箱.dxf", ext: "DXF" },
+      { path: "/demo/总图-A1.dwg", name: "总图-A1.dwg", ext: "DWG" },
+    ]);
+    setCurrent("/demo/电气原理图.dwg");
+    setRows([
+      { id: 0, source: "电气原理图", target: "Electrical Schematic", layer: "0", type: "MTEXT", duplicate: false },
+      { id: 1, source: "平面布置图", target: "Floor Plan", layer: "0", type: "TEXT", duplicate: false },
+      { id: 2, source: "隔墙定位图", target: "Partition Location Plan", layer: "A-WALL", type: "TEXT", duplicate: false },
+      { id: 3, source: "进线柜", target: "Incoming Cabinet", layer: "E-POWR", type: "ATTRIB", duplicate: false },
+      { id: 4, source: "接地", target: "Earthing", layer: "E-POWR", type: "MTEXT", duplicate: false },
+      { id: 5, source: "总图", target: "General Layout", layer: "TITLE", type: "TEXT", duplicate: false },
+      { id: 6, source: "材料表", target: "Bill of Materials", layer: "0", type: "TABLE", duplicate: false },
+      { id: 7, source: "电缆桥架", target: "Cable Tray", layer: "E-TRAY", type: "MTEXT", duplicate: false },
+    ]);
+    if (shot === "export") setTab("export");
+    if (shot === "params") {
+      setTab("regular");
+      setSheet(true);
+    }
+  }, []);
+
   const visibleRows = useMemo(() => {
     return rows.filter((row) => {
       if (filters.dupes && row.duplicate) return false;
