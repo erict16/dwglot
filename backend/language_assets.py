@@ -96,13 +96,16 @@ class LanguageAssets:
     def project_info(self, path: str) -> dict:
         if not path:
             return {"path": "", "name": "", "terms": []}
+        target = Path(path)
+        if not target.is_file():
+            raise ValueError("术语表不存在或无法读取")
         try:
-            data = json.loads(Path(path).read_text(encoding="utf-8"))
+            data = json.loads(target.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
-                raise ValueError("invalid project package")
-            return {"path": str(Path(path)), "name": str(data.get("name") or Path(path).stem), "terms": data.get("terms", [])}
+                raise ValueError("术语表不存在或无法读取")
+            return {"path": str(target), "name": str(data.get("name") or target.stem), "terms": data.get("terms", [])}
         except (OSError, ValueError, TypeError) as exc:
-            raise ValueError(f"项目术语包无法读取: {exc}") from exc
+            raise ValueError("术语表不存在或无法读取") from exc
 
     def create_project(self, path: str, name: str = "") -> dict:
         target = Path(path)

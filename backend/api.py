@@ -578,7 +578,7 @@ def updates_check():
 
 
 @app.post("/api/drawings/open")
-async def drawings_open(files: list[UploadFile] = File(...)):
+async def drawings_open(files: list[UploadFile] = File(default=[])):
     if not files:
         raise HTTPException(status_code=400, detail="请选择 CAD 文件")
     paths = service.save_dropped_files(files)
@@ -652,8 +652,8 @@ def drawings_writeback(body: WritebackBody):
             mode=body.translation_mode,
             include_blocks=body.include_blocks,
         )
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="图纸不存在")
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -884,8 +884,16 @@ def add_batch(body: BatchBody):
         raise HTTPException(status_code=400, detail=str(exc) or "无法加入队列") from exc
 
 
+BATCH_IMPORT_NOT_READY = "批量导入还没做，请用常规处理写回"
+
+
+@app.post("/api/batch/import")
+def batch_import():
+    raise HTTPException(status_code=501, detail=BATCH_IMPORT_NOT_READY)
+
+
 @app.post("/api/batch/drop")
-async def drop_batch(files: list[UploadFile] = File(...)):
+async def drop_batch(files: list[UploadFile] = File(default=[])):
     if not files:
         raise HTTPException(status_code=400, detail="请选择 CAD 文件")
     try:

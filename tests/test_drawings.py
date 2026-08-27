@@ -470,6 +470,41 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertTrue(any(item["type"] == "ACAD_TABLE" and item["source"] == "墙体拆除图" for item in items))
         self.assertFalse(any(item["type"] == "DIMENSION" and item["source"] == "<>" for item in items))
 
+    def test_open_empty_and_writeback_empty_are_calm(self):
+        opened = self.client.post("/api/drawings/open")
+        self.assertEqual(opened.status_code, 400, opened.text)
+        self.assertIn("CAD", opened.json()["detail"])
+        self.assertNotIn("Traceback", opened.text)
+        written = self.client.post(
+            "/api/drawings/writeback",
+            json={"input_file": str(self.dxf), "items": [], "output_dir": self.tmp.name, "output_name": "empty"},
+        )
+        self.assertEqual(written.status_code, 400, written.text)
+        self.assertIn("没有可写回", written.json()["detail"])
+        self.assertNotIn("Traceback", written.text)
+        missing = self.client.post(
+            "/api/drawings/writeback",
+            json={
+                "input_file": str(Path(self.tmp.name) / "gone.dxf"),
+                "items": [{"source": "天花", "target": "ceiling", "selected": True}],
+                "output_dir": self.tmp.name,
+                "output_name": "gone",
+            },
+        )
+        self.assertEqual(missing.status_code, 404, missing.text)
+        self.assertEqual(missing.json()["detail"], "图纸不存在")
+        self.assertNotIn("Errno", missing.text)
+        glossary = self.client.post("/api/language-assets/project", json={"path": str(Path(self.tmp.name) / "no.hcterms.json")})
+        self.assertEqual(glossary.status_code, 400, glossary.text)
+        self.assertIn("术语表不存在", glossary.json()["detail"])
+        self.assertNotIn("Traceback", glossary.text)
+
+    def test_frontend_import_tab_is_honest(self):
+        source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
+        text = source.read_text(encoding="utf-8")
+        self.assertIn("批量导入还没做。", text)
+        self.assertNotIn("人工 Excel 回填", text)
+
     def test_open_dwg_without_oda_rejected(self):
         dwg = Path(self.tmp.name) / "x.dwg"
         dwg.write_bytes(b"AC1032" + b"\x00" * 16)

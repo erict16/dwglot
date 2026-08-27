@@ -212,6 +212,12 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("ODA", dropped.json()["detail"])
         self.assertNotIn("Traceback", dropped.text)
 
+    def test_batch_import_is_not_ready(self):
+        response = self.client.post("/api/batch/import", json={})
+        self.assertEqual(response.status_code, 501, response.text)
+        self.assertIn("还没做", response.json()["detail"])
+        self.assertNotIn("Traceback", response.text)
+
     def test_start_empty_is_400(self):
         response = self.client.post("/api/batch/start", json={"deepl_key": "key", "output_dir": self.tmp.name})
         self.assertEqual(response.status_code, 400, response.text)

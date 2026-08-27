@@ -255,6 +255,8 @@ def writeback_rows(
     mode: str = "zh_to_en",
     include_blocks: bool = False,
 ) -> dict:
+    if not path or not os.path.isfile(path):
+        raise FileNotFoundError("图纸不存在")
     if not items:
         raise ValueError("没有可写回的译文")
     def _should_write(item: dict) -> bool:

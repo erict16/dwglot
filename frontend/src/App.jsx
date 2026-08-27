@@ -454,7 +454,8 @@ export default function App() {
       await refreshMeta();
       setStatus(`术语表写入 ${result.count} 条。`);
     } catch (error) {
-      setStatus(error.message);
+      const message = String(error.message || "");
+      setStatus(/json|unexpected/i.test(message) ? "术语表读不出来。" : message || "术语表读不出来。");
     }
   }
 
@@ -502,14 +503,14 @@ export default function App() {
         <button type="button" className={`tbtn${sheet ? " pri" : ""}`} onClick={() => setSheet(true)}>参数</button>
         {tab === "export" ? (
           <button type="button" className="tbtn pri" disabled={busy} onClick={startExport}>开始导出</button>
-        ) : (
+        ) : tab === "regular" ? (
           <>
             <button type="button" className="tbtn pri" disabled={busy} onClick={runTranslate}>翻译</button>
             <button type="button" className="tbtn" disabled={busy} onClick={writeBack}>写回</button>
             <button type="button" className="tbtn" disabled={busy} onClick={() => exportPdf(false)}>导出 PDF</button>
             <button type="button" className="tbtn" disabled={busy} onClick={() => exportPdf(true)}>打印</button>
           </>
-        )}
+        ) : null}
       </header>
 
       <input ref={cadInput} type="file" accept=".dxf,.dwg,application/dxf" multiple hidden onChange={onCadPicked} />
@@ -675,9 +676,9 @@ export default function App() {
 
         {tab === "import" && (
           <section className="main">
-            <div className="filters">批量导入：把译好的表格写回图纸（v0.1 先走「写回」）。</div>
+            <div className="filters">批量导入还没做。</div>
             <div className="table" style={{ padding: 24, color: "var(--muted)" }}>
-              打开图纸后用常规处理或批量导出。人工 Excel 回填放在后续版本。
+              表格回填以后再说。现在请用「常规处理」里的写回，或去「批量导出」。
             </div>
           </section>
         )}
