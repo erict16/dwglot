@@ -51,7 +51,7 @@ python run.py
 ## 说明
 
 - 从 [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator) fork 过来（MIT）。图译换了名字和 Mac 界面，加上四种翻译引擎和自动更新。
-- 标注和表格写回放到 v0.2。这版先别指望 DIMENSION / ACAD_TABLE。
+- 标注和表格写回已经进 v0.1。这版 DIMENSION / ACAD_TABLE 可以写回去了。
 - 落地页在 `landing/`，可以挂 Vercel。
 
 ## 协议

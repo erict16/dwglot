@@ -51,7 +51,7 @@ Default language pair is Chinese → English. Output goes to `~/Documents/Dwglot
 ## Notes
 
 - Fork of [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator) (MIT). Dwglot is the 图译 fork. It has a Mac UI, four translation engines, and auto-update.
-- DIMENSION / ACAD_TABLE write-back is v0.2. Don't expect dims and tables to round-trip yet.
+- DIMENSION / ACAD_TABLE write-back is v0.1. Dims and tables round-trip now.
 - The website is in `landing/` (for Vercel).
 
 ## License
