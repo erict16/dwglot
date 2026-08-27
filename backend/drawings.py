@@ -651,9 +651,9 @@ def _print_binaries() -> list[str]:
 def _print_fail_message(stderr: str = "", stdout: str = "") -> str:
     text = (stderr or stdout or "").strip()
     line = next((part.strip() for part in text.splitlines() if part.strip()), "")
-    if not line or "Traceback" in line or "Errno" in line:
-        return NO_PRINTER if not line else "打印失败，PDF 已留下"
-    return f"打印失败: {line[:200]}"
+    if line and "Traceback" not in line and "Errno" not in line and any("\u4e00" <= char <= "\u9fff" for char in line):
+        return f"打印失败: {line[:200]}"
+    return "打印失败，PDF 已留下"
 
 
 def print_pdf(pdf_path: str) -> dict:

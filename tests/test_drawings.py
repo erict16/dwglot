@@ -1379,6 +1379,37 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertNotIn("Traceback", result["message"])
         self.assertLessEqual(PRINT_TIMEOUT, 5.0)
 
+    def test_print_lp_fail_is_chinese(self):
+        dest = Path(self.tmp.name) / "lp_fail.pdf"
+        pdf = export_pdf(str(self.dxf), str(dest))
+        english = subprocess.CompletedProcess(["/usr/bin/lp", pdf["path"]], 1, "", "No such file or directory")
+        with patch("backend.drawings.shutil.which", return_value="/usr/bin/lp"), patch(
+            "backend.drawings.subprocess.run", return_value=english
+        ):
+            result = print_pdf(pdf["path"])
+            printed = self.client.post(
+                "/api/drawings/print",
+                json={"path": str(self.dxf), "output_dir": self.tmp.name, "output_name": "lp_fail_api.pdf"},
+            )
+        self.assertFalse(result["ok"])
+        self.assertIn("打印失败", result["message"])
+        self.assertNotIn("No such file", result["message"])
+        self.assertNotIn("打印命令", result["message"])
+        self.assertNotIn("Traceback", result["message"])
+        self.assertEqual(printed.status_code, 200, printed.text)
+        self.assertNotIn("Traceback", printed.text)
+        self.assertIn("打印失败", printed.json()["print"]["message"])
+        self.assertNotIn("No such file", printed.json()["print"]["message"])
+        _assert_cjk_pdf(self, Path(printed.json()["path"]), min_ink=800)
+        silent = subprocess.CompletedProcess(["/usr/bin/lp", pdf["path"]], 1, "", "")
+        with patch("backend.drawings.shutil.which", return_value="/usr/bin/lp"), patch(
+            "backend.drawings.subprocess.run", return_value=silent
+        ):
+            empty = print_pdf(pdf["path"])
+        self.assertFalse(empty["ok"])
+        self.assertIn("打印失败", empty["message"])
+        self.assertNotIn("打印命令", empty["message"])
+
     def test_frontend_print_needs_a_drawing(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
         text = source.read_text(encoding="utf-8")
