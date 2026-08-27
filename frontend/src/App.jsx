@@ -258,6 +258,11 @@ export default function App() {
     }
   }
 
+  function closeSheet() {
+    setSheet(false);
+    if (current) extractFile(current);
+  }
+
   async function runTranslate() {
     if (!current) {
       setStatus("先打开图纸。");
@@ -402,8 +407,8 @@ export default function App() {
       } else {
         setUpdateMsg(data.message || `已是 ${data.current}`);
       }
-    } catch (error) {
-      setUpdateMsg(error.message);
+    } catch {
+      setUpdateMsg("GitHub API 暂不可用，打开 Releases 页查看");
     }
   }
 
@@ -679,11 +684,11 @@ export default function App() {
 
         {sheet && (
           <>
-            <div className="dim" onClick={() => setSheet(false)} />
+            <div className="dim" onClick={closeSheet} />
             <div className="sheet" role="dialog" aria-label="参数">
               <div className="sheet-h">
                 <span>参数</span>
-                <button type="button" className="done" onClick={() => setSheet(false)}>完成</button>
+                <button type="button" className="done" onClick={closeSheet}>完成</button>
               </div>
               <div className="sheet-b">
                 <div className="group">

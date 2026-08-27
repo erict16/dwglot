@@ -27,7 +27,7 @@ from backend.cad import ODA_OUTPUT_VERSIONS, analyze_source, dwg_unavailable_sho
 from backend.translator import CADChineseTranslator, CONFIG_PATH, load_yaml_data, output_prefix, resource_path
 from backend.language_assets import LanguageAssets
 from backend.storage import atomic_write_json, quarantine_corrupt_file
-from backend.updates import check_github_release
+from backend.updates import check_github_release, unavailable_payload
 from backend.drawings import extract_preview, export_pdf, print_pdf, translate_rows, writeback_rows
 from backend.languages import split_mode
 
@@ -562,7 +562,10 @@ def app_meta():
 
 @app.get("/api/updates/check")
 def updates_check():
-    return check_github_release()
+    try:
+        return check_github_release()
+    except Exception:
+        return unavailable_payload("GitHub API 暂不可用，打开 Releases 页查看")
 
 
 @app.post("/api/drawings/open")

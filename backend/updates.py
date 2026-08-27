@@ -25,8 +25,21 @@ def is_newer(latest: str, current: str) -> bool:
     return _parse_version(latest) > _parse_version(current)
 
 
+def unavailable_payload(message: str) -> dict:
+    return {
+        "current": APP_VERSION,
+        "latest": APP_VERSION,
+        "available": False,
+        "message": message,
+        "html_url": f"{GITHUB_URL}/releases",
+        "appcast_url": APPCAST_URL,
+        "latest_yml_url": LATEST_YML_URL,
+        "assets": [],
+    }
+
+
 def check_github_release(timeout: float = 12.0) -> dict:
-    """Return current vs latest. 404 means no release yet, not a crash."""
+    """Return current vs latest. 403/404 are a calm payload, not a crash."""
     request = urllib.request.Request(
         RELEASES_API,
         headers={
@@ -38,38 +51,13 @@ def check_github_release(timeout: float = 12.0) -> dict:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        if exc.code in {403, 404}:
-            return {
-                "current": APP_VERSION,
-                "latest": APP_VERSION,
-                "available": False,
-                "message": "还没有 GitHub Release" if exc.code == 404 else "GitHub API 暂不可用，打开 Releases 页查看",
-                "html_url": f"{GITHUB_URL}/releases",
-                "appcast_url": APPCAST_URL,
-                "latest_yml_url": LATEST_YML_URL,
-                "assets": [],
-            }
-        return {
-            "current": APP_VERSION,
-            "latest": APP_VERSION,
-            "available": False,
-            "message": f"检查更新失败（HTTP {exc.code}）",
-            "html_url": f"{GITHUB_URL}/releases",
-            "appcast_url": APPCAST_URL,
-            "latest_yml_url": LATEST_YML_URL,
-            "assets": [],
-        }
-    except OSError as exc:
-        return {
-            "current": APP_VERSION,
-            "latest": APP_VERSION,
-            "available": False,
-            "message": f"检查更新失败: {exc}",
-            "html_url": f"{GITHUB_URL}/releases",
-            "appcast_url": APPCAST_URL,
-            "latest_yml_url": LATEST_YML_URL,
-            "assets": [],
-        }
+        if exc.code == 404:
+            return unavailable_payload("还没有 GitHub Release")
+        if exc.code == 403:
+            return unavailable_payload("GitHub API 暂不可用，打开 Releases 页查看")
+        return unavailable_payload(f"检查更新失败（HTTP {exc.code}）")
+    except (OSError, json.JSONDecodeError, ValueError, TypeError, UnicodeDecodeError):
+        return unavailable_payload("GitHub API 暂不可用，打开 Releases 页查看")
 
     tag = str(payload.get("tag_name") or "").lstrip("v")
     assets = [

@@ -40,6 +40,15 @@ def _pdf_dark_pixels(path: Path) -> int:
         return sum(1 for pixel in image.tobytes() if pixel < 210)
 
 
+def _assert_cjk_pdf(testcase: unittest.TestCase, pdf_path: Path, *, min_ink: int = 800) -> None:
+    testcase.assertTrue(pdf_path.is_file())
+    testcase.assertEqual(pdf_path.read_bytes()[:5], b"%PDF-")
+    extracted = _pdf_text(pdf_path)
+    if "平面" not in extracted and "天花" not in extracted and "安装" not in extracted:
+        ink = _pdf_dark_pixels(pdf_path)
+        testcase.assertGreater(ink, min_ink, f"rasterized PDF has too little ink ({ink}); CJK is probably tofu")
+
+
 def _sample_dxf(path: Path) -> Path:
     doc = ezdxf.new("R2010")
     msp = doc.modelspace()
@@ -191,7 +200,8 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertGreaterEqual(result["pages"], 1)
 
     def test_floor_plan_glossary_writeback_pdf_and_paperspace(self):
-        dxf = _floor_plan_dxf(self.root / "floor_plan.dxf")
+        committed = FIXTURES / "floor_plan.dxf"
+        dxf = committed if committed.is_file() else _floor_plan_dxf(self.root / "floor_plan.dxf")
         preview = extract_preview(str(dxf), include_attribs=True, include_paper=True)
         sources = {item["source"] for item in preview["items"]}
         self.assertTrue({"平面布置图", "天花图", "剪力墙", "隔墙定位图", "配电箱", "接地"} <= sources)
@@ -228,9 +238,9 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("distribution board", model)
 
         pdf = export_pdf(str(dxf), str(self.root / "floor_plan.pdf"))
-        self.assertEqual(Path(pdf["path"]).read_bytes()[:5], b"%PDF-")
         self.assertGreater(pdf["bytes"], 2500)
         self.assertGreaterEqual(pdf["pages"], 2)
+        _assert_cjk_pdf(self, Path(pdf["path"]), min_ink=800)
         names = [layout.name for layout in ezdxf.readfile(dxf).layouts]
         self.assertIn("Model", names)
 
@@ -348,9 +358,17 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertNotIn("安装高度", {item["source"] for item in reread["items"] if item["type"] == "DIMENSION"})
 
         pdf = export_pdf(str(dxf), str(self.root / "dims_tables.pdf"))
-        self.assertEqual(Path(pdf["path"]).read_bytes()[:5], b"%PDF-")
         self.assertGreater(pdf["bytes"], 800)
         self.assertGreaterEqual(pdf["pages"], 1)
+        _assert_cjk_pdf(self, Path(pdf["path"]), min_ink=800)
+
+    def test_frontend_dims_label_is_honest(self):
+        source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
+        text = source.read_text(encoding="utf-8")
+        self.assertIn("标注、表格", text)
+        self.assertNotIn("标注（v0.2）", text)
+        self.assertIn("enable_v02: params.dims", text)
+        self.assertIn("dims: true", text)
 
 
 class DrawingsApiTests(unittest.TestCase):
