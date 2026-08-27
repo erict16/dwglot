@@ -265,8 +265,6 @@ class TranslationService:
         provider = task.get("provider", "deepl")
         config = self.load_config()
         engine = self._engine_from(config, task)
-        if not self._engine_ready(provider, engine):
-            raise _fatal_batch_error(self._engine_missing_message(provider, engine))
         fmt = task.get("output_format", "source")
         ext = os.path.splitext(path)[1] if fmt == "source" else f".{fmt}"
         name = f"{output_prefix(task['translation_mode'])}_{Path(path).stem}"
@@ -274,12 +272,12 @@ class TranslationService:
         translator = CADChineseTranslator(log_callback=log)
         translator.configure_language_assets(task.get("project_package_path") or config.get("project_package_path", ""))
         translator.configure_engine(provider, **engine)
-        if not translator.has_mt():
-            raise _fatal_batch_error(self._engine_missing_message(provider, engine))
         try:
             translator.translate_cad_file(path, output, task["translation_mode"], task["translate_blocks"], fmt, task.get("output_version", ""), resume_event, cancel_event)
         except FileNotFoundError as exc:
             raise _fatal_batch_error("图纸不存在") from exc
+        except RuntimeError as exc:
+            raise _fatal_batch_error(str(exc)[:240] or "翻译失败") from exc
         return output
 
     @staticmethod
@@ -976,9 +974,6 @@ def start_batch(body: BatchStartBody):
         raise HTTPException(status_code=400, detail="不支持的输出格式")
     if body.output_version not in {"", *ODA_OUTPUT_VERSIONS}:
         raise HTTPException(status_code=400, detail="不支持的输出版本")
-    engine = service._engine_from(service.load_config(), body.model_dump())
-    if not service._engine_ready(body.provider, engine):
-        raise HTTPException(status_code=400, detail=service._engine_missing_message(body.provider, engine))
     pending = [
         task for task in service.batch.snapshot()["tasks"]
         if task["status"] in {"queued", "retrying", "cancelled", "failed"}

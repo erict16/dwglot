@@ -491,6 +491,10 @@ class CADChineseTranslator:
             self.safe_log(f"跳过损坏文本(可读字符比例过低): \"{cleaned}\"")
             return self.cleaner.safe_utf8(text)
 
+        if not self.has_mt():
+            self.safe_log(f"未译（无引擎）: \"{cleaned}\"")
+            return self.cleaner.safe_utf8(text)
+
         try:
             context = self.get_contextual_translation(cleaned, lang_config_key)
             self.safe_log(f"翻译中 ({lang_config['name']}): {cleaned}")
@@ -1133,7 +1137,12 @@ class CADChineseTranslator:
                 if i % 10 == 0 or i == total_items:
                     self.safe_log(f"   进度: {i}/{total_items} ({i/total_items*100:.1f}%)")
 
+            unmatched = total_items - skipped_invalid - successful_translations
+            if unmatched > 0:
+                self.safe_log(f"未译 {unmatched} 条（术语表未命中，无引擎）。")
             self.safe_log(f"翻译统计：成功 {successful_translations}, 跳过 {skipped_invalid}")
+            if successful_translations == 0 and unmatched > 0:
+                raise RuntimeError("术语表没有命中，请配置翻译引擎或手填译文")
 
         # ============================================================
         # 保存文件

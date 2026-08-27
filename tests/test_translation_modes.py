@@ -384,7 +384,7 @@ class EngineAndGlossaryTests(unittest.TestCase):
             json={"provider": "openai", "openai_key": "sk-test", "openai_base": closed, "output_dir": self.tmp.name},
         )
         self.assertLess(time.monotonic() - start, 4.0)
-        self._assert_calm(batch, 400, "无法连接自定义接口")
+        self._assert_calm(batch, 400, "CAD")
 
         start = time.monotonic()
         drawn = self.client.post(
@@ -426,19 +426,12 @@ class EngineAndGlossaryTests(unittest.TestCase):
             self.assertFalse(deepl.exception.retryable)
             open_url.assert_not_called()
 
-    def test_batch_start_rejects_empty_engines(self):
-        cases = [
-            ({"provider": "deepl", "deepl_key": "", "output_dir": self.tmp.name}, "DeepL"),
-            ({"provider": "azure", "azure_key": "", "output_dir": self.tmp.name}, "Azure"),
-            ({"provider": "openai", "openai_key": "sk", "openai_base": "", "output_dir": self.tmp.name}, "接口地址"),
-            ({"provider": "openai", "openai_key": "", "openai_base": "https://example.test/v1", "output_dir": self.tmp.name}, "API Key"),
-        ]
-        for body, needle in cases:
-            response = self.client.post("/api/batch/start", json=body)
-            self._assert_calm(response, 400, needle)
-        with patch("backend.providers.ollama.ollama_reachable", return_value=False):
-            ollama = self.client.post("/api/batch/start", json={"provider": "ollama", "output_dir": self.tmp.name})
-        self._assert_calm(ollama, 400, "Ollama")
+    def test_batch_start_without_engine_still_needs_cad_files(self):
+        response = self.client.post(
+            "/api/batch/start",
+            json={"provider": "deepl", "deepl_key": "", "output_dir": self.tmp.name},
+        )
+        self._assert_calm(response, 400, "CAD")
 
     def test_glossary_missing_empty_and_bad_encoding_are_calm(self):
         missing = self.client.post(

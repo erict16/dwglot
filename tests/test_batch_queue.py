@@ -1,6 +1,7 @@
 """Small no-network checks for persistent batch scheduling."""
 import json
 import os
+import shutil
 import tempfile
 import threading
 import time
@@ -9,14 +10,31 @@ from collections import deque
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from backend import queue as batch_queue
+from backend.drawings import extract_preview
 from backend.providers.azure import AzureFreeQuotaExceededError
 from backend.storage import atomic_output_path
 from backend.api import DROPPED_FILE_RETENTION_SECONDS, SSE_QUEUE_SIZE, TranslationService, app, service
 from backend.queue import _calm_error, _retryable
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+EMPTY_ENGINE = {
+    "deepl_key": "",
+    "azure_key": "",
+    "azure_region": "",
+    "openai_key": "",
+    "openai_base": "",
+    "openai_model": "",
+    "ollama_host": "",
+    "ollama_model": "",
+    "provider": "deepl",
+    "output_dir": "",
+    "project_package_path": "",
+}
 
 
 class BatchQueueTests(unittest.TestCase):
@@ -227,6 +245,49 @@ class BatchApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400, response.text)
         self.assertIn("CAD", response.json()["detail"])
         self.assertNotIn("Traceback", response.text)
+
+    def test_glossary_only_floor_plan_succeeds_without_engine(self):
+        fixture = FIXTURES / "floor_plan.dxf"
+        self.assertTrue(fixture.is_file(), "tests/fixtures/floor_plan.dxf")
+        src = Path(self.tmp.name) / "floor_plan.dxf"
+        shutil.copy(fixture, src)
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"), patch(
+            "urllib.request.urlopen"
+        ) as open_url:
+            open_url.side_effect = AssertionError("batch glossary-only must not call the network")
+            added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            self.assertNotIn("Traceback", started.text)
+            task = None
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.05)
+            open_url.assert_not_called()
+        self.assertIsNotNone(task)
+        self.assertEqual(task["status"], "succeeded", task)
+        out = Path(task["output_file"])
+        self.assertTrue(out.is_file(), task)
+        self.assertTrue(out.name.startswith("en_"))
+        sources = {item["source"] for item in extract_preview(str(out), include_attribs=True, include_paper=True)["items"]}
+        self.assertIn("reflected ceiling plan", sources)
+        self.assertIn("floor plan", sources)
+        self.assertNotIn("天花图", sources)
+        self.assertNotIn("平面布置图", sources)
 
     def test_missing_file_and_oda_are_not_retried(self):
         self.assertFalse(_retryable(FileNotFoundError("图纸不存在")))
