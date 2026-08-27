@@ -902,6 +902,17 @@ class DrawingsApiTests(unittest.TestCase):
             self.assertEqual(body["path"], "")
             self.assertIn("未检测到 ODA", body["message"])
 
+    def test_language_assets_http(self):
+        response = self.client.get("/api/language-assets")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertNotIn("Traceback", response.text)
+        body = response.json()
+        self.assertGreater(len(body["builtin_terms"]), 0)
+        self.assertTrue(any(term.get("source") for term in body["builtin_terms"]))
+        self.assertIn("terms", body)
+        self.assertIn("project", body)
+        self.assertGreater(len(body["builtin_terms"]) + len(body["terms"]), 0)
+
     def test_open_extract_translate_writeback_update_pdf(self):
         with self.dxf.open("rb") as handle:
             opened = self.client.post("/api/drawings/open", files={"files": ("api.dxf", handle, "application/dxf")})
