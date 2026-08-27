@@ -1445,6 +1445,22 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertIn("ODA", opened.json()["detail"])
         self.assertNotIn("Traceback", opened.text)
 
+    def test_print_dwg_without_oda_is_400(self):
+        from backend.cad import odafc_available
+
+        if odafc_available():
+            self.skipTest("ODA is installed")
+        dwg = Path(self.tmp.name) / "x.dwg"
+        dwg.write_bytes(b"AC1032" + b"\x00" * 16)
+        printed = self.client.post(
+            "/api/drawings/print",
+            json={"path": str(dwg), "output_dir": self.tmp.name, "output_name": "x.pdf"},
+        )
+        self.assertEqual(printed.status_code, 400, printed.text)
+        self.assertIn("未检测", printed.json()["detail"])
+        self.assertIn("ODA", printed.json()["detail"])
+        self.assertNotIn("Traceback", printed.text)
+
     def test_extract_digits_only_drawing_is_200(self):
         path = Path(self.tmp.name) / "digits.dxf"
         doc = ezdxf.new("R2010")
