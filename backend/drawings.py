@@ -66,6 +66,13 @@ def open_work_dxf(path: str):
                 pass
 
 
+def _read_dxf(path: str):
+    try:
+        return ezdxf.readfile(path)
+    except Exception as exc:
+        raise ValueError("无法读取DXF文件") from exc
+
+
 def _flag(layer, name: str) -> bool:
     value = getattr(layer, name, False)
     try:
@@ -165,10 +172,7 @@ def extract_preview(
     translator = CADChineseTranslator()
     translator.enable_v02_entities = bool(enable_v02)
     with open_work_dxf(path) as work_dxf:
-        try:
-            doc = ezdxf.readfile(work_dxf)
-        except Exception as exc:
-            raise ValueError("无法读取DXF文件") from exc
+        doc = _read_dxf(work_dxf)
         raw = translator.extract_text_entities(
             doc,
             mode,
@@ -393,7 +397,7 @@ def writeback_rows(
     with CadConversionSession(path, log, "source", "") as session:
         work_input = session.work_input
         work_output = session.work_output_path() or output_file
-        doc = ezdxf.readfile(work_input)
+        doc = _read_dxf(work_input)
         written = 0
         missing = 0
         if style != "纯译文":
@@ -584,7 +588,7 @@ def export_pdf(path: str, output_path: str = "", layout_name: str = "", *, style
     style = normalize_pdf_style(style)
     register_cjk_font()
     with open_work_dxf(path) as work_dxf:
-        doc = ezdxf.readfile(work_dxf)
+        doc = _read_dxf(work_dxf)
         rewrite_shx_styles(doc)
         if style != "纯译文":
             apply_pdf_style(doc, items or [], style)

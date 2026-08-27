@@ -387,6 +387,25 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertNotIn("Traceback", str(raised.exception))
         self.assertFalse(dest.exists())
 
+    def test_unreadable_dxf_pdf_and_writeback_are_valueerror(self):
+        junk = self.root / "junk.dxf"
+        junk.write_text("not a dxf at all", encoding="utf-8")
+        dest = self.root / "junk.pdf"
+        with self.assertRaises(ValueError) as raised:
+            export_pdf(str(junk), str(dest))
+        self.assertIn("无法读取", str(raised.exception))
+        self.assertNotIn("Traceback", str(raised.exception))
+        self.assertFalse(dest.exists())
+        with self.assertRaises(ValueError) as written:
+            writeback_rows(
+                str(junk),
+                [{"source": "天花", "target": "ceiling", "selected": True, "handle": "1"}],
+                output_dir=str(self.root),
+                output_name="junk_wb",
+            )
+        self.assertIn("无法读取", str(written.exception))
+        self.assertNotIn("Traceback", str(written.exception))
+
     def test_export_pdf_named_a1_layout(self):
         dxf = FIXTURES / "floor_plan.dxf"
         self.assertTrue(dxf.is_file(), "tests/fixtures/floor_plan.dxf")
@@ -1284,6 +1303,32 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertEqual(extracted.status_code, 400, extracted.text)
         self.assertIn("无法读取", extracted.json()["detail"])
         self.assertNotIn("Traceback", extracted.text)
+        pdf = self.client.post(
+            "/api/drawings/export-pdf",
+            json={"path": str(path), "output_dir": self.tmp.name, "output_name": "junk.pdf"},
+        )
+        self.assertEqual(pdf.status_code, 400, pdf.text)
+        self.assertIn("无法读取", pdf.json()["detail"])
+        self.assertNotIn("Traceback", pdf.text)
+        printed = self.client.post(
+            "/api/drawings/print",
+            json={"path": str(path), "output_dir": self.tmp.name, "output_name": "junk_print.pdf"},
+        )
+        self.assertEqual(printed.status_code, 400, printed.text)
+        self.assertIn("无法读取", printed.json()["detail"])
+        self.assertNotIn("Traceback", printed.text)
+        written = self.client.post(
+            "/api/drawings/writeback",
+            json={
+                "input_file": str(path),
+                "items": [{"source": "天花", "target": "ceiling", "selected": True, "handle": "1"}],
+                "output_dir": self.tmp.name,
+                "output_name": "junk_wb",
+            },
+        )
+        self.assertEqual(written.status_code, 400, written.text)
+        self.assertIn("无法读取", written.json()["detail"])
+        self.assertNotIn("Traceback", written.text)
 
 
 REAL_DWG_DIR = Path("/workspace/dwglot-drawings")
