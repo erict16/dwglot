@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: Live DWG without ODA no longer 400s the whole `/api/batch/start`. Add/drop queue the DWG; start marks it `failed` (`未检测到 ODA`) and still runs DXF. 常规 `/api/drawings/open` stays 400. Proof: floor_plan.dxf + a DWG from `/workspace/dwglot-drawings/`. 批量导入 still 501. Do not bundle ODA. `python -m unittest discover -s tests` 94 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: Queue load/start marks missing CAD paths `failed` (`图纸不存在`) and does not 400 the whole `/api/batch/start`. Mixed live + stale entries: live still runs. `python -m unittest discover -s tests` 93 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: ATTRIB/ATTDEF 对照 stays one line (`源 / 译`); AutoCAD attributes cannot hold `\\P`. Unreadable DXF is 400 `无法读取DXF文件` on extract and a non-retry batch fail (was retried as generic Exception). `python -m unittest discover -s tests` 92 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: 批量导出 honors 版式. `translate_cad_file(..., style=)` reuses `apply_pdf_style`. 纯译文 unchanged; 原译对照 / 译原对照 stack TEXT and MTEXT `\\P` with `\\C1;`. floor_plan.dxf batch 对照 re-reads 天花图 and reflected ceiling plan. `python -m unittest discover -s tests` 90 ok. Do not edit landing/, README*, docs/icons/.

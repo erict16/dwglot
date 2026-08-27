@@ -231,13 +231,13 @@ class TranslationService:
         self.batch = BatchQueue(self._run_batch, self.emit_log, lambda task: self.load_config().get(f"{task.get('provider', 'deepl')}_key", ""))
         self.cleanup_dropped_files()
 
-    def save_dropped_files(self, files: list[UploadFile]) -> list[str]:
+    def save_dropped_files(self, files: list[UploadFile], *, require_oda: bool = True) -> list[str]:
         paths = []
         for upload in files:
             name = Path(upload.filename or "").name
             if not name.lower().endswith((".dxf", ".dwg")):
                 raise HTTPException(status_code=400, detail=f"无效 CAD 文件: {name or '未命名文件'}")
-            if name.lower().endswith(".dwg") and not odafc_available():
+            if require_oda and name.lower().endswith(".dwg") and not odafc_available():
                 raise HTTPException(status_code=400, detail=dwg_unavailable_short())
             target = self.dropped_files_dir / uuid4().hex / name
             target.parent.mkdir(parents=True)
@@ -921,11 +921,18 @@ def clear_logs():
     return {"ok": True}
 
 
-def batch_path_problem(path: str) -> str | None:
+def batch_add_problem(path: str) -> str | None:
     if not path or not str(path).lower().endswith((".dxf", ".dwg")):
         return f"无效 CAD 文件: {path or '未命名文件'}"
     if not os.path.isfile(path):
         return "图纸不存在"
+    return None
+
+
+def batch_path_problem(path: str) -> str | None:
+    problem = batch_add_problem(path)
+    if problem:
+        return problem
     if str(path).lower().endswith(".dwg") and not odafc_available():
         return dwg_unavailable_short()
     return None
@@ -943,7 +950,7 @@ def add_batch(body: BatchBody):
         raise HTTPException(status_code=400, detail="请选择 CAD 文件")
     try:
         for path in body.files:
-            problem = batch_path_problem(path)
+            problem = batch_add_problem(path)
             if problem:
                 raise HTTPException(status_code=400, detail=problem)
         return service.batch.add(body.files)
@@ -966,7 +973,7 @@ async def drop_batch(files: list[UploadFile] = File(default=[])):
     if not files:
         raise HTTPException(status_code=400, detail="请选择 CAD 文件")
     try:
-        return service.batch.add(service.save_dropped_files(files))
+        return service.batch.add(service.save_dropped_files(files, require_oda=False))
     except HTTPException:
         raise
     except Exception as exc:
@@ -987,20 +994,14 @@ def start_batch(body: BatchStartBody):
         raise HTTPException(status_code=400, detail="不支持的输出格式")
     if body.output_version not in {"", *ODA_OUTPUT_VERSIONS}:
         raise HTTPException(status_code=400, detail="不支持的输出版本")
-    service.batch.fail_missing()
+    service.batch.fail_missing(body.output_format)
     pending = [
         task for task in service.batch.snapshot()["tasks"]
         if task["status"] in {"queued", "retrying", "cancelled", "failed"}
-        and os.path.isfile(task.get("input_file") or "")
+        and not service.batch._unrunnable_reason(task, body.output_format)
     ]
     if not pending:
         raise HTTPException(status_code=400, detail="请选择 CAD 文件")
-    for task in pending:
-        problem = batch_path_problem(task["input_file"])
-        if problem:
-            raise HTTPException(status_code=400, detail=problem)
-        if body.output_format == "dwg" and not odafc_available():
-            raise HTTPException(status_code=400, detail=dwg_unavailable_short())
     service.save_config(
         body.deepl_key,
         output_dir,

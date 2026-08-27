@@ -13,7 +13,7 @@ from ezdxf.entities.acad_table import AcadTableBlockContent
 from ezdxf.math import Vec2
 from fastapi.testclient import TestClient
 
-from backend.api import app
+from backend.api import app, service
 from unittest.mock import patch
 
 from backend.drawings import (
@@ -900,18 +900,22 @@ class RealDwgWithoutOdaTests(unittest.TestCase):
                     )
                 self.assertEqual(opened.status_code, 400, opened.text)
                 self.assertIn("ODA", opened.json()["detail"])
-                added = client.post("/api/batch/add", json={"files": [str(dwg)]})
-                self.assertEqual(added.status_code, 400, added.text)
-                self.assertIn("ODA", added.json()["detail"])
-                self.assertNotIn("Traceback", added.text)
-                with dwg.open("rb") as handle:
-                    dropped = client.post(
-                        "/api/batch/drop",
-                        files={"files": (dwg.name, handle, "application/acad")},
-                    )
-                self.assertEqual(dropped.status_code, 400, dropped.text)
-                self.assertIn("ODA", dropped.json()["detail"])
-                self.assertNotIn("Traceback", dropped.text)
+                saved_tasks = list(service.batch.tasks)
+                try:
+                    added = client.post("/api/batch/add", json={"files": [str(dwg)]})
+                    self.assertEqual(added.status_code, 200, added.text)
+                    self.assertNotIn("Traceback", added.text)
+                    queued = added.json()["tasks"]
+                    self.assertTrue(any(task["input_file"] == str(dwg) for task in queued))
+                    with dwg.open("rb") as handle:
+                        dropped = client.post(
+                            "/api/batch/drop",
+                            files={"files": (dwg.name, handle, "application/acad")},
+                        )
+                    self.assertEqual(dropped.status_code, 200, dropped.text)
+                    self.assertNotIn("Traceback", dropped.text)
+                finally:
+                    service.batch.tasks = saved_tasks
 
     def test_updates_helper_survives_404(self):
         payload = check_github_release()

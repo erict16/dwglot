@@ -244,17 +244,27 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("不存在", response.json()["detail"])
         self.assertNotIn("Traceback", response.text)
 
-    def test_add_and_drop_dwg_without_oda_is_400(self):
+    def test_add_and_drop_dwg_without_oda_is_queued(self):
+        from backend.cad import odafc_available
+
+        if odafc_available():
+            self.skipTest("ODA is installed")
         dwg = Path(self.tmp.name) / "x.dwg"
         dwg.write_bytes(b"AC1032" + b"\x00" * 16)
         added = self.client.post("/api/batch/add", json={"files": [str(dwg)]})
-        self.assertEqual(added.status_code, 400, added.text)
-        self.assertIn("ODA", added.json()["detail"])
+        self.assertEqual(added.status_code, 200, added.text)
         self.assertNotIn("Traceback", added.text)
+        started = self.client.post(
+            "/api/batch/start",
+            json={"provider": "deepl", "deepl_key": "", "output_dir": self.tmp.name, "translation_mode": "zh_to_en"},
+        )
+        self.assertEqual(started.status_code, 400, started.text)
+        self.assertIn("CAD", started.json()["detail"])
+        self.assertEqual(service.batch.tasks[0]["status"], "failed")
+        self.assertIn("ODA", service.batch.tasks[0]["message"])
         with dwg.open("rb") as handle:
             dropped = self.client.post("/api/batch/drop", files={"files": ("x.dwg", handle, "application/acad")})
-        self.assertEqual(dropped.status_code, 400, dropped.text)
-        self.assertIn("ODA", dropped.json()["detail"])
+        self.assertEqual(dropped.status_code, 200, dropped.text)
         self.assertNotIn("Traceback", dropped.text)
 
     def test_batch_import_is_not_ready(self):
@@ -420,6 +430,52 @@ class BatchApiTests(unittest.TestCase):
         by_path = {task["input_file"]: task for task in tasks}
         self.assertEqual(by_path[str(gone)]["status"], "failed")
         self.assertIn("图纸不存在", by_path[str(gone)]["message"])
+        self.assertEqual(by_path[str(live)]["status"], "succeeded", by_path[str(live)])
+        sources = {
+            item["source"]
+            for item in extract_preview(by_path[str(live)]["output_file"], include_attribs=True, include_paper=True)["items"]
+        }
+        self.assertIn("reflected ceiling plan", sources)
+
+    def test_start_skips_dwg_without_oda_and_runs_dxf(self):
+        from backend.cad import odafc_available
+
+        if odafc_available():
+            self.skipTest("ODA is installed")
+        drawings = Path("/workspace/dwglot-drawings")
+        dwgs = sorted(drawings.glob("*.dwg"))
+        if not dwgs:
+            self.skipTest("no DWG fixtures in /workspace/dwglot-drawings")
+        live = Path(self.tmp.name) / "live.dxf"
+        shutil.copy(FIXTURES / "floor_plan.dxf", live)
+        dwg = Path(self.tmp.name) / dwgs[0].name
+        shutil.copy(dwgs[0], dwg)
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"):
+            added = self.client.post("/api/batch/add", json={"files": [str(dwg), str(live)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            deadline = time.monotonic() + 20
+            tasks = []
+            while time.monotonic() < deadline:
+                tasks = self.client.get("/api/batch").json()["tasks"]
+                if tasks and all(task["status"] not in {"queued", "retrying", "running"} for task in tasks):
+                    break
+                time.sleep(0.05)
+        by_path = {task["input_file"]: task for task in tasks}
+        self.assertEqual(by_path[str(dwg)]["status"], "failed", by_path[str(dwg)])
+        self.assertIn("ODA", by_path[str(dwg)]["message"])
+        self.assertIn("未检测到 ODA", by_path[str(dwg)]["message"])
         self.assertEqual(by_path[str(live)]["status"], "succeeded", by_path[str(live)])
         sources = {
             item["source"]

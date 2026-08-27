@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable
 
 from backend.app_meta import QUEUE_PATH, LEGACY_QUEUE_PATH, migrate_legacy_file
+from backend.cad import dwg_unavailable_short, odafc_available
 from backend.storage import atomic_write_json, quarantine_corrupt_file
 
 migrate_legacy_file(LEGACY_QUEUE_PATH, QUEUE_PATH)
@@ -25,7 +26,7 @@ class BatchQueue:
         self.oda_lock = threading.Lock()
         self.key_locks: dict[str, threading.BoundedSemaphore] = {}
         self.tasks: list[dict] = self._load()
-        if self._fail_missing():
+        if self._fail_unrunnable():
             try:
                 self._save()
             except OSError:
@@ -63,22 +64,35 @@ class BatchQueue:
         path = task.get("input_file") or ""
         return not os.path.isfile(path)
 
-    def _fail_missing(self) -> bool:
+    @staticmethod
+    def _unrunnable_reason(task: dict, output_format: str = "source") -> str | None:
+        path = task.get("input_file") or ""
+        if not os.path.isfile(path):
+            return "图纸不存在"
+        lower = str(path).lower()
+        if not lower.endswith((".dxf", ".dwg")):
+            return f"无效 CAD 文件: {path}"
+        if (lower.endswith(".dwg") or output_format == "dwg") and not odafc_available():
+            return dwg_unavailable_short()
+        return None
+
+    def _fail_unrunnable(self, output_format: str = "source") -> bool:
         dirty = False
         for task in self.tasks:
             if task.get("status") == "succeeded":
                 continue
-            if not self._input_missing(task):
+            reason = self._unrunnable_reason(task, output_format)
+            if not reason:
                 continue
-            if task.get("status") != "failed" or task.get("message") != "图纸不存在":
+            if task.get("status") != "failed" or task.get("message") != reason:
                 task["status"] = "failed"
-                task["message"] = "图纸不存在"
+                task["message"] = reason
                 dirty = True
         return dirty
 
-    def fail_missing(self) -> bool:
+    def fail_missing(self, output_format: str = "source") -> bool:
         with self.lock:
-            dirty = self._fail_missing()
+            dirty = self._fail_unrunnable(output_format)
             if dirty:
                 self._save()
             return dirty
@@ -152,11 +166,9 @@ class BatchQueue:
             if self.cancel_event.is_set():
                 self.cancel_event = threading.Event()
             if settings:
+                output_format = settings.get("output_format") or "source"
                 for task in self.tasks:
                     if task["status"] in {"queued", "retrying", "cancelled", "failed"}:
-                        if self._input_missing(task):
-                            task.update(status="failed", message="图纸不存在")
-                            continue
                         task.update(
                             output_dir=settings["output_dir"], output_format=settings["output_format"],
                             output_version=settings["output_version"], translation_mode=settings["translation_mode"],
@@ -166,6 +178,10 @@ class BatchQueue:
                             retries=0, output_file="", message="等待中", logs=[], _key=settings.get("api_key") or settings.get("deepl_key", ""),
                         )
                         task.pop("_output_path", None)
+                        reason = self._unrunnable_reason(task, output_format)
+                        if reason:
+                            task.update(status="failed", message=reason)
+                            task.pop("_key", None)
             self.started = True
             self.paused = False
             self.resumable = False
