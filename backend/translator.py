@@ -248,8 +248,61 @@ class CADChineseTranslator:
         self.translation_provider = "ollama"
         self.mt_provider = OllamaProvider(host, model)
 
+    def configure_engine(
+        self,
+        provider="deepl",
+        *,
+        deepl_key="",
+        azure_key="",
+        azure_region="",
+        openai_key="",
+        openai_base="",
+        openai_model="",
+        ollama_host="",
+        ollama_model="",
+    ):
+        provider = (provider or "deepl").strip() or "deepl"
+        self.mt_provider = None
+        if provider == "azure":
+            if azure_key.strip():
+                self.configure_azure(azure_key, azure_region)
+            else:
+                self.translation_provider = "azure"
+            return
+        if provider == "openai":
+            if openai_key.strip():
+                self.configure_openai(openai_key, openai_base, openai_model)
+            else:
+                self.translation_provider = "openai"
+            return
+        if provider == "ollama":
+            self.configure_ollama(ollama_host, ollama_model)
+            return
+        if deepl_key.strip():
+            self.configure_deepl(deepl_key)
+        else:
+            self.translation_provider = "deepl"
+
     def configure_language_assets(self, project_package_path=""):
         self.project_package_path = project_package_path or ""
+
+    def glossary_hit(self, text, lang_config_key, layer=""):
+        cleaned = self.cleaner.full_clean(decode_oda_mbcs_escapes(str(text or "")))
+        if not cleaned.strip():
+            return None
+        if not self.ensure_lang_config(lang_config_key):
+            return None
+        hit = self.language_assets.lookup_term(cleaned, lang_config_key, layer, self.project_package_path)
+        hit = hit or self.get_layer_glossary_translation(cleaned, lang_config_key, layer)
+        hit = hit or self.get_glossary_translation(cleaned, lang_config_key)
+        return hit
+
+    def has_mt(self) -> bool:
+        if self.mt_provider is not None:
+            return True
+        if self.translation_provider == "azure":
+            return self.azure_translator is not None
+        return self.deepl_translator is not None
 
     def ensure_lang_config(self, lang_config_key):
         if lang_config_key in self.language_configs:
@@ -622,7 +675,7 @@ class CADChineseTranslator:
         from ezdxf.lldxf.types import DXFTag
         tags[index] = DXFTag(302, text)
 
-    def _append_text_item(self, items, entity, layout, field, raw_text):
+    def _append_text_item(self, items, entity, layout, field, raw_text, raw_source=None):
         if not raw_text or not str(raw_text).strip():
             return
         decoded_text = decode_oda_mbcs_escapes(str(raw_text))
@@ -631,14 +684,21 @@ class CADChineseTranslator:
         cleaned = self._clean_entity_text(decoded_text)
         if not cleaned:
             return
+        coded = decode_oda_mbcs_escapes(str(raw_source)) if raw_source is not None else decoded_text
+        handle = ""
+        try:
+            handle = str(getattr(entity.dxf, "handle", "") or "")
+        except Exception:
+            handle = ""
         items.append({
             'entity': entity,
             'field': field,
             'original_text': cleaned,
-            'raw_source': decoded_text.strip(),
+            'raw_source': str(coded).strip(),
             'layer': getattr(entity.dxf, 'layer', 'DEFAULT'),
             'location': layout.name if hasattr(layout, 'name') else 'Unknown',
             'type': entity.dxftype(),
+            'handle': handle,
         })
 
     def _should_translate_attdef_tag(self, tag, default_text):
@@ -700,12 +760,12 @@ class CADChineseTranslator:
                     self._append_text_item(items, entity, layout, 'tag', tag_val)
 
         elif dxftype == 'MTEXT':
-            raw = ""
+            coded = getattr(entity.dxf, 'text', '') or ''
             try:
-                raw = entity.plain_text(fast=False)
+                visible = entity.plain_text(fast=False)
             except Exception:
-                raw = getattr(entity.dxf, 'text', '') or ''
-            self._append_text_item(items, entity, layout, 'text', raw)
+                visible = coded
+            self._append_text_item(items, entity, layout, 'text', visible, raw_source=coded)
 
         elif dxftype == 'ATTDEF':
             text_val = getattr(entity.dxf, 'text', '') or ''
@@ -769,6 +829,8 @@ class CADChineseTranslator:
                 continue
             if dxftype not in self.SUPPORTED_TEXT_TYPES:
                 continue
+            if not self.enable_v02_entities and dxftype in {"DIMENSION", "ACAD_TABLE"}:
+                continue
             for it in self.collect_entity_text_items(entity, layout):
                 key = self._entity_key(it['entity'], it['field'])
                 if key in seen:
@@ -818,6 +880,8 @@ class CADChineseTranslator:
             if dxftype == 'INSERT' and not in_block_def:
                 self._extract_from_insert(entity, layout, include_blocks, items, seen)
             elif dxftype in self.SUPPORTED_TEXT_TYPES:
+                if not self.enable_v02_entities and dxftype in {"DIMENSION", "ACAD_TABLE"}:
+                    continue
                 for it in self.collect_entity_text_items(entity, layout):
                     key = self._entity_key(it['entity'], it['field'])
                     if key in seen:
@@ -854,14 +918,12 @@ class CADChineseTranslator:
         return True
 
     def _write_mtext_entity(self, entity, cleaned_text):
-        font = getattr(self, 'default_font', 'SimSun')
-        if ';' in font:
-            font = "SimSun"
-
-        safe_content = self.cleaner.escape_mtext_special_chars(cleaned_text)
-        formatted_text = r"{\f" + font + r"|b0|i0|c134;" + safe_content + r"}"
-
-        self.safe_log(f"构造 MTEXT: {repr(formatted_text[:50])}...")
+        text = cleaned_text or ""
+        if "\\" in text or "{" in text:
+            formatted_text = text
+        else:
+            formatted_text = self.cleaner.escape_mtext_special_chars(text)
+        self.safe_log(f"写入 MTEXT: {repr(formatted_text[:50])}...")
         entity.dxf.text = formatted_text
         if hasattr(entity, 'text'):
             entity.text = formatted_text
@@ -1017,6 +1079,7 @@ class CADChineseTranslator:
         self.safe_log("💾 正在保存文件...")
         try:
             wait_for_translation(resume_event, cancel_event)
+            rewrite_shx_styles(doc, self.safe_log)
             if output_version and output_file.lower().endswith(".dxf"):
                 doc.dxfversion = output_version
             with atomic_output_path(output_file) as temporary_output:

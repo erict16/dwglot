@@ -28,8 +28,10 @@ from backend.translator import CADChineseTranslator, CONFIG_PATH, load_yaml_data
 from backend.language_assets import LanguageAssets
 from backend.storage import atomic_write_json, quarantine_corrupt_file
 from backend.updates import check_github_release
-from backend.drawings import extract_preview
+from backend.drawings import extract_preview, export_pdf, print_pdf, translate_rows, writeback_rows
 from backend.languages import split_mode
+
+ENGINE_PROVIDERS = {"deepl", "azure", "openai", "ollama"}
 
 
 def _frontend_dist() -> Path:
@@ -83,19 +85,29 @@ class ConfigBody(BaseModel):
     azure_region: str = ""
     output_dir: str = ""
     project_package_path: Optional[str] = None
+    openai_key: str = ""
+    openai_base: str = ""
+    openai_model: str = ""
+    ollama_host: str = ""
+    ollama_model: str = ""
 
 
 class TranslateBody(BaseModel):
     input_file: str
-    output_dir: str
-    output_name: str
+    output_dir: str = ""
+    output_name: str = ""
     translation_mode: str = "zh_to_en"
     translate_blocks: bool = False
-    deepl_key: str
+    deepl_key: str = ""
     provider: str = "deepl"
     azure_key: str = ""
     azure_region: str = ""
     project_package_path: str = ""
+    openai_key: str = ""
+    openai_base: str = ""
+    openai_model: str = ""
+    ollama_host: str = ""
+    ollama_model: str = ""
 
 
 class BatchBody(BaseModel):
@@ -113,6 +125,56 @@ class BatchStartBody(BaseModel):
     azure_key: str = ""
     azure_region: str = ""
     project_package_path: str = ""
+    openai_key: str = ""
+    openai_base: str = ""
+    openai_model: str = ""
+    ollama_host: str = ""
+    ollama_model: str = ""
+
+
+class ExtractBody(BaseModel):
+    path: str
+    include_blocks: bool = False
+    translation_mode: str = "zh_to_en"
+    include_model: bool = True
+    include_paper: bool = True
+    include_attribs: bool = True
+    include_frozen: bool = False
+    include_locked: bool = False
+    include_off: bool = False
+    enable_v02: bool = False
+
+
+class TranslateRowsBody(BaseModel):
+    items: list[dict]
+    translation_mode: str = "zh_to_en"
+    provider: str = "deepl"
+    project_package_path: str = ""
+    deepl_key: str = ""
+    azure_key: str = ""
+    azure_region: str = ""
+    openai_key: str = ""
+    openai_base: str = ""
+    openai_model: str = ""
+    ollama_host: str = ""
+    ollama_model: str = ""
+
+
+class WritebackBody(BaseModel):
+    input_file: str
+    items: list[dict]
+    output_dir: str = ""
+    output_name: str = ""
+    translation_mode: str = "zh_to_en"
+    include_blocks: bool = False
+
+
+class PdfBody(BaseModel):
+    path: str
+    output_dir: str = ""
+    output_name: str = ""
+    layout: str = ""
+    print_after: bool = False
 
 
 class AssetTermBody(BaseModel):
@@ -139,6 +201,14 @@ class ProjectPackageBody(BaseModel):
 
 class UsageBody(BaseModel):
     deepl_key: str = ""
+
+
+class ImportTermsBody(BaseModel):
+    mode: str = "zh_to_en"
+    terms: list[dict] = []
+    csv: str = ""
+    scope: str = "global"
+    project_package_path: str = ""
 
 
 class TranslationService:
@@ -183,23 +253,78 @@ class TranslationService:
     def _run_batch(self, task: dict, log, resume_event, cancel_event) -> str:
         provider = task.get("provider", "deepl")
         config = self.load_config()
-        key = task.get("_key") or config.get(f"{provider}_key", "")
-        if not key:
-            raise RuntimeError(f"请配置 {'Azure Translator' if provider == 'azure' else 'DeepL'} API Key 后继续队列")
+        engine = self._engine_from(config, task)
+        if provider != "ollama" and not self._engine_ready(provider, engine):
+            raise RuntimeError(self._engine_missing_message(provider))
         fmt = task.get("output_format", "source")
         ext = os.path.splitext(task["input_file"])[1] if fmt == "source" else f".{fmt}"
         name = f"{output_prefix(task['translation_mode'])}_{Path(task['input_file']).stem}"
         output = self.reserve_output(task, name, ext)
         translator = CADChineseTranslator(log_callback=log)
         translator.configure_language_assets(task.get("project_package_path") or config.get("project_package_path", ""))
-        if provider == "azure":
-            translator.configure_azure(key, task.get("azure_region") or config.get("azure_region", ""))
-        else:
-            translator.deepl_api_key = key
-            if not translator.deepl_translator:
-                raise RuntimeError("DeepL 初始化失败，请检查 API Key")
+        translator.configure_engine(provider, **engine)
+        if not translator.has_mt():
+            raise RuntimeError(self._engine_missing_message(provider))
         translator.translate_cad_file(task["input_file"], output, task["translation_mode"], task["translate_blocks"], fmt, task.get("output_version", ""), resume_event, cancel_event)
         return output
+
+    @staticmethod
+    def _engine_from(config: dict, extra: dict | None = None) -> dict:
+        extra = extra or {}
+
+        def pick(*names, default=""):
+            for name in names:
+                value = extra.get(name)
+                if value not in (None, ""):
+                    return value
+            for name in names:
+                value = config.get(name)
+                if value not in (None, ""):
+                    return value
+            return default
+
+        provider = extra.get("provider") or config.get("provider") or "deepl"
+        deepl_key = pick("deepl_key")
+        azure_key = pick("azure_key")
+        openai_key = pick("openai_key")
+        fallback_key = extra.get("_key") or extra.get("api_key") or ""
+        if fallback_key:
+            if provider == "deepl" and not deepl_key:
+                deepl_key = fallback_key
+            elif provider == "azure" and not azure_key:
+                azure_key = fallback_key
+            elif provider == "openai" and not openai_key:
+                openai_key = fallback_key
+        return {
+            "deepl_key": deepl_key,
+            "azure_key": azure_key,
+            "azure_region": pick("azure_region"),
+            "openai_key": openai_key,
+            "openai_base": pick("openai_base"),
+            "openai_model": pick("openai_model"),
+            "ollama_host": pick("ollama_host"),
+            "ollama_model": pick("ollama_model"),
+        }
+
+    @staticmethod
+    def _engine_ready(provider: str, engine: dict) -> bool:
+        if provider == "ollama":
+            return True
+        if provider == "azure":
+            return bool(engine.get("azure_key", "").strip())
+        if provider == "openai":
+            return bool(engine.get("openai_key", "").strip())
+        return bool(engine.get("deepl_key", "").strip())
+
+    @staticmethod
+    def _engine_missing_message(provider: str) -> str:
+        if provider == "azure":
+            return "请配置 Azure Translator Key"
+        if provider == "openai":
+            return "请配置自定义接口的 API Key"
+        if provider == "ollama":
+            return "请先启动 Ollama"
+        return "请配置 DeepL API Key"
 
     def reserve_output(self, task: dict, name: str, ext: str) -> str:
         """Reserve a distinct output path before concurrent work starts."""
@@ -272,7 +397,7 @@ class TranslationService:
         """
         return dwglot_output_dir()
 
-    def save_config(self, deepl_key: str, output_dir: str = "", provider: str = "deepl", azure_key: str = "", azure_region: str = "", project_package_path: Optional[str] = None):
+    def save_config(self, deepl_key: str, output_dir: str = "", provider: str = "deepl", azure_key: str = "", azure_region: str = "", project_package_path: Optional[str] = None, **extra):
         config = self.load_config()
         config["deepl_key"] = deepl_key.strip()
         config["provider"] = provider
@@ -282,10 +407,26 @@ class TranslationService:
             config["project_package_path"] = project_package_path.strip()
         if output_dir:
             config["output_dir"] = output_dir
+        for key in ("openai_key", "openai_base", "openai_model", "ollama_host", "ollama_model"):
+            if key in extra and extra[key] is not None:
+                config[key] = str(extra[key]).strip()
         config.setdefault("output_dir", self.default_output_dir())
         atomic_write_json(CONFIG_PATH, config)
 
     def load_config(self) -> dict:
+        defaults = {
+            "deepl_key": "",
+            "provider": "deepl",
+            "azure_key": "",
+            "azure_region": "",
+            "output_dir": self.default_output_dir(),
+            "project_package_path": "",
+            "openai_key": "",
+            "openai_base": "",
+            "openai_model": "",
+            "ollama_host": "",
+            "ollama_model": "",
+        }
         if os.path.exists(CONFIG_PATH):
             try:
                 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -293,14 +434,10 @@ class TranslationService:
             except (OSError, ValueError, TypeError):
                 quarantine_corrupt_file(CONFIG_PATH)
                 config = {}
-            config.setdefault("output_dir", self.default_output_dir())
-            config.setdefault("provider", "deepl")
-            config.setdefault("deepl_key", "")
-            config.setdefault("azure_key", "")
-            config.setdefault("azure_region", "")
-            config.setdefault("project_package_path", "")
+            for key, value in defaults.items():
+                config.setdefault(key, value)
             return config
-        return {"deepl_key": "", "provider": "deepl", "azure_key": "", "azure_region": "", "output_dir": self.default_output_dir(), "project_package_path": ""}
+        return dict(defaults)
 
     @staticmethod
     def deepl_usage(key: str) -> dict:
@@ -330,12 +467,15 @@ class TranslationService:
             return "输出目录不存在"
         if not body.output_name.strip():
             return "请输入输出文件名"
-        if body.translation_mode not in {"zh_to_fr", "fr_to_zh", "zh_to_en", "en_to_zh"}:
+        try:
+            split_mode(body.translation_mode)
+        except ValueError:
             return "不支持的翻译方向"
-        if body.provider not in {"deepl", "azure"}:
+        if body.provider not in ENGINE_PROVIDERS:
             return "不支持的翻译服务"
-        if not (body.azure_key if body.provider == "azure" else body.deepl_key).strip():
-            return f"请配置 {'Azure Translator' if body.provider == 'azure' else 'DeepL'} API Key"
+        engine = self._engine_from(self.load_config(), body.model_dump())
+        if not self._engine_ready(body.provider, engine):
+            return self._engine_missing_message(body.provider)
         return None
 
     def start_translation(self, body: TranslateBody):
@@ -347,7 +487,18 @@ class TranslationService:
         if err:
             raise HTTPException(status_code=400, detail=err)
 
-        self.save_config(body.deepl_key, provider=body.provider, azure_key=body.azure_key, azure_region=body.azure_region, project_package_path=body.project_package_path)
+        self.save_config(
+            body.deepl_key,
+            provider=body.provider,
+            azure_key=body.azure_key,
+            azure_region=body.azure_region,
+            project_package_path=body.project_package_path,
+            openai_key=body.openai_key,
+            openai_base=body.openai_base,
+            openai_model=body.openai_model,
+            ollama_host=body.ollama_host,
+            ollama_model=body.ollama_model,
+        )
         self.set_status("running", "翻译中...")
         self.emit_log("=" * 40)
         self.emit_log("开始翻译任务")
@@ -355,14 +506,12 @@ class TranslationService:
         def worker():
             translator = CADChineseTranslator(log_callback=self.emit_log)
             translator.configure_language_assets(body.project_package_path)
-            if body.provider == "azure":
-                translator.configure_azure(body.azure_key, body.azure_region)
-            else:
-                translator.deepl_api_key = body.deepl_key.strip()
-                if not translator.deepl_translator:
-                    self.emit_log("DeepL 初始化失败，请检查 API Key")
-                    self.set_status("error", "DeepL 初始化失败")
-                    return
+            engine = self._engine_from(self.load_config(), body.model_dump())
+            translator.configure_engine(body.provider, **engine)
+            if not translator.has_mt():
+                self.emit_log(self._engine_missing_message(body.provider))
+                self.set_status("error", self._engine_missing_message(body.provider))
+                return
 
             try:
                 meta = analyze_source(body.input_file)
@@ -414,23 +563,118 @@ def updates_check():
     return check_github_release()
 
 
-class ExtractBody(BaseModel):
-    path: str
-    include_blocks: bool = False
-    translation_mode: str = "zh_to_en"
+@app.post("/api/drawings/open")
+async def drawings_open(files: list[UploadFile] = File(...)):
+    if not files:
+        raise HTTPException(status_code=400, detail="请选择 CAD 文件")
+    paths = service.save_dropped_files(files)
+    return {
+        "files": [
+            {"path": path, "name": Path(path).name, "ext": Path(path).suffix[1:].upper()}
+            for path in paths
+        ]
+    }
 
 
 @app.post("/api/drawings/extract")
 def drawings_extract(body: ExtractBody):
     try:
         split_mode(body.translation_mode)
-        return extract_preview(body.path, include_blocks=body.include_blocks, mode=body.translation_mode)
+        return extract_preview(
+            body.path,
+            include_blocks=body.include_blocks,
+            mode=body.translation_mode,
+            include_model=body.include_model,
+            include_paper=body.include_paper,
+            include_attribs=body.include_attribs,
+            include_frozen=body.include_frozen,
+            include_locked=body.include_locked,
+            include_off=body.include_off,
+            enable_v02=body.enable_v02,
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"提取失败: {exc}") from exc
+
+
+@app.post("/api/drawings/translate")
+def drawings_translate(body: TranslateRowsBody):
+    if body.provider not in ENGINE_PROVIDERS:
+        raise HTTPException(status_code=400, detail="不支持的翻译服务")
+    try:
+        split_mode(body.translation_mode)
+        config = service.load_config()
+        engine = service._engine_from(config, body.model_dump())
+        return translate_rows(
+            body.items,
+            mode=body.translation_mode,
+            provider=body.provider,
+            project_package_path=body.project_package_path or config.get("project_package_path", ""),
+            engine=engine,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"翻译失败: {exc}") from exc
+
+
+@app.post("/api/drawings/writeback")
+def drawings_writeback(body: WritebackBody):
+    try:
+        split_mode(body.translation_mode)
+        output_dir = body.output_dir or service.load_config().get("output_dir") or service.default_output_dir()
+        os.makedirs(output_dir, exist_ok=True)
+        named = body.output_name.strip()
+        if not named:
+            named = default_output_name(body.translation_mode, Path(body.input_file).stem)["name"]
+        return writeback_rows(
+            body.input_file,
+            body.items,
+            output_dir=output_dir,
+            output_name=named,
+            mode=body.translation_mode,
+            include_blocks=body.include_blocks,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"写回失败: {exc}") from exc
+
+
+@app.post("/api/drawings/export-pdf")
+def drawings_export_pdf(body: PdfBody):
+    try:
+        output_dir = body.output_dir or service.load_config().get("output_dir") or service.default_output_dir()
+        os.makedirs(output_dir, exist_ok=True)
+        name = (body.output_name or Path(body.path).stem).strip()
+        if not name.lower().endswith(".pdf"):
+            name = f"{name}.pdf"
+        dest = str(Path(output_dir) / Path(name).name)
+        result = export_pdf(body.path, dest, body.layout)
+        if body.print_after:
+            result["print"] = print_pdf(result["path"])
+        return result
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"导出 PDF 失败: {exc}") from exc
+
+
+@app.post("/api/drawings/print")
+def drawings_print(body: PdfBody):
+    exported = drawings_export_pdf(PdfBody(path=body.path, output_dir=body.output_dir, output_name=body.output_name, layout=body.layout, print_after=False))
+    printed = print_pdf(exported["path"])
+    exported["print"] = printed
+    if not printed.get("ok"):
+        exported["message"] = printed.get("message") or "系统打印失败，PDF 已留下"
+    return exported
 
 
 @app.get("/api/config")
@@ -440,7 +684,19 @@ def get_config():
 
 @app.post("/api/config")
 def post_config(body: ConfigBody):
-    service.save_config(body.deepl_key, body.output_dir, body.provider, body.azure_key, body.azure_region, body.project_package_path)
+    service.save_config(
+        body.deepl_key,
+        body.output_dir,
+        body.provider,
+        body.azure_key,
+        body.azure_region,
+        body.project_package_path,
+        openai_key=body.openai_key,
+        openai_base=body.openai_base,
+        openai_model=body.openai_model,
+        ollama_host=body.ollama_host,
+        ollama_model=body.ollama_model,
+    )
     return {"ok": True}
 
 
@@ -464,6 +720,45 @@ def select_project_package(body: ProjectPackageBody):
     config = service.load_config()
     service.save_config(config["deepl_key"], config["output_dir"], config["provider"], config["azure_key"], config["azure_region"], project["path"])
     return project
+
+
+@app.post("/api/language-assets/import")
+def import_language_terms(body: ImportTermsBody):
+    try:
+        split_mode(body.mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    rows = list(body.terms)
+    for line in (body.csv or "").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or line.lower().startswith("source"):
+            continue
+        if "," in line:
+            source, target = line.split(",", 1)
+        elif "\t" in line:
+            source, target = line.split("\t", 1)
+        else:
+            continue
+        rows.append({"source": source.strip(), "target": target.strip(), "mode": body.mode})
+    count = 0
+    for term in rows:
+        source = str(term.get("source") or "").strip()
+        target = str(term.get("target") or "").strip()
+        if not source or not target:
+            continue
+        try:
+            service.language_assets.upsert_term(
+                body.scope,
+                str(term.get("mode") or body.mode),
+                source,
+                target,
+                str(term.get("layer_contains") or ""),
+                body.project_package_path,
+            )
+            count += 1
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "count": count}
 
 
 @app.post("/api/language-assets/terms")
@@ -568,23 +863,41 @@ def start_batch(body: BatchStartBody):
         split_mode(body.translation_mode)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if body.provider not in {"deepl", "azure", "openai", "ollama"}:
+    if body.provider not in ENGINE_PROVIDERS:
         raise HTTPException(status_code=400, detail="不支持的翻译服务")
     if body.output_format not in {"source", "dxf", "dwg"}:
         raise HTTPException(status_code=400, detail="不支持的输出格式")
     if body.output_version not in {"", *ODA_OUTPUT_VERSIONS}:
         raise HTTPException(status_code=400, detail="不支持的输出版本")
-    if body.provider == "azure" and not body.azure_key.strip():
-        raise HTTPException(status_code=400, detail="请配置 Azure Translator Key")
-    if body.provider == "deepl" and not body.deepl_key.strip():
-        raise HTTPException(status_code=400, detail="请配置 DeepL API Key")
+    engine = service._engine_from(service.load_config(), body.model_dump())
+    if not service._engine_ready(body.provider, engine):
+        raise HTTPException(status_code=400, detail=service._engine_missing_message(body.provider))
     for task in service.batch.snapshot()["tasks"]:
         if task["status"] in {"queued", "retrying", "cancelled", "failed"} and (task["input_file"].lower().endswith(".dwg") or body.output_format == "dwg") and not odafc_available():
             raise HTTPException(status_code=400, detail=dwg_unavailable_short())
-    service.save_config(body.deepl_key, output_dir, body.provider, body.azure_key, body.azure_region, body.project_package_path)
+    service.save_config(
+        body.deepl_key,
+        output_dir,
+        body.provider,
+        body.azure_key,
+        body.azure_region,
+        body.project_package_path,
+        openai_key=body.openai_key,
+        openai_base=body.openai_base,
+        openai_model=body.openai_model,
+        ollama_host=body.ollama_host,
+        ollama_model=body.ollama_model,
+    )
     settings = body.model_dump()
     settings["output_dir"] = output_dir
-    settings["api_key"] = body.azure_key if body.provider == "azure" else body.deepl_key
+    if body.provider == "azure":
+        settings["api_key"] = body.azure_key
+    elif body.provider == "openai":
+        settings["api_key"] = body.openai_key
+    elif body.provider == "ollama":
+        settings["api_key"] = "ollama"
+    else:
+        settings["api_key"] = body.deepl_key
     return service.batch.start(settings)
 
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 
 const LANGS = [
@@ -27,7 +27,8 @@ async function api(path, options = {}) {
     data = { detail: text };
   }
   if (!response.ok) {
-    throw new Error(data.detail || data.message || `HTTP ${response.status}`);
+    const detail = data.detail || data.message || `HTTP ${response.status}`;
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
   }
   return data;
 }
@@ -44,6 +45,29 @@ function engineProvider(engine, config) {
   if (engine === "local") return "ollama";
   if (engine === "custom") return "openai";
   return config.provider === "azure" ? "azure" : "deepl";
+}
+
+function enginePayload(engine, config) {
+  return {
+    provider: engineProvider(engine, config),
+    deepl_key: config.deepl_key || "",
+    azure_key: config.azure_key || "",
+    azure_region: config.azure_region || "",
+    openai_key: config.openai_key || "",
+    openai_base: config.openai_base || "",
+    openai_model: config.openai_model || "",
+    ollama_host: config.ollama_host || "",
+    ollama_model: config.ollama_model || "",
+    project_package_path: config.project_package_path || "",
+  };
+}
+
+function asFiles(paths) {
+  return (paths || []).map((path) => ({
+    path,
+    name: String(path).split(/[/\\]/).pop(),
+    ext: String(path).toLowerCase().endsWith(".dxf") ? "DXF" : "DWG",
+  }));
 }
 
 export default function App() {
@@ -69,10 +93,25 @@ export default function App() {
   const [oda, setOda] = useState({ installed: false, path: "" });
   const [glossary, setGlossary] = useState(0);
   const [status, setStatus] = useState("放入 DWG / DXF，提取文字后再译。");
-  const [config, setConfig] = useState({ provider: "deepl", deepl_key: "", azure_key: "", azure_region: "", output_dir: "" });
+  const [config, setConfig] = useState({
+    provider: "deepl",
+    deepl_key: "",
+    azure_key: "",
+    azure_region: "",
+    output_dir: "",
+    openai_key: "",
+    openai_base: "",
+    openai_model: "",
+    ollama_host: "",
+    ollama_model: "",
+    project_package_path: "",
+  });
   const [batch, setBatch] = useState({ tasks: [], running: false });
   const [updateMsg, setUpdateMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [lastOutput, setLastOutput] = useState("");
+  const cadInput = useRef(null);
+  const glossaryInput = useRef(null);
 
   useEffect(() => {
     const shot = new URLSearchParams(window.location.search).get("shot");
@@ -101,12 +140,19 @@ export default function App() {
   }, []);
 
   const visibleRows = useMemo(() => {
+    const sourceIsZh = sourceLang.startsWith("zh");
+    const sourceIsAscii = sourceLang === "en" || sourceLang === "de" || sourceLang === "fr";
     return rows.filter((row) => {
       if (filters.dupes && row.duplicate) return false;
       if (filters.numbers && /^[\d.\-\s]+$/.test(row.source)) return false;
+      if (filters.nonsource) {
+        const hasCjk = /[\u4e00-\u9fff]/.test(row.source);
+        if (sourceIsZh && !hasCjk) return false;
+        if (sourceIsAscii && hasCjk) return false;
+      }
       return true;
     });
-  }, [rows, filters]);
+  }, [rows, filters, sourceLang]);
 
   const selected = files.find((item) => item.path === current);
 
@@ -138,25 +184,49 @@ export default function App() {
     return () => clearInterval(timer);
   }, [tab]);
 
-  async function openDrawings() {
-    const native = py();
-    let paths = [];
-    if (native?.pick_cad_files) {
-      const picked = await native.pick_cad_files();
-      paths = picked?.paths || [];
-    }
-    if (!paths.length) {
+  async function loadOpened(next) {
+    if (!next.length) {
       setStatus("没有选择文件。");
       return;
     }
-    const next = paths.map((path) => ({
-      path,
-      name: path.split(/[/\\]/).pop(),
-      ext: path.toLowerCase().endsWith(".dxf") ? "DXF" : "DWG",
-    }));
     setFiles(next);
     setCurrent(next[0].path);
     await extractFile(next[0].path);
+  }
+
+  async function openDrawings() {
+    const native = py();
+    if (native?.pick_cad_files) {
+      const picked = await native.pick_cad_files();
+      const paths = picked?.paths || [];
+      if (!paths.length) {
+        setStatus("没有选择文件。");
+        return;
+      }
+      await loadOpened(asFiles(paths));
+      return;
+    }
+    cadInput.current?.click();
+  }
+
+  async function onCadPicked(event) {
+    const picked = [...(event.target.files || [])];
+    event.target.value = "";
+    if (!picked.length) return;
+    const form = new FormData();
+    picked.forEach((file) => form.append("files", file));
+    setBusy(true);
+    setStatus("正在打开图纸…");
+    try {
+      const response = await fetch("/api/drawings/open", { method: "POST", body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "打开失败");
+      await loadOpened(data.files || []);
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function extractFile(path) {
@@ -167,7 +237,13 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({
           path,
-          include_blocks: params.attribs,
+          include_blocks: false,
+          include_attribs: params.attribs,
+          include_model: params.model,
+          include_paper: params.paper,
+          include_frozen: params.frozen,
+          include_locked: params.locked,
+          include_off: params.off,
           translation_mode: modeKey(sourceLang, targetLang),
         }),
       });
@@ -186,39 +262,101 @@ export default function App() {
       setStatus("先打开图纸。");
       return;
     }
-    const provider = engineProvider(engine, config);
-    if (provider === "deepl" && !config.deepl_key) {
-      setStatus("云引擎需要 DeepL Key，在参数里填写。");
-      setSheet(true);
-      return;
-    }
-    if (provider === "azure" && !config.azure_key) {
-      setStatus("云引擎需要 Azure Key，在参数里填写。");
-      setSheet(true);
+    if (!rows.length) {
+      setStatus("这张图没有可译文字。");
       return;
     }
     setBusy(true);
-    setStatus("正在翻译并写回…");
+    setStatus("正在翻译…");
+    try {
+      const data = await api("/api/drawings/translate", {
+        method: "POST",
+        body: JSON.stringify({
+          items: rows,
+          translation_mode: modeKey(sourceLang, targetLang),
+          ...enginePayload(engine, config),
+        }),
+      });
+      setRows(data.items || []);
+      const bits = [`术语 ${data.glossary || 0}`, `引擎 ${data.mt || 0}`];
+      if (data.skipped) bits.push(`未译 ${data.skipped}`);
+      if (data.skipped && !data.has_engine) {
+        setStatus(`${bits.join("，")}。剩下的要云/本地/自定义引擎，或手填译文。`);
+        if (engine !== "local") setSheet(true);
+      } else {
+        setStatus(`译完。${bits.join("，")}。可以改译文再写回。`);
+      }
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function writeBack() {
+    if (!current) {
+      setStatus("先打开图纸。");
+      return;
+    }
+    const ready = visibleRows.filter((row) => row.selected !== false && (row.target || "").trim());
+    if (!ready.length) {
+      setStatus("没有可写回的译文。先点翻译，或手填译文。");
+      return;
+    }
+    setBusy(true);
+    setStatus("正在写回图纸…");
     try {
       const named = await api(
         `/api/default-output-name?mode=${encodeURIComponent(modeKey(sourceLang, targetLang))}&base=${encodeURIComponent(selected?.name?.replace(/\.[^.]+$/, "") || "drawing")}`
       );
-      await api("/api/translate", {
+      const data = await api("/api/drawings/writeback", {
         method: "POST",
         body: JSON.stringify({
           input_file: current,
+          items: rows,
           output_dir: config.output_dir,
           output_name: named.name,
           translation_mode: modeKey(sourceLang, targetLang),
-          translate_blocks: params.attribs,
-          deepl_key: config.deepl_key,
-          provider,
-          azure_key: config.azure_key,
-          azure_region: config.azure_region,
-          project_package_path: config.project_package_path || "",
         }),
       });
-      setStatus("已开始翻译，完成后看输出目录。");
+      setLastOutput(data.path || "");
+      setStatus(`已写回 ${data.written} 条 → ${data.path}`);
+      const native = py();
+      if (native?.reveal_file && data.path) native.reveal_file(data.path);
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportPdf(andPrint = false) {
+    if (!current) {
+      setStatus("先打开图纸。");
+      return;
+    }
+    setBusy(true);
+    setStatus(andPrint ? "正在导出并打印…" : "正在导出 PDF…");
+    try {
+      const data = await api(andPrint ? "/api/drawings/print" : "/api/drawings/export-pdf", {
+        method: "POST",
+        body: JSON.stringify({
+          path: current,
+          output_dir: config.output_dir,
+          output_name: `${selected?.name?.replace(/\.[^.]+$/, "") || "drawing"}.pdf`,
+        }),
+      });
+      setLastOutput(data.path || "");
+      if (andPrint) {
+        const printed = data.print || {};
+        setStatus(printed.ok ? `已送到系统打印：${data.path}` : `${printed.message || data.message || "打印没发出去"}。PDF：${data.path}`);
+        const native = py();
+        if (native?.print_pdf && data.path && !printed.ok) native.print_pdf(data.path);
+      } else {
+        setStatus(`PDF 已导出（ezdxf drawing，不是 AutoCAD 出图）→ ${data.path}`);
+        const native = py();
+        if (native?.reveal_file && data.path) native.reveal_file(data.path);
+      }
     } catch (error) {
       setStatus(error.message);
     } finally {
@@ -232,7 +370,6 @@ export default function App() {
       setStatus("先打开图纸。");
       return;
     }
-    const provider = engineProvider(engine, config);
     try {
       await api("/api/batch/add", { method: "POST", body: JSON.stringify({ files: paths }) });
       await api("/api/batch/start", {
@@ -242,10 +379,7 @@ export default function App() {
           translation_mode: modeKey(sourceLang, targetLang),
           translate_blocks: params.attribs,
           output_format: "source",
-          deepl_key: config.deepl_key,
-          provider,
-          azure_key: config.azure_key,
-          azure_region: config.azure_region,
+          ...enginePayload(engine, config),
         }),
       });
       setTab("export");
@@ -287,9 +421,34 @@ export default function App() {
         } catch (error) {
           setStatus(error.message);
         }
+        return;
       }
-    } else {
-      setSheet(true);
+    }
+    glossaryInput.current?.click();
+  }
+
+  async function onGlossaryPicked(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const mode = modeKey(sourceLang, targetLang);
+      let payload = { mode, csv: "", terms: [] };
+      if (/\.json$/i.test(file.name)) {
+        const data = JSON.parse(text);
+        payload.terms = data.terms || [];
+      } else {
+        payload.csv = text;
+      }
+      const result = await api("/api/language-assets/import", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      await refreshMeta();
+      setStatus(`术语表写入 ${result.count} 条。`);
+    } catch (error) {
+      setStatus(error.message);
     }
   }
 
@@ -340,13 +499,36 @@ export default function App() {
         ) : (
           <>
             <button type="button" className="tbtn pri" disabled={busy} onClick={runTranslate}>翻译</button>
-            <button type="button" className="tbtn" disabled={busy} onClick={runTranslate}>写回</button>
+            <button type="button" className="tbtn" disabled={busy} onClick={writeBack}>写回</button>
+            <button type="button" className="tbtn" disabled={busy} onClick={() => exportPdf(false)}>导出 PDF</button>
+            <button type="button" className="tbtn" disabled={busy} onClick={() => exportPdf(true)}>打印</button>
           </>
         )}
       </header>
 
+      <input ref={cadInput} type="file" accept=".dxf,.dwg,application/dxf" multiple hidden onChange={onCadPicked} />
+      <input ref={glossaryInput} type="file" accept=".json,.csv,.txt,.hcterms.json" hidden onChange={onGlossaryPicked} />
+
       <div className="body">
-        <aside className="side">
+        <aside
+          className="side"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={async (event) => {
+            event.preventDefault();
+            const dropped = [...event.dataTransfer.files].filter((file) => /\.(dxf|dwg)$/i.test(file.name));
+            if (!dropped.length) return;
+            const form = new FormData();
+            dropped.forEach((file) => form.append("files", file));
+            try {
+              const response = await fetch("/api/drawings/open", { method: "POST", body: form });
+              const data = await response.json();
+              if (!response.ok) throw new Error(data.detail || "打开失败");
+              await loadOpened(data.files || []);
+            } catch (error) {
+              setStatus(error.message);
+            }
+          }}
+        >
           <h2>{tab === "export" ? `待导出 · ${files.length}` : "已打开"}</h2>
           {files.map((file) => (
             <div
@@ -385,7 +567,18 @@ export default function App() {
               <table>
                 <thead>
                   <tr>
-                    <th style={{ width: 36 }}><input type="checkbox" defaultChecked aria-label="全选" /></th>
+                    <th style={{ width: 36 }}>
+                      <input
+                        type="checkbox"
+                        checked={visibleRows.length > 0 && visibleRows.every((row) => row.selected !== false)}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          const visible = new Set(visibleRows.map((row) => row.id));
+                          setRows((prev) => prev.map((item) => (visible.has(item.id) ? { ...item, selected: checked } : item)));
+                        }}
+                        aria-label="全选"
+                      />
+                    </th>
                     <th>原文</th>
                     <th>译文</th>
                     <th>图层 / 类型</th>
@@ -394,14 +587,23 @@ export default function App() {
                 <tbody>
                   {visibleRows.map((row, index) => (
                     <tr key={row.id} className={index === 0 ? "on" : row.duplicate ? "skip" : ""}>
-                      <td><input type="checkbox" defaultChecked={!row.duplicate} /></td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={row.selected !== false}
+                          onChange={(event) => {
+                            const checked = event.target.checked;
+                            setRows((prev) => prev.map((item) => (item.id === row.id ? { ...item, selected: checked } : item)));
+                          }}
+                        />
+                      </td>
                       <td className="src">{row.source}</td>
                       <td>
                         <input
                           value={row.target}
                           onChange={(event) => {
                             const value = event.target.value;
-                            setRows((prev) => prev.map((item) => (item.id === row.id ? { ...item, target: value } : item)));
+                            setRows((prev) => prev.map((item) => (item.id === row.id ? { ...item, target: value, via: "edit" } : item)));
                           }}
                           style={{ width: "100%", border: 0, background: "transparent", color: "inherit", font: "inherit" }}
                         />
@@ -457,6 +659,10 @@ export default function App() {
               <label className="row"><input type="checkbox" checked={filters.numbers} onChange={(event) => setFilters((prev) => ({ ...prev, numbers: event.target.checked }))} /> 纯数字</label>
               <label className="row"><input type="checkbox" checked={filters.dupes} onChange={(event) => setFilters((prev) => ({ ...prev, dupes: event.target.checked }))} /> 重复</label>
               <label className="row"><input type="checkbox" checked={filters.nonsource} onChange={(event) => setFilters((prev) => ({ ...prev, nonsource: event.target.checked }))} /> 非源语言</label>
+              <h3>PDF</h3>
+              <button type="button" className="tbtn" disabled={busy || !current} onClick={() => exportPdf(false)}>导出 PDF</button>
+              <button type="button" className="tbtn" disabled={busy || !current} onClick={() => exportPdf(true)}>打印</button>
+              {lastOutput && <p className="note">{lastOutput}</p>}
             </aside>
           </>
         )}
@@ -509,12 +715,36 @@ export default function App() {
                   <label><input type="radio" name="sheet-eng" checked={engine === "cloud"} onChange={() => setEngine("cloud")} /> 云</label>
                   <label><input type="radio" name="sheet-eng" checked={engine === "local"} onChange={() => setEngine("local")} /> 本地</label>
                   <label><input type="radio" name="sheet-eng" checked={engine === "custom"} onChange={() => setEngine("custom")} /> 自定义</label>
-                  <p className="note">语言　中 → 英（工具栏可改）<br />云目前走 DeepL / Azure Key。</p>
-                  <label>DeepL <input value={config.deepl_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, deepl_key: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
-                  <label>Azure <input value={config.azure_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_key: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                  <p className="note">语言看工具栏。云 = DeepL / Azure；本地 = Ollama；自定义 = OpenAI 兼容接口。</p>
+                  {engine === "cloud" && (
+                    <>
+                      <label>云服务
+                        <select value={config.provider === "azure" ? "azure" : "deepl"} onChange={(event) => setConfig((prev) => ({ ...prev, provider: event.target.value }))} style={{ marginLeft: 8 }}>
+                          <option value="deepl">DeepL</option>
+                          <option value="azure">Azure</option>
+                        </select>
+                      </label>
+                      <label>DeepL <input value={config.deepl_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, deepl_key: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                      <label>Azure <input value={config.azure_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_key: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                      <label>Region <input value={config.azure_region || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_region: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                    </>
+                  )}
+                  {engine === "local" && (
+                    <>
+                      <label>Ollama <input value={config.ollama_host || ""} placeholder="http://127.0.0.1:11434" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_host: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                      <label>模型 <input value={config.ollama_model || ""} placeholder="llama3.1" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_model: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                    </>
+                  )}
+                  {engine === "custom" && (
+                    <>
+                      <label>Key <input value={config.openai_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, openai_key: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                      <label>URL <input value={config.openai_base || ""} placeholder="https://api.deepseek.com/v1" onChange={(event) => setConfig((prev) => ({ ...prev, openai_base: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                      <label>模型 <input value={config.openai_model || ""} placeholder="deepseek-chat" onChange={(event) => setConfig((prev) => ({ ...prev, openai_model: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                    </>
+                  )}
                   <button type="button" className="tbtn" onClick={async () => {
-                    await api("/api/config", { method: "POST", body: JSON.stringify(config) });
-                    setStatus("已保存密钥。");
+                    await api("/api/config", { method: "POST", body: JSON.stringify({ ...config, provider: engineProvider(engine, config) }) });
+                    setStatus("已保存引擎设置。");
                   }}>保存密钥</button>
                 </div>
                 <div className="group">

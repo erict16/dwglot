@@ -90,6 +90,14 @@ class NativeBridge:
         service.export_logs(path)
         return {"path": path}
 
+    def print_pdf(self, path: str) -> dict:
+        from backend.drawings import print_pdf as do_print
+
+        try:
+            return do_print(path)
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
     def reveal_file(self, path: str) -> dict:
         if not path or not os.path.isfile(path):
             return {"error": "输出文件不存在，可能已被移动或删除"}

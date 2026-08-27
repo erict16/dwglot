@@ -1,0 +1,188 @@
+"""v0.1 regular-processing loop: open DXF, extract, glossary, write-back, PDF."""
+
+from __future__ import annotations
+
+import tempfile
+import unittest
+from pathlib import Path
+
+import ezdxf
+from fastapi.testclient import TestClient
+
+from backend.api import app
+from backend.drawings import extract_preview, export_pdf, translate_rows, writeback_rows
+from backend.updates import check_github_release
+
+
+def _sample_dxf(path: Path) -> Path:
+    doc = ezdxf.new("R2010")
+    msp = doc.modelspace()
+    msp.add_text("天花图", dxfattribs={"insert": (0, 0)})
+    msp.add_text("剪力墙", dxfattribs={"insert": (0, 20)})
+    msp.add_mtext(r"{\C1;天花}", dxfattribs={"insert": (0, 40)})
+    msp.add_text("1234", dxfattribs={"insert": (0, 60)})
+    layout = doc.layouts.new("A1")
+    layout.add_text("接地", dxfattribs={"insert": (10, 10)})
+    block = doc.blocks.new("TITLE")
+    block.add_attdef("DEV", insert=(0, 0), text="配电箱")
+    insert = msp.add_blockref("TITLE", insert=(80, 0))
+    insert.add_auto_attribs({"DEV": "配电箱"})
+    dim = msp.add_linear_dim(base=(0, 100), p1=(0, 0), p2=(40, 0))
+    dim.render()
+    dim.dimension.dxf.text = "安装高度"
+    doc.saveas(path)
+    return path
+
+
+class DrawingsLoopTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.dxf = _sample_dxf(self.root / "sample.dxf")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_extract_text_mtext_attribs_skips_dimension(self):
+        preview = extract_preview(str(self.dxf), include_attribs=True, include_paper=True)
+        kinds = {item["type"] for item in preview["items"]}
+        sources = {item["source"] for item in preview["items"]}
+        self.assertIn("TEXT", kinds)
+        self.assertIn("MTEXT", kinds)
+        self.assertIn("ATTRIB", kinds)
+        self.assertNotIn("DIMENSION", kinds)
+        self.assertIn("天花图", sources)
+        self.assertIn("剪力墙", sources)
+        self.assertIn("天花", sources)
+        self.assertIn("接地", sources)
+        self.assertIn("配电箱", sources)
+        self.assertTrue(all(item["handle"] for item in preview["items"]))
+
+    def test_glossary_translate_without_engine_then_writeback(self):
+        preview = extract_preview(str(self.dxf))
+        translated = translate_rows(preview["items"], mode="zh_to_en", provider="deepl", engine={})
+        by_source = {item["source"]: item for item in translated["items"]}
+        self.assertEqual(by_source["天花图"]["target"], "reflected ceiling plan")
+        self.assertEqual(by_source["剪力墙"]["target"], "shear wall")
+        self.assertEqual(by_source["天花"]["target"], "ceiling")
+        self.assertEqual(by_source["接地"]["target"], "grounding")
+        self.assertEqual(by_source["配电箱"]["target"], "distribution board")
+        self.assertEqual(by_source["天花"]["via"], "glossary")
+        self.assertIn("\\C1;", by_source["天花"]["target_raw"])
+        self.assertGreaterEqual(translated["glossary"], 5)
+        self.assertFalse(translated["has_engine"])
+
+        output = writeback_rows(
+            str(self.dxf),
+            translated["items"],
+            output_dir=str(self.root),
+            output_name="en_sample",
+            mode="zh_to_en",
+        )
+        out_path = Path(output["path"])
+        self.assertTrue(out_path.is_file())
+        self.assertGreater(output["written"], 0)
+        doc = ezdxf.readfile(out_path)
+        texts = []
+        for entity in doc.modelspace():
+            if entity.dxftype() == "TEXT":
+                texts.append(entity.dxf.text)
+            elif entity.dxftype() == "MTEXT":
+                texts.append(entity.plain_text(fast=False))
+            elif entity.dxftype() == "INSERT":
+                for attrib in entity.attribs:
+                    texts.append(attrib.dxf.text)
+        self.assertIn("reflected ceiling plan", texts)
+        self.assertIn("shear wall", texts)
+        self.assertIn("ceiling", texts)
+        self.assertIn("distribution board", texts)
+        mtext = next(entity for entity in doc.modelspace() if entity.dxftype() == "MTEXT")
+        self.assertIn("\\C1;", mtext.dxf.text)
+
+    def test_export_pdf_is_real_pdf(self):
+        dest = self.root / "sample.pdf"
+        result = export_pdf(str(self.dxf), str(dest))
+        self.assertTrue(Path(result["path"]).is_file())
+        header = Path(result["path"]).read_bytes()[:5]
+        self.assertEqual(header, b"%PDF-")
+        self.assertGreater(result["bytes"], 200)
+        self.assertGreaterEqual(result["pages"], 1)
+
+
+class DrawingsApiTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dxf = _sample_dxf(Path(self.tmp.name) / "api.dxf")
+        self.client = TestClient(app)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_open_extract_translate_writeback_update_pdf(self):
+        with self.dxf.open("rb") as handle:
+            opened = self.client.post("/api/drawings/open", files={"files": ("api.dxf", handle, "application/dxf")})
+        self.assertEqual(opened.status_code, 200, opened.text)
+        path = opened.json()["files"][0]["path"]
+
+        extracted = self.client.post(
+            "/api/drawings/extract",
+            json={"path": path, "include_attribs": True, "translation_mode": "zh_to_en"},
+        )
+        self.assertEqual(extracted.status_code, 200, extracted.text)
+        items = extracted.json()["items"]
+        self.assertTrue(any(item["source"] == "天花图" for item in items))
+        self.assertFalse(any(item["type"] == "DIMENSION" for item in items))
+
+        translated = self.client.post(
+            "/api/drawings/translate",
+            json={"items": items, "translation_mode": "zh_to_en", "provider": "deepl"},
+        )
+        self.assertEqual(translated.status_code, 200, translated.text)
+        payload = translated.json()
+        self.assertGreaterEqual(payload["glossary"], 1)
+        self.assertTrue(any(item["target"] == "reflected ceiling plan" for item in payload["items"]))
+
+        written = self.client.post(
+            "/api/drawings/writeback",
+            json={
+                "input_file": path,
+                "items": payload["items"],
+                "output_dir": self.tmp.name,
+                "output_name": "en_api",
+                "translation_mode": "zh_to_en",
+            },
+        )
+        self.assertEqual(written.status_code, 200, written.text)
+        self.assertTrue(Path(written.json()["path"]).is_file())
+
+        pdf = self.client.post(
+            "/api/drawings/export-pdf",
+            json={"path": path, "output_dir": self.tmp.name, "output_name": "api.pdf"},
+        )
+        self.assertEqual(pdf.status_code, 200, pdf.text)
+        pdf_path = Path(pdf.json()["path"])
+        self.assertTrue(pdf_path.is_file())
+        self.assertEqual(pdf_path.read_bytes()[:5], b"%PDF-")
+
+        updates = self.client.get("/api/updates/check")
+        self.assertEqual(updates.status_code, 200, updates.text)
+        body = updates.json()
+        self.assertIn("current", body)
+        self.assertIn("available", body)
+        self.assertIn("erict16/dwglot", body.get("html_url", ""))
+
+        imported = self.client.post(
+            "/api/language-assets/import",
+            json={"mode": "zh_to_en", "csv": "测试词,test term\n"},
+        )
+        self.assertEqual(imported.status_code, 200, imported.text)
+        self.assertGreaterEqual(imported.json()["count"], 1)
+
+    def test_updates_helper_survives_404(self):
+        payload = check_github_release()
+        self.assertIn(payload["current"], {"0.1.0", payload["current"]})
+        self.assertIn("html_url", payload)
+
+
+if __name__ == "__main__":
+    unittest.main()

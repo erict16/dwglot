@@ -6,3 +6,5 @@ uvicorn[standard]>=0.32.0
 pywebview>=5.0.0
 python-multipart>=0.0.9
 cryptography>=42.0.0
+matplotlib>=3.8.0
+pillow>=10.0.0
