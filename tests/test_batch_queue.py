@@ -35,6 +35,10 @@ class BatchQueueTests(unittest.TestCase):
             batch_queue.STATE_PATH.write_text("{not json", encoding="utf-8")
             assert batch_queue.BatchQueue._load(probe) == []
             assert list(Path(tmp).glob("queue.json.corrupt-*"))
+            batch_queue.STATE_PATH.write_text("[]", encoding="utf-8")
+            assert batch_queue.BatchQueue._load(probe) == []
+            batch_queue.STATE_PATH.write_text("null", encoding="utf-8")
+            assert batch_queue.BatchQueue._load(probe) == []
             batch_queue.STATE_PATH.write_text(json.dumps({"tasks": [{"id": "old", "status": "running"}]}), encoding="utf-8")
             ran = []
             def run(task, log, resume_event, cancel_event):

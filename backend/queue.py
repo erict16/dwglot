@@ -34,15 +34,24 @@ class BatchQueue:
 
     def _load(self) -> list[dict]:
         try:
-            tasks = json.loads(STATE_PATH.read_text(encoding="utf-8")).get("tasks", [])
-        except (OSError, ValueError, TypeError):
+            payload = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("queue state must be an object")
+            tasks = payload.get("tasks", [])
+            if not isinstance(tasks, list):
+                raise ValueError("queue tasks must be a list")
+        except (OSError, ValueError, TypeError, AttributeError, json.JSONDecodeError):
             quarantine_corrupt_file(STATE_PATH)
             return []
+        recovered = []
         for task in tasks:
+            if not isinstance(task, dict):
+                continue
             if task.get("status") == "running":
                 task["status"] = "queued"
                 task["message"] = "应用重启后等待继续"
-        return tasks
+            recovered.append(task)
+        return recovered
 
     def _save(self):
         # API keys intentionally never enter the persisted task model.

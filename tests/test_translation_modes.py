@@ -478,6 +478,66 @@ class EngineAndGlossaryTests(unittest.TestCase):
         self.assertIn("剩下的要填云引擎 Key，或手填译文。", text)
         self.assertIn('setStatus("术语表是空的")', text)
         self.assertIn("术语表读不出来。", text)
+        self.assertIn('setEngine("cloud")', text)
+        self.assertIn('aria-label="源语言"', text)
+        self.assertIn('aria-label="目标语言"', text)
+
+
+class ConfigAndDirectionTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = str(Path(self.tmp.name) / ".dwglot_config.json")
+        self.patch = patch("backend.api.CONFIG_PATH", self.path)
+        self.patch.start()
+        self.client = TestClient(app)
+
+    def tearDown(self):
+        self.patch.stop()
+        self.tmp.cleanup()
+
+    def _assert_defaults(self, body):
+        self.assertEqual(body["deepl_key"], "")
+        self.assertEqual(body["azure_key"], "")
+        self.assertEqual(body["openai_key"], "")
+        self.assertEqual(body["openai_base"], "")
+        self.assertEqual(body["provider"], "deepl")
+        self.assertIsInstance(body["output_dir"], str)
+
+    def test_corrupt_config_recovers_without_traceback(self):
+        cases = ["{not json", "[]", "null", "\"nope\""]
+        for raw in cases:
+            Path(self.path).write_text(raw, encoding="utf-8")
+            response = self.client.get("/api/config")
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertNotIn("Traceback", response.text)
+            self._assert_defaults(response.json())
+        self.assertTrue(list(Path(self.tmp.name).glob(".dwglot_config.json.corrupt-*")))
+
+    def test_null_fields_and_unknown_provider_are_coerced(self):
+        Path(self.path).write_text(
+            json.dumps({"deepl_key": None, "provider": "nope", "openai_base": 123}),
+            encoding="utf-8",
+        )
+        response = self.client.get("/api/config")
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["deepl_key"], "")
+        self.assertEqual(body["provider"], "deepl")
+        self.assertEqual(body["openai_base"], "123")
+
+    def test_empty_table_both_directions_and_empty_engines(self):
+        for mode, provider in (("zh_to_en", "deepl"), ("en_to_zh", "azure"), ("zh_to_en", "openai"), ("en_to_zh", "deepl")):
+            response = self.client.post(
+                "/api/drawings/translate",
+                json={"items": [], "translation_mode": mode, "provider": provider},
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertNotIn("Traceback", response.text)
+            payload = response.json()
+            self.assertEqual(payload["glossary"], 0)
+            self.assertEqual(payload["mt"], 0)
+            self.assertFalse(payload["has_engine"])
+            self.assertEqual(payload["items"], [])
 
 
 if __name__ == "__main__":

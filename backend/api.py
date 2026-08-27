@@ -452,17 +452,31 @@ class TranslationService:
             "ollama_host": "",
             "ollama_model": "",
         }
-        if os.path.exists(CONFIG_PATH):
-            try:
-                with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            except (OSError, ValueError, TypeError):
-                quarantine_corrupt_file(CONFIG_PATH)
-                config = {}
-            for key, value in defaults.items():
-                config.setdefault(key, value)
-            return config
-        return dict(defaults)
+
+        def _normalize(raw: object) -> dict:
+            data = dict(defaults)
+            if not isinstance(raw, dict):
+                raise ValueError("config must be an object")
+            for key, fallback in defaults.items():
+                value = raw.get(key, fallback)
+                if value is None:
+                    data[key] = fallback
+                    continue
+                text = str(value).strip()
+                if key == "provider":
+                    data[key] = text if text in ENGINE_PROVIDERS else "deepl"
+                else:
+                    data[key] = text
+            return data
+
+        if not os.path.exists(CONFIG_PATH):
+            return dict(defaults)
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as handle:
+                return _normalize(json.load(handle))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            quarantine_corrupt_file(CONFIG_PATH)
+            return dict(defaults)
 
     @staticmethod
     def deepl_usage(key: str) -> dict:

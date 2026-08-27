@@ -33,7 +33,19 @@ async function api(path, options = {}) {
   return data;
 }
 
+function asText(value) {
+  if (value == null) return "";
+  return typeof value === "string" ? value : String(value);
+}
+
+function asCount(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function modeKey(source, target) {
+  source = asText(source);
+  target = asText(target);
   if (source === "zh-Hans" && target === "en") return "zh_to_en";
   if (source === "en" && target === "zh-Hans") return "en_to_zh";
   if (source === "zh-Hans" && target === "fr") return "zh_to_fr";
@@ -44,32 +56,23 @@ function modeKey(source, target) {
 function engineProvider(engine, config) {
   if (engine === "local") return "ollama";
   if (engine === "custom") return "openai";
-  return config.provider === "azure" ? "azure" : "deepl";
+  return asText(config?.provider) === "azure" ? "azure" : "deepl";
 }
 
 function enginePayload(engine, config) {
+  config = config && typeof config === "object" ? config : {};
   return {
     provider: engineProvider(engine, config),
-    deepl_key: config.deepl_key || "",
-    azure_key: config.azure_key || "",
-    azure_region: config.azure_region || "",
-    openai_key: config.openai_key || "",
-    openai_base: config.openai_base || "",
-    openai_model: config.openai_model || "",
-    ollama_host: config.ollama_host || "",
-    ollama_model: config.ollama_model || "",
-    project_package_path: config.project_package_path || "",
+    deepl_key: asText(config.deepl_key),
+    azure_key: asText(config.azure_key),
+    azure_region: asText(config.azure_region),
+    openai_key: asText(config.openai_key),
+    openai_base: asText(config.openai_base),
+    openai_model: asText(config.openai_model),
+    ollama_host: asText(config.ollama_host),
+    ollama_model: asText(config.ollama_model),
+    project_package_path: asText(config.project_package_path),
   };
-}
-
-function asText(value) {
-  if (value == null) return "";
-  return typeof value === "string" ? value : String(value);
-}
-
-function asCount(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
 }
 
 function asFiles(paths) {
@@ -151,8 +154,9 @@ export default function App() {
 
   const visibleRows = useMemo(() => {
     const list = Array.isArray(rows) ? rows : [];
-    const sourceIsZh = sourceLang.startsWith("zh");
-    const sourceIsAscii = sourceLang === "en" || sourceLang === "de" || sourceLang === "fr";
+    const source = asText(sourceLang);
+    const sourceIsZh = source.startsWith("zh");
+    const sourceIsAscii = source === "en" || source === "de" || source === "fr";
     return list.filter((row) => {
       const source = asText(row?.source);
       if (filters.dupes && row?.duplicate) return false;
@@ -177,7 +181,7 @@ export default function App() {
       ]);
       setOda(odaStatus);
       setGlossary(asCount(assets.builtin_terms?.length) + asCount(assets.terms?.length));
-      setConfig(cfg && typeof cfg === "object" ? cfg : {});
+      setConfig(cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {});
     } catch (error) {
       setStatus(error.message);
     }
