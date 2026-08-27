@@ -381,7 +381,7 @@ class DrawingsLoopTests(unittest.TestCase):
     def test_floor_plan_glossary_writeback_pdf_and_paperspace(self):
         committed = FIXTURES / "floor_plan.dxf"
         dxf = committed if committed.is_file() else _floor_plan_dxf(self.root / "floor_plan.dxf")
-        preview = extract_preview(str(dxf), include_attribs=True, include_paper=True)
+        preview = extract_preview(str(dxf), include_attribs=True, include_paper=True, skip_dupes=False)
         sources = {item["source"] for item in preview["items"]}
         self.assertTrue({"平面布置图", "天花图", "剪力墙", "隔墙定位图", "配电箱", "接地"} <= sources)
         translated = translate_rows(preview["items"], mode="zh_to_en", provider="deepl", engine={})
@@ -600,6 +600,11 @@ class DrawingsLoopTests(unittest.TestCase):
         sources = {item["source"] for item in preview["items"]}
         self.assertIn("1234", sources)
         self.assertIn("-5.0", sources)
+        skipped = extract_preview(str(path), skip_numbers=True)
+        skipped_sources = {item["source"] for item in skipped["items"]}
+        self.assertNotIn("1234", skipped_sources)
+        self.assertNotIn("-5.0", skipped_sources)
+        self.assertIn("天花", skipped_sources)
         self.assertTrue(all(isinstance(item["layer"], str) and item["layer"] for item in preview["items"]))
         self.assertIsInstance(preview["count"], int)
         self.assertIsInstance(preview["unique"], int)
@@ -630,6 +635,24 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIsNone(assets.lookup_term("天花", "zh_to_en", 0))
         self.assertIsNone(assets.lookup_memory("天花", "zh_to_en", None))
 
+    def test_extract_text_filters_skip_digits_dupes_nonsource(self):
+        path = self.root / "filter_rows.dxf"
+        doc = ezdxf.new("R2010")
+        msp = doc.modelspace()
+        msp.add_text("天花图", dxfattribs={"insert": (0, 0)})
+        msp.add_text("天花图", dxfattribs={"insert": (0, 20)})
+        msp.add_text("1234", dxfattribs={"insert": (0, 40)})
+        msp.add_text("HELLO", dxfattribs={"insert": (0, 60)})
+        doc.saveas(path)
+        preview = extract_preview(
+            str(path), skip_numbers=True, skip_dupes=True, skip_nonsource=True, mode="zh_to_en"
+        )
+        self.assertEqual([item["source"] for item in preview["items"]], ["天花图"])
+        full = extract_preview(
+            str(path), skip_numbers=False, skip_dupes=False, skip_nonsource=False
+        )
+        self.assertEqual(len(full["items"]), 4)
+
     def test_frontend_dims_label_is_honest(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
         text = source.read_text(encoding="utf-8")
@@ -644,6 +667,9 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("include_model: params.model", text)
         self.assertIn("include_paper: params.paper", text)
         self.assertIn("include_frozen: params.frozen", text)
+        self.assertIn("skip_numbers: filters.numbers", text)
+        self.assertIn("skip_dupes: filters.dupes", text)
+        self.assertIn("skip_nonsource: filters.nonsource", text)
 
 
 class DrawingsApiTests(unittest.TestCase):
@@ -887,8 +913,14 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertNotIn("Traceback", extracted.text)
         body = extracted.json()
         self.assertIsInstance(body["count"], int)
-        self.assertTrue(any(item["source"] == "1234" for item in body["items"]))
-        self.assertTrue(all(isinstance(item.get("layer"), str) for item in body["items"]))
+        self.assertFalse(any(item["source"] == "1234" for item in body["items"]))
+        kept = self.client.post(
+            "/api/drawings/extract",
+            json={"path": str(path), "translation_mode": "zh_to_en", "skip_numbers": False, "skip_nonsource": False},
+        )
+        self.assertEqual(kept.status_code, 200, kept.text)
+        self.assertTrue(any(item["source"] == "1234" for item in kept.json()["items"]))
+        self.assertTrue(all(isinstance(item.get("layer"), str) for item in kept.json()["items"]))
 
     def test_extract_unreadable_dxf_is_400(self):
         path = Path(self.tmp.name) / "junk.dxf"

@@ -415,7 +415,7 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("reflected ceiling plan", sources)
         self.assertIn("floor plan", sources)
         self.assertNotIn("天花图", sources)
-        self.assertNotIn("平面布置图", sources)
+        self.assertIn("平面布置图", sources)
         mtext = next(item for item in preview["items"] if item["type"] == "MTEXT")
         self.assertIn("partition", mtext["source"].lower())
         self.assertIn("\\C1;", mtext["raw"])
@@ -553,6 +553,26 @@ class BatchApiTests(unittest.TestCase):
         self.assertNotIn("reflected ceiling plan", model)
         self.assertIn("shear wall", model)
         self.assertNotIn("剪力墙", model)
+
+    def test_batch_text_filters_skip_digits_dupes_nonsource(self):
+        src = Path(self.tmp.name) / "filter_rows.dxf"
+        doc = ezdxf.new("R2010")
+        msp = doc.modelspace()
+        msp.add_text("天花图", dxfattribs={"insert": (0, 0)})
+        msp.add_text("天花图", dxfattribs={"insert": (0, 20)})
+        msp.add_text("1234", dxfattribs={"insert": (0, 40)})
+        msp.add_text("HELLO", dxfattribs={"insert": (0, 60)})
+        doc.saveas(src)
+        task = self._start_glossary_batch(src, {})
+        texts = [
+            entity.dxf.text
+            for entity in ezdxf.readfile(task["output_file"]).modelspace()
+            if entity.dxftype() == "TEXT"
+        ]
+        self.assertEqual(texts.count("reflected ceiling plan"), 1, texts)
+        self.assertEqual(texts.count("天花图"), 1, texts)
+        self.assertIn("1234", texts)
+        self.assertIn("HELLO", texts)
 
     def test_batch_dims_tables_writes_dimension_and_table(self):
         fixture = FIXTURES / "dims_tables.dxf"

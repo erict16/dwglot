@@ -139,6 +139,9 @@ class BatchStartBody(BaseModel):
     include_frozen: bool = False
     include_locked: bool = False
     include_off: bool = False
+    skip_numbers: bool = True
+    skip_dupes: bool = True
+    skip_nonsource: bool = True
 
 
 class ExtractBody(BaseModel):
@@ -152,6 +155,9 @@ class ExtractBody(BaseModel):
     include_locked: bool = False
     include_off: bool = False
     enable_v02: bool = False
+    skip_numbers: bool = True
+    skip_dupes: bool = True
+    skip_nonsource: bool = True
 
 
 class TranslateRowsBody(BaseModel):
@@ -299,6 +305,9 @@ class TranslationService:
                 include_frozen=task.get("include_frozen", False),
                 include_locked=task.get("include_locked", False),
                 include_off=task.get("include_off", False),
+                skip_numbers=task.get("skip_numbers", True),
+                skip_dupes=task.get("skip_dupes", True),
+                skip_nonsource=task.get("skip_nonsource", True),
             )
         except FileNotFoundError as exc:
             raise _fatal_batch_error("图纸不存在") from exc
@@ -660,6 +669,9 @@ def drawings_extract(body: ExtractBody):
             include_locked=body.include_locked,
             include_off=body.include_off,
             enable_v02=body.enable_v02,
+            skip_numbers=body.skip_numbers,
+            skip_dupes=body.skip_dupes,
+            skip_nonsource=body.skip_nonsource,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -579,6 +579,9 @@ class CADChineseTranslator:
         include_frozen=False,
         include_locked=False,
         include_off=False,
+        skip_numbers=True,
+        skip_dupes=True,
+        skip_nonsource=True,
     ):
         """
         提取文本实体。
@@ -649,7 +652,7 @@ class CADChineseTranslator:
                 item for item in items
                 if str(item.get("type") or "").upper() not in {"ATTRIB", "ATTDEF"}
             ]
-        from backend.drawings import keep_extracted_item
+        from backend.drawings import item_passes_text_filters, keep_extracted_item
 
         items = [
             item
@@ -662,6 +665,25 @@ class CADChineseTranslator:
                 include_frozen=include_frozen,
                 include_locked=include_locked,
                 include_off=include_off,
+            )
+        ]
+        seen = set()
+        marked = []
+        for item in items:
+            source = item.get("original_text") or ""
+            item["duplicate"] = source in seen
+            if source not in seen:
+                seen.add(source)
+            marked.append(item)
+        items = [
+            item
+            for item in marked
+            if item_passes_text_filters(
+                item,
+                skip_numbers=skip_numbers,
+                skip_dupes=skip_dupes,
+                skip_nonsource=skip_nonsource,
+                translation_mode=lang_config,
             )
         ]
         self.safe_log(f"📝 总共提取到 {len(items)} 个文本对象。")
@@ -1091,7 +1113,7 @@ class CADChineseTranslator:
             self.safe_log(f"写回失败: {e}\n{traceback.format_exc()}")
             raise
 
-    def translate_cad_file(self, input_file, output_file, lang_config, include_blocks=False, output_format="source", output_version="", resume_event=None, cancel_event=None, style="纯译文", enable_v02=True, include_attribs=True, include_model=True, include_paper=True, include_frozen=False, include_locked=False, include_off=False):
+    def translate_cad_file(self, input_file, output_file, lang_config, include_blocks=False, output_format="source", output_version="", resume_event=None, cancel_event=None, style="纯译文", enable_v02=True, include_attribs=True, include_model=True, include_paper=True, include_frozen=False, include_locked=False, include_off=False, skip_numbers=True, skip_dupes=True, skip_nonsource=True):
         from backend.cad import CadConversionSession
 
         self.enable_v02_entities = bool(enable_v02)
@@ -1101,14 +1123,14 @@ class CADChineseTranslator:
             work_output = session.work_output_path() or output_file
             wait_for_translation(resume_event, cancel_event)
             self._translate_cad_file_dxf(
-                work_input, work_output, lang_config, include_blocks, input_file, "", resume_event, cancel_event, style=style, include_attribs=include_attribs, include_model=include_model, include_paper=include_paper, include_frozen=include_frozen, include_locked=include_locked, include_off=include_off
+                work_input, work_output, lang_config, include_blocks, input_file, "", resume_event, cancel_event, style=style, include_attribs=include_attribs, include_model=include_model, include_paper=include_paper, include_frozen=include_frozen, include_locked=include_locked, include_off=include_off, skip_numbers=skip_numbers, skip_dupes=skip_dupes, skip_nonsource=skip_nonsource
             )
             if session.meta.is_dwg or output_version or output_format == "dwg":
                 wait_for_translation(resume_event, cancel_event)
                 session.finalize(work_output, output_file)
 
     def _translate_cad_file_dxf(
-        self, input_file, output_file, lang_config, include_blocks=False, source_label=None, output_version="", resume_event=None, cancel_event=None, style="纯译文", include_attribs=True, include_model=True, include_paper=True, include_frozen=False, include_locked=False, include_off=False
+        self, input_file, output_file, lang_config, include_blocks=False, source_label=None, output_version="", resume_event=None, cancel_event=None, style="纯译文", include_attribs=True, include_model=True, include_paper=True, include_frozen=False, include_locked=False, include_off=False, skip_numbers=True, skip_dupes=True, skip_nonsource=True
     ):
         display_name = source_label or input_file
         self.safe_log(f"正在读取: {display_name}")
@@ -1140,6 +1162,9 @@ class CADChineseTranslator:
             include_frozen=include_frozen,
             include_locked=include_locked,
             include_off=include_off,
+            skip_numbers=skip_numbers,
+            skip_dupes=skip_dupes,
+            skip_nonsource=skip_nonsource,
         )
 
         # ============================================================

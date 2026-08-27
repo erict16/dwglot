@@ -193,6 +193,9 @@ class BatchQueue:
                             include_frozen=settings.get("include_frozen", False),
                             include_locked=settings.get("include_locked", False),
                             include_off=settings.get("include_off", False),
+                            skip_numbers=settings.get("skip_numbers", True),
+                            skip_dupes=settings.get("skip_dupes", True),
+                            skip_nonsource=settings.get("skip_nonsource", True),
                             status="queued", progress=0,
                             retries=0, output_file="", message="等待中", logs=[], _key=settings.get("api_key") or settings.get("deepl_key", ""),
                         )

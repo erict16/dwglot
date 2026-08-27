@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -119,6 +120,32 @@ def keep_extracted_item(
     )
 
 
+def item_passes_text_filters(
+    item: dict,
+    *,
+    skip_numbers: bool = True,
+    skip_dupes: bool = True,
+    skip_nonsource: bool = True,
+    translation_mode: str = "zh_to_en",
+) -> bool:
+    source = _as_text(item.get("source") or item.get("original_text"))
+    if skip_dupes and item.get("duplicate"):
+        return False
+    if skip_numbers and source and re.fullmatch(r"[\d.\-\s]+", source):
+        return False
+    if skip_nonsource and source:
+        try:
+            source_lang, _unused = split_mode(translation_mode)
+        except ValueError:
+            source_lang = "zh-Hans"
+        has_cjk = bool(re.search(r"[\u4e00-\u9fff]", source))
+        if str(source_lang).startswith("zh") and not has_cjk:
+            return False
+        if source_lang in {"en", "de", "fr"} and has_cjk:
+            return False
+    return True
+
+
 def extract_preview(
     path: str,
     *,
@@ -131,6 +158,9 @@ def extract_preview(
     include_locked: bool = False,
     include_off: bool = False,
     enable_v02: bool = False,
+    skip_numbers: bool = False,
+    skip_dupes: bool = False,
+    skip_nonsource: bool = False,
 ) -> dict:
     translator = CADChineseTranslator()
     translator.enable_v02_entities = bool(enable_v02)
@@ -139,7 +169,20 @@ def extract_preview(
             doc = ezdxf.readfile(work_dxf)
         except Exception as exc:
             raise ValueError("无法读取DXF文件") from exc
-        raw = translator.extract_text_entities(doc, mode, include_blocks=include_blocks)
+        raw = translator.extract_text_entities(
+            doc,
+            mode,
+            include_blocks=include_blocks,
+            include_attribs=include_attribs,
+            include_model=include_model,
+            include_paper=include_paper,
+            include_frozen=include_frozen,
+            include_locked=include_locked,
+            include_off=include_off,
+            skip_numbers=False,
+            skip_dupes=False,
+            skip_nonsource=False,
+        )
         rows = []
         seen = {}
         for index, item in enumerate(raw):
@@ -182,6 +225,20 @@ def extract_preview(
                     "via": "",
                 }
             )
+        rows = [
+            row
+            for row in rows
+            if item_passes_text_filters(
+                row,
+                skip_numbers=skip_numbers,
+                skip_dupes=skip_dupes,
+                skip_nonsource=skip_nonsource,
+                translation_mode=mode,
+            )
+        ]
+        for index, row in enumerate(rows):
+            row["id"] = index
+        seen = {row["source"]: index for index, row in enumerate(rows) if not row.get("duplicate")}
     return {"path": path, "count": len(rows), "unique": len(seen), "items": rows}
 
 
