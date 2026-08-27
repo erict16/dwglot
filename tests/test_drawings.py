@@ -1532,6 +1532,18 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertNotIn("No space", printed.text)
         self.assertNotIn("Traceback", printed.text)
 
+    def test_extract_unknown_error_is_400(self):
+        with patch("backend.api.extract_preview", side_effect=OSError("No space left on device")):
+            extracted = self.client.post(
+                "/api/drawings/extract",
+                json={"path": str(self.dxf), "translation_mode": "zh_to_en"},
+            )
+        self.assertEqual(extracted.status_code, 400, extracted.text)
+        self.assertEqual(extracted.json()["detail"], "提取失败")
+        self.assertNotIn("No space", extracted.text)
+        self.assertNotIn("OSError", extracted.text)
+        self.assertNotIn("Traceback", extracted.text)
+
     def test_extract_digits_only_drawing_is_200(self):
         path = Path(self.tmp.name) / "digits.dxf"
         doc = ezdxf.new("R2010")

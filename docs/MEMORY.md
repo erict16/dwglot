@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: `/api/drawings/extract` unknown exceptions were 500 `提取失败: No space left on device`. Now 400 `提取失败` with no English body. Unreadable DXF still 400 `无法读取`. `python -m unittest discover -s tests` 138 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: export-pdf/print save fail was 500 `导出 PDF 失败: No space left on device`. OSError in `_render_pdf` is now 400 `文件保存失败`. `python -m unittest discover -s tests` 137 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: 常规 `writeback_rows` save fail was 500 `写回失败: No space left on device`. Now 400 `文件保存失败`. Batch `translate_cad_file` already that line. `python -m unittest discover -s tests` 136 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `translate_cad_file` save fail logged `文件保存失败: No space left on device` and re-raised the English OSError (batch would retry). Now log/raise `文件保存失败` (ValueError). `python -m unittest discover -s tests` 135 ok. Do not edit landing/, README*, docs/icons/.

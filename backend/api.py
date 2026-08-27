@@ -682,8 +682,8 @@ def drawings_extract(body: ExtractBody):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"提取失败: {exc}") from exc
+    except Exception:
+        raise HTTPException(status_code=400, detail="提取失败") from None
 
 
 @app.post("/api/drawings/translate")
