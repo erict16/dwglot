@@ -176,6 +176,11 @@ class BatchQueue:
                             azure_region=settings.get("azure_region", ""), style=settings.get("style") or "纯译文",
                             enable_v02=settings.get("enable_v02", True),
                             include_attribs=settings.get("include_attribs", True),
+                            include_model=settings.get("include_model", True),
+                            include_paper=settings.get("include_paper", True),
+                            include_frozen=settings.get("include_frozen", False),
+                            include_locked=settings.get("include_locked", False),
+                            include_off=settings.get("include_off", False),
                             status="queued", progress=0,
                             retries=0, output_file="", message="等待中", logs=[], _key=settings.get("api_key") or settings.get("deepl_key", ""),
                         )

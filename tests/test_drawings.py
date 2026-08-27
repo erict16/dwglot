@@ -641,6 +641,9 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertNotIn("translate_blocks: params.attribs", text)
         self.assertIn("translate_blocks: false", text)
         self.assertIn("include_attribs: params.attribs", text)
+        self.assertIn("include_model: params.model", text)
+        self.assertIn("include_paper: params.paper", text)
+        self.assertIn("include_frozen: params.frozen", text)
 
 
 class DrawingsApiTests(unittest.TestCase):

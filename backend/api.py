@@ -134,6 +134,11 @@ class BatchStartBody(BaseModel):
     style: str = "纯译文"
     enable_v02: bool = True
     include_attribs: bool = True
+    include_model: bool = True
+    include_paper: bool = True
+    include_frozen: bool = False
+    include_locked: bool = False
+    include_off: bool = False
 
 
 class ExtractBody(BaseModel):
@@ -289,6 +294,11 @@ class TranslationService:
                 style=task.get("style") or "纯译文",
                 enable_v02=task.get("enable_v02", True),
                 include_attribs=task.get("include_attribs", True),
+                include_model=task.get("include_model", True),
+                include_paper=task.get("include_paper", True),
+                include_frozen=task.get("include_frozen", False),
+                include_locked=task.get("include_locked", False),
+                include_off=task.get("include_off", False),
             )
         except FileNotFoundError as exc:
             raise _fatal_batch_error("图纸不存在") from exc

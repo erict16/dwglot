@@ -93,6 +93,32 @@ def _is_model(location: str) -> bool:
     return name in {"model", "modelspace", "*model_space"}
 
 
+def keep_extracted_item(
+    doc,
+    item: dict,
+    *,
+    include_model: bool = True,
+    include_paper: bool = True,
+    include_frozen: bool = False,
+    include_locked: bool = False,
+    include_off: bool = False,
+) -> bool:
+    location = item.get("location") or ""
+    model = _is_model(location)
+    if model and not include_model:
+        return False
+    if not model and not include_paper:
+        return False
+    layer = _as_text(item.get("layer"), "0")
+    return _layer_allowed(
+        doc,
+        layer,
+        include_frozen=include_frozen,
+        include_locked=include_locked,
+        include_off=include_off,
+    )
+
+
 def extract_preview(
     path: str,
     *,
@@ -124,21 +150,18 @@ def extract_preview(
                 continue
             if not include_attribs and kind in {"ATTRIB", "ATTDEF"}:
                 continue
-            location = item.get("location") or ""
-            model = _is_model(location)
-            if model and not include_model:
-                continue
-            if not model and not include_paper:
-                continue
-            layer = _as_text(item.get("layer"), "0")
-            if not _layer_allowed(
+            if not keep_extracted_item(
                 doc,
-                layer,
+                item,
+                include_model=include_model,
+                include_paper=include_paper,
                 include_frozen=include_frozen,
                 include_locked=include_locked,
                 include_off=include_off,
             ):
                 continue
+            location = item.get("location") or ""
+            layer = _as_text(item.get("layer"), "0")
             duplicate = source in seen
             if not duplicate:
                 seen[source] = index

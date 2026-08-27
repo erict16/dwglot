@@ -382,6 +382,84 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("reflected ceiling plan", sources)
         self.assertNotIn("天花图", sources)
 
+    def _start_glossary_batch(self, src, extra):
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        body = {
+            "provider": "deepl",
+            "deepl_key": "",
+            "output_dir": self.tmp.name,
+            "translation_mode": "zh_to_en",
+            "output_format": "source",
+            **extra,
+        }
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"), patch(
+            "urllib.request.urlopen"
+        ) as open_url:
+            open_url.side_effect = AssertionError("batch scope filters must not call the network")
+            added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post("/api/batch/start", json=body)
+            self.assertEqual(started.status_code, 200, started.text)
+            task = None
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.05)
+            open_url.assert_not_called()
+        self.assertEqual(task["status"], "succeeded", task)
+        return task
+
+    def test_batch_paper_off_leaves_paperspace(self):
+        fixture = FIXTURES / "floor_plan.dxf"
+        src = Path(self.tmp.name) / "floor_plan.dxf"
+        shutil.copy(fixture, src)
+        task = self._start_glossary_batch(src, {"include_paper": False})
+        paper = []
+        model = []
+        for layout in ezdxf.readfile(task["output_file"]).layouts:
+            bucket = model if layout.name == "Model" else paper
+            bucket.extend(entity.dxf.text for entity in layout if entity.dxftype() == "TEXT")
+        self.assertIn("接地", paper)
+        self.assertIn("平面布置图", paper)
+        self.assertNotIn("grounding", paper)
+        self.assertIn("reflected ceiling plan", model)
+        self.assertNotIn("天花图", model)
+
+    def test_batch_model_off_leaves_modelspace(self):
+        fixture = FIXTURES / "floor_plan.dxf"
+        src = Path(self.tmp.name) / "floor_plan.dxf"
+        shutil.copy(fixture, src)
+        task = self._start_glossary_batch(src, {"include_model": False})
+        paper = []
+        model = []
+        for layout in ezdxf.readfile(task["output_file"]).layouts:
+            bucket = model if layout.name == "Model" else paper
+            bucket.extend(entity.dxf.text for entity in layout if entity.dxftype() == "TEXT")
+        self.assertIn("天花图", model)
+        self.assertNotIn("reflected ceiling plan", model)
+        self.assertIn("grounding", paper)
+        self.assertNotIn("接地", paper)
+
+    def test_batch_frozen_off_leaves_frozen_layer(self):
+        fixture = FIXTURES / "floor_plan.dxf"
+        src = Path(self.tmp.name) / "frozen_title.dxf"
+        doc = ezdxf.readfile(fixture)
+        doc.layers.get("TITLE").freeze()
+        doc.saveas(src)
+        task = self._start_glossary_batch(src, {"include_frozen": False})
+        model = [
+            entity.dxf.text
+            for entity in ezdxf.readfile(task["output_file"]).modelspace()
+            if entity.dxftype() == "TEXT"
+        ]
+        self.assertIn("天花图", model)
+        self.assertIn("平面布置图", model)
+        self.assertNotIn("reflected ceiling plan", model)
+        self.assertIn("shear wall", model)
+        self.assertNotIn("剪力墙", model)
+
     def test_batch_dims_tables_writes_dimension_and_table(self):
         fixture = FIXTURES / "dims_tables.dxf"
         self.assertTrue(fixture.is_file(), "tests/fixtures/dims_tables.dxf")
