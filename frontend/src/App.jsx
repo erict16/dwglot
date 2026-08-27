@@ -83,7 +83,7 @@ export default function App() {
   const [filters, setFilters] = useState({ numbers: true, dupes: true, nonsource: true });
   const [params, setParams] = useState({
     attribs: true,
-    dims: false,
+    dims: true,
     model: true,
     paper: true,
     frozen: false,
@@ -244,6 +244,7 @@ export default function App() {
           include_frozen: params.frozen,
           include_locked: params.locked,
           include_off: params.off,
+          enable_v02: params.dims,
           translation_mode: modeKey(sourceLang, targetLang),
         }),
       });
@@ -688,7 +689,7 @@ export default function App() {
                 <div className="group">
                   <h4>导入范围</h4>
                   <label><input type="checkbox" checked={params.attribs} onChange={(event) => setParams((prev) => ({ ...prev, attribs: event.target.checked }))} /> 块属性</label>
-                  <label><input type="checkbox" checked={params.dims} disabled onChange={(event) => setParams((prev) => ({ ...prev, dims: event.target.checked }))} /> 标注（v0.2）</label>
+                  <label><input type="checkbox" checked={params.dims} onChange={(event) => setParams((prev) => ({ ...prev, dims: event.target.checked }))} /> 标注、表格</label>
                   <label><input type="checkbox" checked={params.model} onChange={(event) => setParams((prev) => ({ ...prev, model: event.target.checked }))} /> 模型空间</label>
                   <label><input type="checkbox" checked={params.paper} onChange={(event) => setParams((prev) => ({ ...prev, paper: event.target.checked }))} /> 图纸空间</label>
                 </div>

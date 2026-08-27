@@ -2,7 +2,7 @@
 
 **Fork Honsen, not greenfield:** [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator) (MIT, v1.8.8). pywebview + FastAPI + ezdxf + user-installed ODA File Converter.
 
-That repo is already a Win/Mac desktop CAD text translator with batch, glossary, and DWG via ODA. Dwglot is a rebranded fork: v0.1 is TEXT/MTEXT/attribs, multilingual engines, Mac 轻语-genre UI, and auto-update from GitHub Releases. Dims/tables and signed installers are v0.2.
+That repo is already a Win/Mac desktop CAD text translator with batch, glossary, and DWG via ODA. Dwglot is a rebranded fork: v0.1 is TEXT/MTEXT/attribs plus DIMENSION overrides and ACAD_TABLE 302 cells, multilingual engines, Mac 轻语-genre UI, and auto-update from GitHub Releases. Signed installers stay v0.2.
 
 轻语 CAD Translator is the public-site product bar only ([qingyucad.com](https://www.qingyucad.com/)). Do not download, unpack, or decompile it.
 
@@ -38,7 +38,7 @@ What Honsen is not, and what the fork changes:
 - README/installer tell packagers to copy ODA into `dist/ODAFileConverter/` or embed `ODAFileConverter.dmg`. **Do not ship ODA.** Detect user install only.
 - SHX handling is incomplete (ODA `\M+xxxx` GBK decode + wrap MTEXT in `{\fSimSun…}`). v0.1 must rewrite STYLE to a Unicode TTF.
 - MTEXT write currently rebuilds the string with a font group and drops inline codes. Fork should keep `\P` `\C` `\H` etc. when translating.
-- Dims and tables are already in `CADChineseTranslator` (`DIMENSION` override, `ACAD_TABLE` group 302). v0.1 does not ship them as supported. Gate them off for v0.1 QA; turn them on in v0.2.
+- Dims and tables are already in `CADChineseTranslator` (`DIMENSION` override, `ACAD_TABLE` group 302). v0.1 ships them behind the 标注、表格 checkbox (`enable_v02`, on by default). AutoCAD table regen after 302 write is still unverified.
 - Auto-update in v0.1: GitHub Releases (`erict16/dwglot`) + Sparkle (Mac) / WinSparkle (Win), with a Python fallback that opens the new dmg/zip/exe until Sparkle is signed. Unsigned first; certs later quiet Gatekeeper/SmartScreen. No Authenticode/notarize in v0.1.
 
 No other GitHub app is a better fork. ezdxf is a library. bimwright/dwg-mcp needs AutoCAD. CAD Studio TRANS is closed and AutoCAD-bound.
@@ -100,19 +100,19 @@ Honsen `SUPPORTED_TEXT_TYPES` = TEXT, MTEXT, ATTDEF, ATTRIB, MULTILEADER, DIMENS
 | INSERT attribs | Always. |
 | Title-block text inside block refs | Keep Honsen’s INSERT walk even when “translate all blocks” is off. |
 | MULTILEADER | Keep (context mtext / block attributes). Not dims/tables. |
-| DIMENSION / ACAD_TABLE | **Off in v0.1 UI and acceptance.** Code may stay behind a flag. |
+| DIMENSION / ACAD_TABLE | **On in v0.1** via 标注、表格 (`enable_v02`). Override text only; `<>` stays. Table cells are AcDbTable group-code 302. |
 
-**v0.2 (enable and test):**
+**v0.2 leftovers:**
 
-| Entity | Honsen already does | v0.2 work |
+| Entity | Honsen already does | leftover |
 |---|---|---|
-| DIMENSION | Translate `dxf.text` only if not `""` / `"<>"`. Measurement placeholder stays. | Turn on. Fixture: override 中文 note vs `<>`. |
-| ACAD_TABLE | Read/write AcDbTable group-code **302** slots (not only the `*T` preview block). | Turn on. Fixture: cell roundtrip that still holds after AutoCAD rebuilds the table. |
+| DIMENSION | Translate `dxf.text` only if not `""` / `"<>"`. | Done in v0.1. Fixture: `tests/fixtures/dims_tables.dxf`. |
+| ACAD_TABLE | Read/write AcDbTable group-code **302** slots (not only the `*T` preview block). | ezdxf save/reload proven. AutoCAD regen of the table after 302 write still needs a real AutoCAD pass. |
 | Full block-def scan | Checkbox `translate_blocks`. | Keep as advanced option. |
 
 Not in v0.1 or v0.2 unless 轻语-parity later: proxy entities, OLE extract, 阵列, 原译对照 / 译原对照 overlays, 50 languages.
 
-轻语 public site (the bar, not the clone list): 单行/多行/块/属性/代理/表格/标注/引线/阵列; R12–R2018; 纯译文 + 对照; MT (百度/有道/腾讯) + LLM (DeepSeek/GPT/混元); 去重与非译过滤; 批量; 不依赖 AutoCAD. Dwglot v0.1 covers the core of that list (text + attribs + CN↔EN + batch + no AutoCAD). Dims/tables in v0.2. The rest is later.
+轻语 public site (the bar, not the clone list): 单行/多行/块/属性/代理/表格/标注/引线/阵列; R12–R2018; 纯译文 + 对照; MT (百度/有道/腾讯) + LLM (DeepSeek/GPT/混元); 去重与非译过滤; 批量; 不依赖 AutoCAD. Dwglot v0.1 covers the core of that list (text + attribs + dims + table 302 + CN↔EN + batch + no AutoCAD). The rest is later.
 
 ---
 
@@ -158,7 +158,7 @@ Keep Honsen:
 - Model space always.
 - Every paperspace layout (`doc.layouts`).
 - Visible text inside INSERT block refs (title frames) even if “translate all blocks” is off.
-- Optional full `doc.blocks` scan, including anonymous `*U`. When the checkbox is off, still scan `*T` / `*D` (table/dim preview blocks) so v0.2 tables/dims are not empty.
+- Optional full `doc.blocks` scan, including anonymous `*U`. When the checkbox is off, still scan `*T` / `*D` (table/dim preview blocks) so 标注/表格 stay visible.
 
 Frozen / off / locked layers: v0.1 translates them (Honsen does). 轻语 exposes import checkboxes for those; later.
 
@@ -264,7 +264,7 @@ Config paths to rename: `~/.cad_translator_config.json`, `~/.cad_translator_queu
 5. TEXT / MTEXT (codes kept) / ATTRIB / ATTDEF. Model + paperspace + title-block INSERTs. Batch new files.
 6. User glossary + DeepL / Azure / OpenAI-compatible keys. No telemetry.
 7. STYLE SHX → bundled Unicode TTF. Keep `\M+` GBK decode.
-8. Gate DIMENSION / ACAD_TABLE off in the UI.
+8. DIMENSION overrides and ACAD_TABLE 302 cells: 标注、表格 checkbox (on by default).
 9. Auto-update: GitHub Releases + Sparkle/WinSparkle (unsigned OK) + Python fallback. In-app 检查更新.
 10. Unsigned PyInstaller + Inno/DMG without ODA.
 11. Tests on synthetic DXF (no ODA in CI).
@@ -272,7 +272,7 @@ Config paths to rename: `~/.cad_translator_config.json`, `~/.cad_translator_queu
 
 **v0.2**
 
-1. Enable and fixture DIMENSION overrides and ACAD_TABLE 302 write.
+1. Prove ACAD_TABLE 302 write survives AutoCAD table regen. Signed installers.
 2. Signed Win + two Mac installers so Sparkle/WinSparkle and Gatekeeper/SmartScreen are quiet.
 3. Nice-to-have from 轻语’s public list: Excel human path, 对照 overlay, more MT brands.
 
@@ -286,7 +286,7 @@ Do not do this in the plan turn.
 2. Rebrand strings: `desktop/launcher.py`, frontend, mutex, output prefixes, config paths.
 3. Remove licensing UI and `tools/`. Stop network time check.
 4. `installer/*` and README: delete ODA-embed instructions; keep path detect in `backend/cad.py`; drop `_mount_embedded_macos_odafc` as a release feature (or leave code but never put a DMG in Resources).
-5. `backend/translator.py`: preserve MTEXT codes; add STYLE rewrite; skip DIMENSION/ACAD_TABLE unless `enable_v02_entities`.
+5. `backend/translator.py`: preserve MTEXT codes; add STYLE rewrite; DIMENSION/ACAD_TABLE behind `enable_v02_entities` (UI 标注、表格).
 6. `backend/providers/openai_compat.py` + settings fields.
 7. Frontend: CN↔EN, glossary editor, ODA status, keys.
 8. `tests/`: TEXT/MTEXT/ATTRIB roundtrip DXF; SHX style rewrite; glossary hit does not call MT; ODA-missing DWG error text.
@@ -299,8 +299,8 @@ Do not do this in the plan turn.
 1. **ODA licence.** Forking Honsen includes their “put ODA next to the exe” habit. Shipping that folder is the failure mode. Detect + link official download only.
 2. **MTEXT fidelity.** Current write wraps everything in `\f`. Easy to ship v0.1 that looks translated in Notepad and broken in AutoCAD. Preserve codes.
 3. **SHX `????`.** Without STYLE rewrite, CN output is unreadable. This is v0.1, not polish.
-4. **Dims/tables already in the file.** Leaving them on “because Honsen did” blows the v0.1 bar. Gate them.
-5. **ACAD_TABLE 302 write** may not survive every AutoCAD rebuild. That is why it is v0.2 with a real fixture.
+4. **Dims/tables already in the file.** v0.1 ships DIMENSION override + ACAD_TABLE 302 behind 标注、表格.
+5. **ACAD_TABLE 302 write** may not survive every AutoCAD rebuild. ezdxf save/reload is proven; AutoCAD regen is still a leftover.
 6. **Licence leftover.** Even disabled, `licensing.py` phones the network for time when enabled. Delete from the product path so a flag flip cannot come back.
 7. **PyInstaller + three arches.** Honsen already warns Homebrew Python is arm64-only. v0.1 unsigned; v0.2 needs real Intel and Apple Silicon machines (or GH `macos-latest` + `--target`).
 8. **WebView2 on Win10.** Call it out in README.
@@ -317,6 +317,6 @@ Do not do this in the plan turn.
 - SHX style on a CJK target points at the bundled TTF.
 - DWG without ODA: clear message. DWG with user ODA: one self-made file opens after translate.
 - Queue restart does not write API keys to disk.
-- DIMENSION `<>` and ACAD_TABLE are not translated in v0.1.
+- DIMENSION override and ACAD_TABLE 302 round-trip on `tests/fixtures/dims_tables.dxf`. `<>` is not translated.
 
 No app scaffold this turn. Local `PLAN.md` only.

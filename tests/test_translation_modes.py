@@ -106,6 +106,10 @@ class TranslationModeTests(unittest.TestCase):
         self.assertEqual(translator.translate_text("楼板开洞", "zh_to_en"), "floor opening")
         self.assertEqual(translator.translate_text("WALL OPENING", "en_to_zh"), "墙体开洞")
         self.assertEqual(translator.translate_text("POWER SUPPLY", "en_to_zh"), "供电")
+        self.assertEqual(translator.translate_text("安装高度", "zh_to_en"), "installation height")
+        self.assertEqual(translator.translate_text("墙体拆除图", "zh_to_en"), "wall demolition plan")
+        self.assertEqual(translator.translate_text("材料表", "zh_to_en"), "bill of materials")
+        self.assertEqual(translator.translate_text("INSTALLATION HEIGHT", "en_to_zh"), "安装高度")
 
     def test_visible_anonymous_table_block_is_scanned_without_full_block_option(self):
         doc = ezdxf.new()

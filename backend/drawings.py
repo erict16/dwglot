@@ -28,6 +28,7 @@ from backend.storage import atomic_output_path
 
 
 V01_TYPES = {"TEXT", "MTEXT", "ATTDEF", "ATTRIB", "MULTILEADER"}
+V02_TYPES = {"DIMENSION", "ACAD_TABLE"}
 
 
 @contextmanager
@@ -107,7 +108,8 @@ def extract_preview(
         for index, item in enumerate(raw):
             source = item.get("original_text") or ""
             kind = (item.get("type") or "").upper()
-            if not enable_v02 and kind not in V01_TYPES:
+            allowed = V01_TYPES | V02_TYPES if enable_v02 else V01_TYPES
+            if kind not in allowed:
                 continue
             if not include_attribs and kind in {"ATTRIB", "ATTDEF"}:
                 continue

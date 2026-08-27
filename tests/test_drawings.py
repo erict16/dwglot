@@ -8,12 +8,16 @@ import unittest
 from pathlib import Path
 
 import ezdxf
+from ezdxf.entities import factory
+from ezdxf.entities.acad_table import AcadTableBlockContent
 from fastapi.testclient import TestClient
 
 from backend.api import app
 from backend.drawings import extract_preview, export_pdf, translate_rows, writeback_rows
 from backend.styles import bundled_font_path, looks_like_shx, register_cjk_font, rewrite_shx_styles
 from backend.updates import check_github_release
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def _pdf_text(path: Path) -> str:
@@ -79,6 +83,35 @@ def _floor_plan_dxf(path: Path) -> Path:
     paper = doc.layouts.new("A1")
     paper.add_text("接地", dxfattribs={"layer": "E-POWR", "insert": (20, 20), "height": 5})
     paper.add_text("平面布置图", dxfattribs={"layer": "TITLE", "insert": (20, 280), "height": 8})
+    doc.saveas(path)
+    return path
+
+
+def _dims_tables_dxf(path: Path) -> Path:
+    """DIMENSION override + ``<>`` dim + ACAD_TABLE group-code 302 cells."""
+    doc = ezdxf.new("R2010")
+    msp = doc.modelspace()
+    msp.add_text("天花图", dxfattribs={"insert": (0, 80), "height": 5})
+    override = msp.add_linear_dim(base=(0, 30), p1=(0, 0), p2=(40, 0))
+    override.render()
+    override.dimension.dxf.text = "安装高度"
+    measured = msp.add_linear_dim(base=(0, 50), p1=(0, 10), p2=(40, 10))
+    measured.render()
+    table_block = doc.blocks.new_anonymous_block("T")
+    table_block.add_text("墙体拆除图", dxfattribs={"insert": (0, 0), "height": 2.5})
+    table_block.add_text("材料表", dxfattribs={"insert": (30, 0), "height": 2.5})
+    raw = (
+        "0\nACAD_TABLE\n100\nAcDbEntity\n8\n0\n"
+        "100\nAcDbBlockReference\n2\n"
+        f"{table_block.name}\n"
+        "10\n0.0\n20\n60.0\n30\n0.0\n"
+        "100\nAcDbTable\n280\n0\n91\n1\n92\n2\n"
+        "171\n1\n301\nCELL\n302\n墙体拆除图\n"
+        "171\n1\n301\nCELL\n302\n材料表\n"
+    )
+    table = AcadTableBlockContent.from_text(raw)
+    factory.bind(table, doc)
+    msp.add_entity(table)
     doc.saveas(path)
     return path
 
@@ -246,6 +279,79 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertFalse(looks_like_shx("OpenSans-Regular.ttf"))
         self.assertTrue(looks_like_shx("txt.shx"))
 
+    def test_dims_and_tables_stay_gated_without_flag(self):
+        dxf = _dims_tables_dxf(self.root / "dims_tables.dxf")
+        preview = extract_preview(str(dxf), enable_v02=False)
+        kinds = {item["type"] for item in preview["items"]}
+        sources = {item["source"] for item in preview["items"]}
+        self.assertNotIn("DIMENSION", kinds)
+        self.assertNotIn("ACAD_TABLE", kinds)
+        self.assertIn("天花图", sources)
+        self.assertIn("墙体拆除图", sources)
+        self.assertNotIn("安装高度", sources)
+
+    def test_dimension_and_acad_table_extract_glossary_writeback(self):
+        committed = FIXTURES / "dims_tables.dxf"
+        dxf = committed if committed.is_file() else _dims_tables_dxf(self.root / "dims_tables.dxf")
+        preview = extract_preview(str(dxf), enable_v02=True)
+        kinds = {item["type"] for item in preview["items"]}
+        by_type = {}
+        for item in preview["items"]:
+            by_type.setdefault(item["type"], []).append(item)
+        self.assertIn("DIMENSION", kinds)
+        self.assertIn("ACAD_TABLE", kinds)
+        self.assertIn("TEXT", kinds)
+        dim_sources = {item["source"] for item in by_type["DIMENSION"]}
+        self.assertEqual(dim_sources, {"安装高度"})
+        table_sources = {item["source"] for item in by_type["ACAD_TABLE"]}
+        self.assertEqual(table_sources, {"墙体拆除图", "材料表"})
+        self.assertTrue(all(item["field"].startswith("table:") for item in by_type["ACAD_TABLE"]))
+        self.assertTrue(all(item["handle"] for item in preview["items"]))
+
+        translated = translate_rows(preview["items"], mode="zh_to_en", provider="deepl", engine={})
+        by_source = {item["source"]: item for item in translated["items"]}
+        self.assertEqual(by_source["安装高度"]["target"], "installation height")
+        self.assertEqual(by_source["墙体拆除图"]["target"], "wall demolition plan")
+        self.assertEqual(by_source["材料表"]["target"], "bill of materials")
+        self.assertEqual(by_source["天花图"]["target"], "reflected ceiling plan")
+        self.assertEqual(by_source["安装高度"]["via"], "glossary")
+        self.assertFalse(translated["has_engine"])
+
+        output = writeback_rows(
+            str(dxf),
+            translated["items"],
+            output_dir=str(self.root),
+            output_name="en_dims_tables",
+            mode="zh_to_en",
+        )
+        self.assertGreaterEqual(output["written"], 4)
+        doc = ezdxf.readfile(output["path"])
+        dim_texts = [entity.dxf.text for entity in doc.modelspace() if entity.dxftype() == "DIMENSION"]
+        self.assertIn("installation height", dim_texts)
+        self.assertIn("<>", dim_texts)
+        table_cells = []
+        for entity in doc.modelspace():
+            if entity.dxftype() != "ACAD_TABLE":
+                continue
+            tags = entity.xtags.get_subclass("AcDbTable")
+            table_cells.extend(tag.value for tag in tags if tag.code == 302)
+        self.assertIn("wall demolition plan", table_cells)
+        self.assertIn("bill of materials", table_cells)
+        texts = [entity.dxf.text for entity in doc.modelspace() if entity.dxftype() == "TEXT"]
+        self.assertIn("reflected ceiling plan", texts)
+
+        reread = extract_preview(output["path"], enable_v02=True)
+        reread_sources = {item["source"] for item in reread["items"]}
+        self.assertIn("installation height", reread_sources)
+        self.assertIn("wall demolition plan", reread_sources)
+        self.assertIn("bill of materials", reread_sources)
+        self.assertNotIn("安装高度", {item["source"] for item in reread["items"] if item["type"] == "DIMENSION"})
+
+        pdf = export_pdf(str(dxf), str(self.root / "dims_tables.pdf"))
+        self.assertEqual(Path(pdf["path"]).read_bytes()[:5], b"%PDF-")
+        self.assertGreater(pdf["bytes"], 800)
+        self.assertGreaterEqual(pdf["pages"], 1)
+
 
 class DrawingsApiTests(unittest.TestCase):
     def setUp(self):
@@ -270,6 +376,7 @@ class DrawingsApiTests(unittest.TestCase):
         items = extracted.json()["items"]
         self.assertTrue(any(item["source"] == "天花图" for item in items))
         self.assertFalse(any(item["type"] == "DIMENSION" for item in items))
+        self.assertFalse(any(item["type"] == "ACAD_TABLE" for item in items))
 
         translated = self.client.post(
             "/api/drawings/translate",
@@ -315,6 +422,18 @@ class DrawingsApiTests(unittest.TestCase):
         )
         self.assertEqual(imported.status_code, 200, imported.text)
         self.assertGreaterEqual(imported.json()["count"], 1)
+
+    def test_extract_enable_v02_returns_dimension_override(self):
+        dxf = _dims_tables_dxf(Path(self.tmp.name) / "api_dims.dxf")
+        extracted = self.client.post(
+            "/api/drawings/extract",
+            json={"path": str(dxf), "enable_v02": True, "translation_mode": "zh_to_en"},
+        )
+        self.assertEqual(extracted.status_code, 200, extracted.text)
+        items = extracted.json()["items"]
+        self.assertTrue(any(item["type"] == "DIMENSION" and item["source"] == "安装高度" for item in items))
+        self.assertTrue(any(item["type"] == "ACAD_TABLE" and item["source"] == "墙体拆除图" for item in items))
+        self.assertFalse(any(item["type"] == "DIMENSION" and item["source"] == "<>" for item in items))
 
     def test_open_dwg_without_oda_rejected(self):
         dwg = Path(self.tmp.name) / "x.dwg"
