@@ -435,10 +435,13 @@ def writeback_rows(
                     translator._sync_attrib_tags(doc, item.get("source") or "", target)
                 written += 1
         rewrite_shx_styles(doc, translator.safe_log)
-        with atomic_output_path(work_output) as temporary_output:
-            doc.saveas(temporary_output)
-        if session.meta.is_dwg or session.output_needs_oda:
-            session.finalize(work_output, output_file)
+        try:
+            with atomic_output_path(work_output) as temporary_output:
+                doc.saveas(temporary_output)
+            if session.meta.is_dwg or session.output_needs_oda:
+                session.finalize(work_output, output_file)
+        except Exception:
+            raise ValueError("文件保存失败") from None
     return {
         "path": output_file,
         "written": written,

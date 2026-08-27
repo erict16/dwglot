@@ -1491,6 +1491,27 @@ class DrawingsApiTests(unittest.TestCase):
             self.assertNotIn("FileExistsError", response.text)
             self.assertNotIn("Errno", response.text)
 
+    def test_writeback_save_fail_is_400(self):
+        preview = extract_preview(str(self.dxf), skip_nonsource=False)
+        item = next(row for row in preview["items"] if row["source"] == "天花图")
+        item = {**item, "target": "rcp", "selected": True}
+        with patch("backend.drawings.atomic_output_path", side_effect=OSError("No space left on device")):
+            written = self.client.post(
+                "/api/drawings/writeback",
+                json={
+                    "input_file": str(self.dxf),
+                    "items": [item],
+                    "output_dir": self.tmp.name,
+                    "output_name": "x",
+                },
+            )
+        self.assertEqual(written.status_code, 400, written.text)
+        self.assertIn("文件保存失败", written.json()["detail"])
+        self.assertNotIn("No space", written.text)
+        self.assertNotIn("OSError", written.text)
+        self.assertNotIn("Traceback", written.text)
+        self.assertNotIn("Errno", written.text)
+
     def test_extract_digits_only_drawing_is_200(self):
         path = Path(self.tmp.name) / "digits.dxf"
         doc = ezdxf.new("R2010")
