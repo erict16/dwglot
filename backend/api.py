@@ -171,7 +171,7 @@ class WritebackBody(BaseModel):
 
 
 class PdfBody(BaseModel):
-    path: str
+    path: str = ""
     output_dir: str = ""
     output_name: str = ""
     layout: str = ""
@@ -698,12 +698,29 @@ def drawings_export_pdf(body: PdfBody):
 
 @app.post("/api/drawings/print")
 def drawings_print(body: PdfBody):
-    exported = drawings_export_pdf(PdfBody(path=body.path, output_dir=body.output_dir, output_name=body.output_name, layout=body.layout, print_after=False))
-    printed = print_pdf(exported["path"])
-    exported["print"] = printed
-    if not printed.get("ok"):
-        exported["message"] = printed.get("message") or "系统打印失败，PDF 已留下"
-    return exported
+    if not (body.path or "").strip():
+        raise HTTPException(status_code=400, detail="先打开图纸。")
+    if not os.path.isfile(body.path):
+        raise HTTPException(status_code=400, detail="图纸不存在")
+    try:
+        exported = drawings_export_pdf(
+            PdfBody(path=body.path, output_dir=body.output_dir, output_name=body.output_name, layout=body.layout, print_after=False)
+        )
+        printed = print_pdf(exported["path"])
+        exported["print"] = printed
+        if not printed.get("ok"):
+            exported["message"] = printed.get("message") or "系统打印失败，PDF 已留下"
+        return exported
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            raise HTTPException(status_code=400, detail="图纸不存在") from exc
+        raise
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=400, detail=str(exc) or "图纸不存在") from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        raise HTTPException(status_code=400, detail="打印失败") from None
 
 
 @app.get("/api/config")

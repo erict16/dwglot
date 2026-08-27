@@ -516,8 +516,8 @@ export default function App() {
           <>
             <button type="button" className="tbtn pri" disabled={busy} onClick={runTranslate}>翻译</button>
             <button type="button" className="tbtn" disabled={busy} onClick={writeBack}>写回</button>
-            <button type="button" className="tbtn" disabled={busy} onClick={() => exportPdf(false)}>导出 PDF</button>
-            <button type="button" className="tbtn" disabled={busy} onClick={() => exportPdf(true)}>打印</button>
+            <button type="button" className="tbtn" disabled={busy || !current} onClick={() => exportPdf(false)}>导出 PDF</button>
+            <button type="button" className="tbtn" disabled={busy || !current} onClick={() => exportPdf(true)}>打印</button>
           </>
         ) : null}
       </header>

@@ -13,7 +13,9 @@ from ezdxf.entities.acad_table import AcadTableBlockContent
 from fastapi.testclient import TestClient
 
 from backend.api import app
-from backend.drawings import extract_preview, export_pdf, translate_rows, writeback_rows
+from unittest.mock import patch
+
+from backend.drawings import PRINT_TIMEOUT, extract_preview, export_pdf, print_pdf, translate_rows, writeback_rows
 from backend.styles import bundled_font_path, looks_like_shx, register_cjk_font, rewrite_shx_styles
 from backend.translator import CADChineseTranslator
 from backend.updates import check_github_release
@@ -510,6 +512,67 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertEqual(pdf.status_code, 404, pdf.text)
         self.assertIn("不存在", pdf.json()["detail"])
         self.assertNotIn("Traceback", pdf.text)
+
+    def test_print_without_drawing_is_400(self):
+        empty = self.client.post("/api/drawings/print", json={})
+        self.assertEqual(empty.status_code, 400, empty.text)
+        self.assertIn("图纸", empty.json()["detail"])
+        self.assertNotIn("Traceback", empty.text)
+        missing = self.client.post("/api/drawings/print", json={"path": str(Path(self.tmp.name) / "gone.dxf")})
+        self.assertEqual(missing.status_code, 400, missing.text)
+        self.assertEqual(missing.json()["detail"], "图纸不存在")
+        self.assertNotIn("Errno", missing.text)
+        self.assertNotIn("Traceback", missing.text)
+
+    def test_print_without_lp_keeps_cjk_pdf(self):
+        dest = Path(self.tmp.name) / "print.pdf"
+        pdf = export_pdf(str(self.dxf), str(dest))
+        with patch("backend.drawings.shutil.which", return_value=None), patch(
+            "backend.drawings.subprocess.run", side_effect=AssertionError("lp must not run")
+        ):
+            result = print_pdf(pdf["path"])
+        self.assertFalse(result["ok"])
+        self.assertIn("打印命令", result["message"])
+        self.assertNotIn("Traceback", result["message"])
+        self.assertNotIn("Errno", result["message"])
+        _assert_cjk_pdf(self, Path(pdf["path"]), min_ink=800)
+
+        with patch("backend.drawings.shutil.which", return_value=None):
+            printed = self.client.post(
+                "/api/drawings/print",
+                json={"path": str(self.dxf), "output_dir": self.tmp.name, "output_name": "api_print.pdf"},
+            )
+        self.assertEqual(printed.status_code, 200, printed.text)
+        self.assertNotIn("Traceback", printed.text)
+        body = printed.json()
+        self.assertFalse(body["print"]["ok"])
+        self.assertIn("打印命令", body["print"]["message"])
+        _assert_cjk_pdf(self, Path(body["path"]), min_ink=800)
+
+        committed = FIXTURES / "floor_plan.dxf"
+        if committed.is_file():
+            floor = export_pdf(str(committed), str(Path(self.tmp.name) / "floor_print.pdf"))
+            _assert_cjk_pdf(self, Path(floor["path"]), min_ink=800)
+
+    def test_print_timeout_is_calm(self):
+        dest = Path(self.tmp.name) / "timeout.pdf"
+        pdf = export_pdf(str(self.dxf), str(dest))
+        with patch("backend.drawings.shutil.which", return_value="/usr/bin/lp"), patch(
+            "backend.drawings.subprocess.run",
+            side_effect=subprocess.TimeoutExpired("lp", 5),
+        ):
+            result = print_pdf(pdf["path"])
+        self.assertFalse(result["ok"])
+        self.assertIn("超时", result["message"])
+        self.assertNotIn("Traceback", result["message"])
+        self.assertLessEqual(PRINT_TIMEOUT, 5.0)
+
+    def test_frontend_print_needs_a_drawing(self):
+        source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
+        text = source.read_text(encoding="utf-8")
+        self.assertIn("先打开图纸。", text)
+        self.assertIn("disabled={busy || !current} onClick={() => exportPdf(true)}", text)
+        self.assertIn("已送到系统打印", text)
 
     def test_frontend_import_tab_is_honest(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"

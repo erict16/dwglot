@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -379,21 +380,57 @@ def _render_pdf(layouts, dest: Path) -> None:
             plt.close(fig)
 
 
+PRINT_TIMEOUT = 5.0
+NO_PRINTER = "系统没有打印命令，已留下 PDF"
+
+
+def _print_binaries() -> list[str]:
+    names = ("lpr", "lp") if sys.platform == "darwin" else ("lp", "lpr")
+    found = []
+    for name in names:
+        path = shutil.which(name)
+        if path:
+            found.append(path)
+    return found
+
+
+def _print_fail_message(stderr: str = "", stdout: str = "") -> str:
+    text = (stderr or stdout or "").strip()
+    line = next((part.strip() for part in text.splitlines() if part.strip()), "")
+    if not line or "Traceback" in line or "Errno" in line:
+        return NO_PRINTER if not line else "打印失败，PDF 已留下"
+    return f"打印失败: {line[:200]}"
+
+
 def print_pdf(pdf_path: str) -> dict:
     if not pdf_path or not os.path.isfile(pdf_path):
         raise FileNotFoundError("PDF 不存在")
-    if sys.platform == "darwin":
-        cmd = ["lpr", pdf_path]
-    elif sys.platform == "win32":
-        os.startfile(pdf_path, "print")  # type: ignore[attr-defined]
-        return {"ok": True, "path": pdf_path, "command": "print"}
-    else:
-        cmd = ["lp", pdf_path]
-    try:
-        result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=20)
-    except FileNotFoundError:
-        return {"ok": False, "path": pdf_path, "message": "系统没有打印命令，已留下 PDF"}
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip() or f"exit {result.returncode}"
-        return {"ok": False, "path": pdf_path, "message": f"打印失败: {detail}"}
-    return {"ok": True, "path": pdf_path, "command": " ".join(cmd)}
+    if sys.platform == "win32":
+        try:
+            os.startfile(pdf_path, "print")  # type: ignore[attr-defined]
+            return {"ok": True, "path": pdf_path, "command": "print"}
+        except OSError:
+            return {"ok": False, "path": pdf_path, "message": NO_PRINTER}
+    binaries = _print_binaries()
+    if not binaries:
+        return {"ok": False, "path": pdf_path, "message": NO_PRINTER}
+    last = NO_PRINTER
+    for binary in binaries:
+        try:
+            result = subprocess.run(
+                [binary, pdf_path],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=PRINT_TIMEOUT,
+            )
+        except FileNotFoundError:
+            continue
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "path": pdf_path, "message": "系统打印超时，PDF 已留下"}
+        except OSError:
+            continue
+        if result.returncode == 0:
+            return {"ok": True, "path": pdf_path, "command": f"{binary} {pdf_path}"}
+        last = _print_fail_message(result.stderr, result.stdout)
+    return {"ok": False, "path": pdf_path, "message": last}

@@ -95,8 +95,10 @@ class NativeBridge:
 
         try:
             return do_print(path)
-        except Exception as exc:
-            return {"ok": False, "error": str(exc)}
+        except FileNotFoundError:
+            return {"ok": False, "message": "PDF 不存在"}
+        except Exception:
+            return {"ok": False, "message": "打印失败"}
 
     def reveal_file(self, path: str) -> dict:
         if not path or not os.path.isfile(path):
