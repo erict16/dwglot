@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: `/api/batch/clear` while the queue is running is 409 `请先停止队列`. After stop, clear is 200 and `tasks` []. `python -m unittest discover -s tests` 147 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/stop` during a running job is 200, task `cancelled` / `已停止` (stop() writes that before the worker). InterruptedError without cancel flag is `failed` / `翻译已取消`, retries 0. `python -m unittest discover -s tests` 146 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `InterruptedError("translation cancelled/stopped")` was English; if cancel flag was unset, `_calm_error` → 翻译失败 and it was retryable. Now 翻译已取消 / 翻译已停止, not retried. Flag still 应用关闭，可重新开始. `python -m unittest discover -s tests` 145 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: batch `_run_batch` wrapped English `ValueError` (`layout bbox is invalid`) as `_fatal_batch_error(str(exc))`. Now `_chinese_detail` → queue `翻译失败`. `无法读取DXF文件` still that line. `python -m unittest discover -s tests` 145 ok. Do not edit landing/, README*, docs/icons/.

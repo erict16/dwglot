@@ -922,6 +922,53 @@ class BatchApiTests(unittest.TestCase):
         self.assertNotIn("cancelled", task["message"])
         self.assertEqual(task.get("retries") or 0, 0)
 
+    def test_batch_clear_while_running_is_409(self):
+        src = Path(self.tmp.name) / "live.dxf"
+        shutil.copy(FIXTURES / "floor_plan.dxf", src)
+        entered = threading.Event()
+
+        def hang(*args, **kwargs):
+            entered.set()
+            cancel = args[7]
+            while not cancel.is_set():
+                time.sleep(0.02)
+            raise InterruptedError("翻译已取消")
+
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"), patch(
+            "backend.api.CADChineseTranslator.translate_cad_file",
+            side_effect=hang,
+        ):
+            added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            self.assertTrue(entered.wait(2), "worker never entered wait")
+            blocked = self.client.post("/api/batch/clear")
+            self.assertEqual(blocked.status_code, 409, blocked.text)
+            self.assertEqual(blocked.json()["detail"], "请先停止队列")
+            self.assertNotIn("Traceback", blocked.text)
+            stopped = self.client.post("/api/batch/stop")
+            self.assertEqual(stopped.status_code, 200, stopped.text)
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.02)
+            cleared = self.client.post("/api/batch/clear")
+            self.assertEqual(cleared.status_code, 200, cleared.text)
+            self.assertEqual(cleared.json()["tasks"], [])
+
     def test_start_skips_stale_missing_paths(self):
         live = Path(self.tmp.name) / "live.dxf"
         shutil.copy(FIXTURES / "floor_plan.dxf", live)
