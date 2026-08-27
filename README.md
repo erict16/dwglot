@@ -9,7 +9,7 @@
     <img alt="Windows 10+" src="https://img.shields.io/badge/Windows-10%2B-blue?style=flat-square">
     <img alt="MIT" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
   </div>
-  <div align="center">Open-source desktop <strong>CAD translator</strong> for <strong>DWG</strong> / <strong>DXF</strong> <strong>drawing translation</strong> (图纸翻译). No AutoCAD.</div>
+  <div align="center">Dwglot is an open-source desktop CAD translator. Open a DWG or DXF and translate the text on the drawing (图纸翻译 / drawing translation). You don't need AutoCAD.</div>
 </p>
 
 <p align="center">
@@ -22,20 +22,20 @@
 
 ## Features
 
-- **Accurate:** CAD glossary hits skip the MT engine. Cloud (Azure / DeepL), local (Ollama), or a custom OpenAI-compatible API.
-- **Complete:** Open DWG/DXF, edit 原文 | 译文, batch export, write back. TEXT / MTEXT / attribs in v0.1.
-- **Local:** No telemetry. No paid licence. Keys stay on your machine.
-- **Light:** We do not bundle ODA File Converter. DXF translates as-is. DWG needs your own ODA install.
+- **Glossary:** If the drawing text is in the glossary, we use that translation. Everything else can use Azure or DeepL, Ollama on your machine, or your own OpenAI-compatible API.
+- **Drawings:** Open a DWG or DXF, edit the original and the translation side by side, then batch-export and write back. v0.1 covers TEXT, MTEXT, and attributes.
+- **Keys:** No telemetry, no paid licence. API keys stay on your computer.
+- **ODA:** The installer does not include ODA File Converter. DXF translates without it. For DWG, install ODA yourself.
 
 ## Installation
 
-v0.1 is **unsigned**. Grab the latest Mac DMG or Windows EXE from [GitHub Releases](https://github.com/erict16/dwglot/releases). In-app **检查更新** hits the same Releases feed (Sparkle / WinSparkle when signed later; until then it opens the new package).
+v0.1 is unsigned. Download the latest Mac DMG or Windows EXE from [GitHub Releases](https://github.com/erict16/dwglot/releases). In-app **检查更新** uses the same Releases page. Sparkle / WinSparkle come later, after signing; for now it opens the new package.
 
-**macOS first run (Gatekeeper):** Control-click the app, choose Open. Or System Settings → Privacy & Security → Open Anyway. Later, a Developer ID will quiet this.
+**macOS first run (Gatekeeper):** Right-click the app, choose Open. Or System Settings → Privacy & Security → Open Anyway. A Developer ID later will stop this warning.
 
-**Windows first run (SmartScreen):** More info → Run anyway. Authenticode later will quiet this.
+**Windows first run (SmartScreen):** More info → Run anyway. Authenticode later will stop this warning.
 
-Do not pack with UPX. DXF works without ODA. For DWG, install [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter) yourself (or set `CAD_ODA_EXEC`). We never ship ODA inside the app.
+Do not pack with UPX. DXF works without ODA. For DWG, install [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter) yourself, or set `CAD_ODA_EXEC`. We never put ODA inside the app.
 
 From source:
 
@@ -46,13 +46,13 @@ cd frontend && npm ci && npm run build && cd ..
 python run.py
 ```
 
-Default language pair is Chinese → English. Output lands in `~/Documents/Dwglot output`.
+Default language pair is Chinese → English. Output goes to `~/Documents/Dwglot output`.
 
 ## Notes
 
-- Fork of [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator) (MIT). Dwglot rebrands it as 图译, Mac UI, glossary + four MT plugs, auto-update.
-- DIMENSION / ACAD_TABLE write-back is v0.2. Do not expect dims and tables to round-trip yet.
-- Site copy: `landing/` (Tailwind Plus Salient layout, for Vercel).
+- Fork of [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator) (MIT). Dwglot is the 图译 fork. It has a Mac UI, four translation engines, and auto-update.
+- DIMENSION / ACAD_TABLE write-back is v0.2. Don't expect dims and tables to round-trip yet.
+- The website is in `landing/` (for Vercel).
 
 ## License
 
