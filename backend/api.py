@@ -684,7 +684,7 @@ def drawings_extract(body: ExtractBody):
             skip_nonsource=body.skip_nonsource,
         )
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=_chinese_detail(exc, "图纸不存在")) from exc
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=_chinese_detail(exc, "提取失败")) from exc
     except Exception:
@@ -755,7 +755,7 @@ def drawings_export_pdf(body: PdfBody):
             result["print"] = print_pdf(result["path"])
         return result
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=_chinese_detail(exc, "图纸不存在")) from exc
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=_chinese_detail(exc, "导出 PDF 失败")) from exc
     except Exception:
@@ -790,9 +790,9 @@ def drawings_print(body: PdfBody):
             raise HTTPException(status_code=400, detail="图纸不存在") from exc
         raise
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=400, detail=str(exc) or "图纸不存在") from exc
+        raise HTTPException(status_code=400, detail=_chinese_detail(exc, "图纸不存在")) from exc
     except (ValueError, RuntimeError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=_chinese_detail(exc, "打印失败")) from exc
     except Exception:
         raise HTTPException(status_code=400, detail="打印失败") from None
 

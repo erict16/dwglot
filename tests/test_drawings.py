@@ -1650,6 +1650,45 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertEqual(extracted.json()["detail"], "提取失败")
         self.assertNotIn("bbox", extracted.text)
 
+    def test_english_filenotfound_is_chinese(self):
+        english = FileNotFoundError("No such file or directory")
+        with patch("backend.api.extract_preview", side_effect=english):
+            extracted = self.client.post(
+                "/api/drawings/extract",
+                json={"path": str(self.dxf), "translation_mode": "zh_to_en"},
+            )
+        self.assertEqual(extracted.status_code, 404, extracted.text)
+        self.assertEqual(extracted.json()["detail"], "图纸不存在")
+        self.assertNotIn("No such file", extracted.text)
+        with patch("backend.api.export_pdf", side_effect=english):
+            pdf = self.client.post(
+                "/api/drawings/export-pdf",
+                json={"path": str(self.dxf), "output_dir": self.tmp.name, "output_name": "x.pdf"},
+            )
+            printed = self.client.post(
+                "/api/drawings/print",
+                json={"path": str(self.dxf), "output_dir": self.tmp.name, "output_name": "p.pdf"},
+            )
+        self.assertEqual(pdf.status_code, 404, pdf.text)
+        self.assertEqual(pdf.json()["detail"], "图纸不存在")
+        self.assertNotIn("No such file", pdf.text)
+        self.assertEqual(printed.status_code, 400, printed.text)
+        self.assertEqual(printed.json()["detail"], "图纸不存在")
+        self.assertNotIn("No such file", printed.text)
+        with patch("backend.api.writeback_rows", side_effect=english):
+            written = self.client.post(
+                "/api/drawings/writeback",
+                json={
+                    "input_file": str(self.dxf),
+                    "items": [{"source": "天花图", "target": "rcp", "selected": True}],
+                    "output_dir": self.tmp.name,
+                    "output_name": "x",
+                },
+            )
+        self.assertEqual(written.status_code, 404, written.text)
+        self.assertEqual(written.json()["detail"], "图纸不存在")
+        self.assertNotIn("No such file", written.text)
+
     def test_extract_digits_only_drawing_is_200(self):
         path = Path(self.tmp.name) / "digits.dxf"
         doc = ezdxf.new("R2010")
