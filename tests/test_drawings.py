@@ -653,6 +653,27 @@ class DrawingsLoopTests(unittest.TestCase):
         )
         self.assertEqual(len(full["items"]), 4)
 
+    def test_translate_skips_digits_dupes_nonsource(self):
+        items = [
+            {"source": "天花图", "type": "TEXT", "layer": "0", "duplicate": False, "handle": "A"},
+            {"source": "天花图", "type": "TEXT", "layer": "0", "duplicate": True, "handle": "B"},
+            {"source": "1234", "type": "TEXT", "layer": "0", "duplicate": False, "handle": "C"},
+            {"source": "HELLO", "type": "TEXT", "layer": "0", "duplicate": False, "handle": "D"},
+        ]
+        full = translate_rows(items, mode="zh_to_en", provider="deepl", engine={})
+        self.assertEqual(len(full["items"]), 4)
+        skipped = translate_rows(
+            items,
+            mode="zh_to_en",
+            provider="deepl",
+            engine={},
+            skip_numbers=True,
+            skip_dupes=True,
+            skip_nonsource=True,
+        )
+        self.assertEqual([item["source"] for item in skipped["items"]], ["天花图"])
+        self.assertEqual(skipped["items"][0]["target"], "reflected ceiling plan")
+
     def test_writeback_skip_dupes_leaves_paperspace_copy(self):
         committed = FIXTURES / "floor_plan.dxf"
         dxf = committed if committed.is_file() else _floor_plan_dxf(self.root / "floor_plan.dxf")
@@ -701,6 +722,7 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("skip_dupes: filters.dupes", text)
         self.assertIn("skip_nonsource: filters.nonsource", text)
         self.assertIn("items: visibleRows", text)
+        self.assertIn("if (!visibleRows.length)", text)
 
 
 class DrawingsApiTests(unittest.TestCase):
@@ -952,6 +974,35 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertEqual(kept.status_code, 200, kept.text)
         self.assertTrue(any(item["source"] == "1234" for item in kept.json()["items"]))
         self.assertTrue(all(isinstance(item.get("layer"), str) for item in kept.json()["items"]))
+
+    def test_translate_api_skips_digits_dupes_nonsource(self):
+        items = [
+            {"source": "天花图", "type": "TEXT", "layer": "0", "duplicate": False},
+            {"source": "天花图", "type": "TEXT", "layer": "0", "duplicate": True},
+            {"source": "1234", "type": "TEXT", "layer": "0", "duplicate": False},
+            {"source": "HELLO", "type": "TEXT", "layer": "0", "duplicate": False},
+        ]
+        translated = self.client.post(
+            "/api/drawings/translate",
+            json={"items": items, "translation_mode": "zh_to_en", "provider": "deepl"},
+        )
+        self.assertEqual(translated.status_code, 200, translated.text)
+        payload = translated.json()["items"]
+        self.assertEqual([item["source"] for item in payload], ["天花图"])
+        self.assertEqual(payload[0]["target"], "reflected ceiling plan")
+        kept = self.client.post(
+            "/api/drawings/translate",
+            json={
+                "items": items,
+                "translation_mode": "zh_to_en",
+                "provider": "deepl",
+                "skip_numbers": False,
+                "skip_dupes": False,
+                "skip_nonsource": False,
+            },
+        )
+        self.assertEqual(kept.status_code, 200, kept.text)
+        self.assertEqual(len(kept.json()["items"]), 4)
 
     def test_extract_unreadable_dxf_is_400(self):
         path = Path(self.tmp.name) / "junk.dxf"

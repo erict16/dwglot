@@ -258,8 +258,22 @@ def translate_rows(
     provider: str = "deepl",
     project_package_path: str = "",
     engine: dict | None = None,
+    skip_numbers: bool = False,
+    skip_dupes: bool = False,
+    skip_nonsource: bool = False,
 ) -> dict:
     split_mode(mode)
+    items = [
+        item
+        for item in items
+        if item_passes_text_filters(
+            item,
+            skip_numbers=skip_numbers,
+            skip_dupes=skip_dupes,
+            skip_nonsource=skip_nonsource,
+            translation_mode=mode,
+        )
+    ]
     translator = CADChineseTranslator()
     translator.configure_language_assets(project_package_path)
     engine = engine or {}

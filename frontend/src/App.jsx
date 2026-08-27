@@ -289,7 +289,7 @@ export default function App() {
       setStatus("先打开图纸。");
       return;
     }
-    if (!rows.length) {
+    if (!visibleRows.length) {
       setStatus("这张图没有可译文字。");
       return;
     }
@@ -299,12 +299,27 @@ export default function App() {
       const data = await api("/api/drawings/translate", {
         method: "POST",
         body: JSON.stringify({
-          items: rows,
+          items: visibleRows,
           translation_mode: modeKey(sourceLang, targetLang),
+          skip_numbers: filters.numbers,
+          skip_dupes: filters.dupes,
+          skip_nonsource: filters.nonsource,
           ...enginePayload(engine, config),
         }),
       });
-      setRows(Array.isArray(data.items) ? data.items : []);
+      const translated = Array.isArray(data.items) ? data.items : [];
+      const byKey = new Map();
+      translated.forEach((item) => {
+        const handle = asText(item?.handle);
+        const field = asText(item?.field) || "text";
+        if (handle) byKey.set(`${handle}\t${field}`, item);
+        if (item?.id != null) byKey.set(`id:${item.id}`, item);
+      });
+      setRows((prev) => (Array.isArray(prev) ? prev : []).map((row) => {
+        const handle = asText(row?.handle);
+        const field = asText(row?.field) || "text";
+        return (handle && byKey.get(`${handle}\t${field}`)) || (row?.id != null && byKey.get(`id:${row.id}`)) || row;
+      }));
       const bits = [`术语 ${asCount(data.glossary)}`, `引擎 ${asCount(data.mt)}`];
       if (asCount(data.skipped)) bits.push(`未译 ${asCount(data.skipped)}`);
       if (data.skipped && !data.has_engine) {

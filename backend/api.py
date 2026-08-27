@@ -173,6 +173,9 @@ class TranslateRowsBody(BaseModel):
     openai_model: str = ""
     ollama_host: str = ""
     ollama_model: str = ""
+    skip_numbers: bool = True
+    skip_dupes: bool = True
+    skip_nonsource: bool = True
 
 
 class WritebackBody(BaseModel):
@@ -695,6 +698,9 @@ def drawings_translate(body: TranslateRowsBody):
             provider=body.provider,
             project_package_path=body.project_package_path or config.get("project_package_path", ""),
             engine=engine,
+            skip_numbers=body.skip_numbers,
+            skip_dupes=body.skip_dupes,
+            skip_nonsource=body.skip_nonsource,
         )
     except (ValueError, TranslationProviderError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
