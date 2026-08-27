@@ -874,6 +874,21 @@ class DrawingsApiTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_default_output_name_http(self):
+        named = self.client.get("/api/default-output-name", params={"mode": "zh_to_en", "base": "floor_plan"})
+        self.assertEqual(named.status_code, 200, named.text)
+        self.assertTrue(named.json()["name"].startswith("en_floor_plan_"), named.text)
+        self.assertNotIn("Traceback", named.text)
+
+        empty = self.client.get("/api/default-output-name", params={"mode": "en_to_zh"})
+        self.assertEqual(empty.status_code, 200, empty.text)
+        self.assertTrue(empty.json()["name"].startswith("translated_cad_"), empty.text)
+        self.assertNotIn("Traceback", empty.text)
+
+        ja = self.client.get("/api/default-output-name", params={"mode": "zh-Hans_to_ja", "base": "平面图"})
+        self.assertEqual(ja.status_code, 200, ja.text)
+        self.assertTrue(ja.json()["name"].startswith("ja_平面图_"), ja.text)
+
     def test_open_extract_translate_writeback_update_pdf(self):
         with self.dxf.open("rb") as handle:
             opened = self.client.post("/api/drawings/open", files={"files": ("api.dxf", handle, "application/dxf")})

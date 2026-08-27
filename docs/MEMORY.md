@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: `GET /api/default-output-name` is 200. `zh_to_en` + base `floor_plan` → `en_floor_plan_…`; empty base → `translated_cad_…`; `zh-Hans_to_ja` + `平面图` → `ja_平面图_…`. No Traceback. Helper was already covered; this locks the HTTP 写回 uses. `python -m unittest discover -s tests` 152 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `GET /api/logs/stream` is 200 `text/event-stream`. A log line is `data: {"type":"log",...}`; `set_status` is a status event; idle ticks are `: keepalive`. No Traceback. TestClient.stream hangs on the infinite generator; the lock hits `stream_logs()` directly. `python -m unittest discover -s tests` 151 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/{id}/retry` of a failed task is 200, `queued` / `等待重翻`, progress 0, output_file empty. `python -m unittest discover -s tests` 150 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/{id}/remove` of a running task was 200 with the task still in the snapshot. Now 409 `请先停止队列`. After stop, remove is 200 and `tasks` []. `python -m unittest discover -s tests` 149 ok. Do not edit landing/, README*, docs/icons/.
