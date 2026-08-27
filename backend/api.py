@@ -29,7 +29,7 @@ from backend.translator import CADChineseTranslator, CONFIG_PATH, load_yaml_data
 from backend.language_assets import LanguageAssets
 from backend.storage import atomic_write_json, quarantine_corrupt_file
 from backend.updates import check_github_release, unavailable_payload
-from backend.drawings import extract_preview, export_pdf, print_pdf, translate_rows, writeback_rows
+from backend.drawings import ensure_output_dir, extract_preview, export_pdf, print_pdf, translate_rows, writeback_rows
 from backend.languages import split_mode
 
 ENGINE_PROVIDERS = {"deepl", "azure", "openai", "ollama"}
@@ -713,7 +713,7 @@ def drawings_writeback(body: WritebackBody):
     try:
         split_mode(body.translation_mode)
         output_dir = body.output_dir or service.load_config().get("output_dir") or service.default_output_dir()
-        os.makedirs(output_dir, exist_ok=True)
+        ensure_output_dir(output_dir)
         named = body.output_name.strip()
         if not named:
             named = default_output_name(body.translation_mode, Path(body.input_file).stem)["name"]
@@ -738,7 +738,7 @@ def drawings_writeback(body: WritebackBody):
 def drawings_export_pdf(body: PdfBody):
     try:
         output_dir = body.output_dir or service.load_config().get("output_dir") or service.default_output_dir()
-        os.makedirs(output_dir, exist_ok=True)
+        ensure_output_dir(output_dir)
         name = (body.output_name or Path(body.path).stem).strip()
         if not name.lower().endswith(".pdf"):
             name = f"{name}.pdf"
@@ -1015,7 +1015,10 @@ async def drop_batch(files: list[UploadFile] = File(default=[])):
 @app.post("/api/batch/start")
 def start_batch(body: BatchStartBody):
     output_dir = body.output_dir or service.load_config().get("output_dir") or service.default_output_dir()
-    os.makedirs(output_dir, exist_ok=True)
+    try:
+        ensure_output_dir(output_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     try:
         split_mode(body.translation_mode)
     except ValueError as exc:

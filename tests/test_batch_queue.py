@@ -270,6 +270,28 @@ class BatchApiTests(unittest.TestCase):
         self.assertEqual(started.status_code, 200, started.text)
         self.assertEqual(len(started.json()["tasks"]), 2)
 
+    def test_start_output_dir_that_is_a_file_is_400(self):
+        src = Path(self.tmp.name) / "live.dxf"
+        shutil.copy(FIXTURES / "floor_plan.dxf", src)
+        as_file = Path(self.tmp.name) / "not_a_dir"
+        as_file.write_text("x", encoding="utf-8")
+        added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+        self.assertEqual(added.status_code, 200, added.text)
+        started = self.client.post(
+            "/api/batch/start",
+            json={
+                "provider": "deepl",
+                "deepl_key": "",
+                "output_dir": str(as_file),
+                "translation_mode": "zh_to_en",
+            },
+        )
+        self.assertEqual(started.status_code, 400, started.text)
+        self.assertIn("输出目录", started.json()["detail"])
+        self.assertNotIn("Traceback", started.text)
+        self.assertNotIn("FileExistsError", started.text)
+        self.assertNotIn("Errno", started.text)
+
     def test_add_missing_path_is_400(self):
         response = self.client.post("/api/batch/add", json={"files": [str(Path(self.tmp.name) / "nope.dxf")]})
         self.assertEqual(response.status_code, 400, response.text)

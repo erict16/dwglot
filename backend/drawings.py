@@ -73,6 +73,13 @@ def _read_dxf(path: str):
         raise ValueError("无法读取DXF文件") from exc
 
 
+def ensure_output_dir(path: str) -> None:
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError as exc:
+        raise ValueError("输出目录无法创建") from exc
+
+
 def _flag(layer, name: str) -> bool:
     value = getattr(layer, name, False)
     try:
@@ -382,7 +389,7 @@ def writeback_rows(
         raise ValueError("没有勾选且已填译文的条目")
     style = normalize_pdf_style(style)
     output_dir = output_dir or default_output_dir()
-    os.makedirs(output_dir, exist_ok=True)
+    ensure_output_dir(output_dir)
     meta = analyze_source(path)
     if not output_name.strip():
         output_name = f"{output_prefix(mode)}_{Path(path).stem}"
@@ -584,7 +591,7 @@ def apply_pdf_style(doc, items: list[dict] | None, style: str) -> int:
 def export_pdf(path: str, output_path: str = "", layout_name: str = "", *, style: str = "纯译文", items=None) -> dict:
     """DWG → ODA → DXF → PDF via ezdxf drawing (matplotlib). Not AutoCAD plot quality."""
     dest = Path(output_path) if output_path else Path(default_output_dir()) / f"{Path(path).stem}.pdf"
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    ensure_output_dir(str(dest.parent))
     style = normalize_pdf_style(style)
     register_cjk_font()
     with open_work_dxf(path) as work_dxf:
