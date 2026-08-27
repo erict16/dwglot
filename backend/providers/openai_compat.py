@@ -84,7 +84,7 @@ class OpenAICompatProvider(TranslationProvider):
             return body["choices"][0]["message"]["content"].strip()
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            error = TranslationProviderError(f"OpenAI 兼容接口失败 ({exc.code}): {detail[:300]}")
+            error = TranslationProviderError("OpenAI 兼容接口失败")
             error.retryable = exc.code not in {400, 401, 403}
             raise error from exc
         except (OSError, TimeoutError):

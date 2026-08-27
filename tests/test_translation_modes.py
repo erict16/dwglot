@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from backend.providers.azure import AzureFreeQuotaExceededError, AzureTranslator, AzureTranslatorError
 from backend.providers.base import TranslationProviderError
 from backend.providers.deepl_provider import DeepLProvider
-from backend.providers.ollama import ollama_reachable
+from backend.providers.ollama import OllamaProvider, ollama_reachable
 from backend.providers.openai_compat import OpenAICompatProvider, openai_reachable
 from backend.language_assets import LanguageAssets
 from backend.drawings import translate_rows
@@ -195,8 +195,53 @@ class TranslationModeTests(unittest.TestCase):
             translator = CADChineseTranslator(log_callback=lambda *args, **kwargs: None)
             translator.language_assets = LanguageAssets(f"{tmp}/assets.sqlite3")
             translator.deepl_translator = Translator()
-            with self.assertRaisesRegex(RuntimeError, "DeepL 翻译失败"):
+            with self.assertRaises(RuntimeError) as raised:
                 translator.translate_text("水泥结构", "zh_to_en")
+            self.assertEqual(str(raised.exception), "DeepL 翻译失败")
+            self.assertNotIn("unavailable", str(raised.exception))
+
+    def test_provider_errors_stay_chinese(self):
+        with patch("backend.providers.deepl_provider.deepl.Translator", side_effect=OSError("auth failed")):
+            with self.assertRaises(TranslationProviderError) as raised:
+                DeepLProvider("key")
+        self.assertEqual(str(raised.exception), "DeepL 初始化失败")
+        self.assertNotIn("auth", str(raised.exception))
+
+        with patch("backend.providers.deepl_provider.deepl.Translator"):
+            deepl_p = DeepLProvider("key")
+        deepl_p.client.translate_text = lambda *args, **kwargs: (_ for _ in ()).throw(OSError("network unavailable"))
+        with self.assertRaises(TranslationProviderError) as raised:
+            deepl_p.translate_text("天花", "zh-Hans", "en-US")
+        self.assertEqual(str(raised.exception), "DeepL 翻译失败")
+        self.assertNotIn("network", str(raised.exception))
+
+        with patch("backend.providers.azure.urllib.request.urlopen", side_effect=OSError("timed out")):
+            with self.assertRaises(AzureTranslatorError) as raised:
+                AzureTranslator("key").translate_text("文本", "zh-cn", "fr")
+        self.assertEqual(str(raised.exception), "Azure Translator 请求失败")
+        self.assertNotIn("timed", str(raised.exception))
+
+        error = HTTPError("https://example.test", 400, "Request failed", None, BytesIO(b'{"error":{"code":400000,"message":"invalid"}}'))
+        with patch("backend.providers.azure.urllib.request.urlopen", side_effect=error):
+            with self.assertRaises(AzureTranslatorError) as raised:
+                AzureTranslator("key").translate_text("文本", "zh-cn", "fr")
+        error.close()
+        self.assertEqual(str(raised.exception), "Azure Translator 请求失败")
+        self.assertNotIn("invalid", str(raised.exception))
+
+        with patch("backend.providers.ollama.urllib.request.urlopen", side_effect=OSError("connection refused")):
+            with self.assertRaises(TranslationProviderError) as raised:
+                OllamaProvider().translate_text("天花", "zh-Hans", "en")
+        self.assertEqual(str(raised.exception), "Ollama 请求失败")
+        self.assertNotIn("refused", str(raised.exception))
+
+        http = HTTPError("http://127.0.0.1:11434/api/chat", 500, "Server Error", None, BytesIO(b'{"error":"model not found"}'))
+        with patch("backend.providers.openai_compat.urllib.request.urlopen", side_effect=http):
+            with self.assertRaises(TranslationProviderError) as raised:
+                OpenAICompatProvider("key", "https://api.example.test/v1").translate_text("天花", "zh-Hans", "en")
+        http.close()
+        self.assertEqual(str(raised.exception), "OpenAI 兼容接口失败")
+        self.assertNotIn("model not found", str(raised.exception))
 
     def test_azure_f0_quota_error_reaches_the_queue(self):
         translator = CADChineseTranslator(log_callback=lambda *args, **kwargs: None)

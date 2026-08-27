@@ -21,7 +21,7 @@ class DeepLProvider(TranslationProvider):
         try:
             self.client = deepl.Translator(self.api_key)
         except Exception as exc:
-            raise TranslationProviderError(f"DeepL 初始化失败: {exc}") from exc
+            raise TranslationProviderError("DeepL 初始化失败") from exc
 
     def translate_text(self, text: str, source_lang: str, target_lang: str) -> str:
         try:
@@ -32,7 +32,7 @@ class DeepLProvider(TranslationProvider):
             )
             return result.text
         except Exception as exc:
-            error = TranslationProviderError(f"DeepL 翻译失败: {exc}")
+            error = TranslationProviderError("DeepL 翻译失败")
             message = str(exc).lower()
             error.retryable = "auth" not in message and "403" not in message and "401" not in message
             raise error from exc

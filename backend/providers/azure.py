@@ -57,8 +57,8 @@ class AzureTranslator(TranslationProvider):
             code, message = error.get("code", exc.code), error.get("message", str(exc))
             if str(code) == "403001":
                 raise AzureFreeQuotaExceededError("Azure Translator F0 免费额度已用尽，请等待下月额度重置或升级 Azure 资源。") from exc
-            error = AzureTranslatorError(f"Azure Translator 请求失败 ({code}): {message}")
+            error = AzureTranslatorError("Azure Translator 请求失败")
             error.retryable = exc.code not in {400, 401, 403}
             raise error from exc
         except (OSError, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-            raise AzureTranslatorError(f"Azure Translator 请求失败: {exc}") from exc
+            raise AzureTranslatorError("Azure Translator 请求失败") from exc

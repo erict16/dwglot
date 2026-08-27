@@ -70,8 +70,8 @@ class OllamaProvider(TranslationProvider):
             ) from exc
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            error = TranslationProviderError(f"Ollama 请求失败 ({exc.code}): {detail[:300]}")
+            error = TranslationProviderError("Ollama 请求失败")
             error.retryable = exc.code >= 500
             raise error from exc
         except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
-            raise TranslationProviderError(f"Ollama 请求失败: {exc}") from exc
+            raise TranslationProviderError("Ollama 请求失败") from exc

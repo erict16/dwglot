@@ -211,8 +211,8 @@ class CADChineseTranslator:
             try:
                 self.deepl_translator = deepl.Translator(self.deepl_api_key)
                 self.safe_log(" DeepL 引擎初始化成功")
-            except Exception as e:
-                self.safe_log(f" DeepL 初始化失败: {e}")
+            except Exception:
+                self.safe_log(" DeepL 初始化失败")
     @property
     def deepl_api_key(self):
         return self._deepl_api_key
@@ -223,8 +223,8 @@ class CADChineseTranslator:
         if value:
             try:
                 self.deepl_translator = deepl.Translator(value)
-            except Exception as e:
-                self.safe_log(f" DeepL 初始化失败: {e}")
+            except Exception:
+                self.safe_log(" DeepL 初始化失败")
     def safe_log(self, message, level="INFO"):
         if not self.log_callback:
             print(f"[{level}][无日志回调]:", message)
@@ -561,8 +561,8 @@ class CADChineseTranslator:
         except Exception as e:
             provider = self.translation_provider or "mt"
             label = "DeepL" if provider == "deepl" else provider
-            self.safe_log(f"翻译失败 ({label}): {e} → 原文: \"{cleaned}\"")
-            raise RuntimeError(f"{label} 翻译失败: {e}") from e
+            self.safe_log(f"翻译失败 ({label}): 原文 \"{cleaned}\"")
+            raise RuntimeError(f"{label} 翻译失败") from e
 
     def translate_mtext(self, raw, lang_config_key, layer=""):
         return map_translatable(raw, lambda run: self.translate_text(run, lang_config_key, layer))
