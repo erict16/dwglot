@@ -19,10 +19,16 @@ class OpenAICompatProvider(TranslationProvider):
 
     def __init__(self, api_key: str, base_url: str = "", model: str = ""):
         self.api_key = (api_key or "").strip()
-        self.base_url = (base_url or DEFAULT_BASE).rstrip("/")
+        self.base_url = (base_url or "").strip().rstrip("/")
         self.model = (model or DEFAULT_MODEL).strip()
+        if not self.base_url:
+            error = TranslationProviderError("请配置自定义接口地址")
+            error.retryable = False
+            raise error
         if not self.api_key:
-            raise TranslationProviderError("请配置 OpenAI 兼容接口的 API Key")
+            error = TranslationProviderError("请配置自定义接口的 API Key")
+            error.retryable = False
+            raise error
 
     def translate_text(self, text: str, source_lang: str, target_lang: str) -> str:
         src = language_name(source_lang)

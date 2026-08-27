@@ -11,6 +11,17 @@ from backend.providers.base import TranslationProvider, TranslationProviderError
 
 DEFAULT_HOST = "http://127.0.0.1:11434"
 DEFAULT_MODEL = "llama3.1"
+PROBE_TIMEOUT = 2.0
+TRANSLATE_TIMEOUT = 15.0
+
+
+def ollama_reachable(host: str = "", timeout: float = PROBE_TIMEOUT) -> bool:
+    target = (host or DEFAULT_HOST).rstrip("/")
+    try:
+        urllib.request.urlopen(f"{target}/api/tags", timeout=timeout)
+        return True
+    except Exception:
+        return False
 
 
 class OllamaProvider(TranslationProvider):
@@ -46,7 +57,7 @@ class OllamaProvider(TranslationProvider):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=120) as response:
+            with urllib.request.urlopen(request, timeout=TRANSLATE_TIMEOUT) as response:
                 body = json.loads(response.read().decode("utf-8"))
             message = body.get("message") or {}
             content = message.get("content") or body.get("response") or ""

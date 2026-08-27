@@ -28,6 +28,10 @@ class AzureTranslator(TranslationProvider):
     def __init__(self, key: str, region: str = ""):
         self.key = key.strip()
         self.region = region.strip()
+        if not self.key:
+            error = AzureTranslatorError("请配置 Azure Translator Key")
+            error.retryable = False
+            raise error
 
     def translate_text(self, text: str, source_lang: str, target_lang: str) -> str:
         source = AZURE_LANGUAGE_CODES.get(source_lang.lower()) or map_azure_code(source_lang)

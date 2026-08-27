@@ -287,7 +287,12 @@ export default function App() {
       const bits = [`术语 ${data.glossary || 0}`, `引擎 ${data.mt || 0}`];
       if (data.skipped) bits.push(`未译 ${data.skipped}`);
       if (data.skipped && !data.has_engine) {
-        setStatus(`${bits.join("，")}。剩下的要云/本地/自定义引擎，或手填译文。`);
+        const hint = engine === "local"
+          ? "请先启动 Ollama。"
+          : engine === "custom"
+            ? "请配置自定义接口地址和 Key。"
+            : "剩下的要填云引擎 Key，或手填译文。";
+        setStatus(`${bits.join("，")}。${hint}`);
         if (engine !== "local") setSheet(true);
       } else {
         setStatus(`译完。${bits.join("，")}。可以改译文再写回。`);
@@ -439,6 +444,10 @@ export default function App() {
     if (!file) return;
     try {
       const text = await file.text();
+      if (!text.trim()) {
+        setStatus("术语表是空的");
+        return;
+      }
       const mode = modeKey(sourceLang, targetLang);
       let payload = { mode, csv: "", terms: [] };
       if (/\.json$/i.test(file.name)) {

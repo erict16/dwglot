@@ -3,13 +3,20 @@ import unittest
 import tempfile
 import ezdxf
 from io import BytesIO
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.error import HTTPError
 from ezdxf.lldxf.types import DXFTag
+from fastapi.testclient import TestClient
 
 from backend.providers.azure import AzureFreeQuotaExceededError, AzureTranslator, AzureTranslatorError
+from backend.providers.base import TranslationProviderError
+from backend.providers.deepl_provider import DeepLProvider
+from backend.providers.ollama import ollama_reachable
+from backend.providers.openai_compat import OpenAICompatProvider
 from backend.language_assets import LanguageAssets
+from backend.drawings import translate_rows
 from backend import translator
 from backend.translator import CADChineseTranslator, decode_oda_mbcs_escapes, output_prefix
 from backend.api import BatchStartBody, TranslateBody, app, builtin_terms, default_output_name, service, start_batch
@@ -238,6 +245,173 @@ class TranslationModeTests(unittest.TestCase):
                 config = json.load(stream)
             self.assertEqual(config["deepl_key"], "deepl")
             self.assertEqual(config["azure_key"], "azure")
+
+
+EMPTY_CONFIG = {
+    "deepl_key": "",
+    "azure_key": "",
+    "azure_region": "",
+    "openai_key": "",
+    "openai_base": "",
+    "openai_model": "",
+    "ollama_host": "",
+    "ollama_model": "",
+    "provider": "deepl",
+    "output_dir": "",
+    "project_package_path": "",
+}
+
+GLOSSARY_ROWS = [
+    {"source": "天花", "type": "TEXT", "layer": "0"},
+    {"source": "这句不在术语表xyz", "type": "TEXT", "layer": "0"},
+]
+
+
+class EngineAndGlossaryTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.client = TestClient(app)
+        self.config_patch = patch.object(service, "load_config", return_value=dict(EMPTY_CONFIG))
+        self.config_patch.start()
+
+    def tearDown(self):
+        self.config_patch.stop()
+        self.tmp.cleanup()
+
+    def _assert_calm(self, response, status, needle):
+        self.assertEqual(response.status_code, status, response.text)
+        detail = response.json()["detail"]
+        self.assertIn(needle, detail)
+        self.assertNotIn("Traceback", response.text)
+        self.assertNotIn("Errno", response.text)
+
+    def test_glossary_only_translate_without_key(self):
+        with patch("urllib.request.urlopen") as open_url, patch("deepl.Translator") as deepl_cls:
+            open_url.side_effect = AssertionError("empty-key translate must not call the network")
+            deepl_cls.side_effect = AssertionError("empty-key translate must not construct DeepL")
+            result = translate_rows(GLOSSARY_ROWS, mode="zh_to_en", provider="deepl", engine={})
+        by_source = {item["source"]: item for item in result["items"]}
+        self.assertEqual(by_source["天花"]["target"], "ceiling")
+        self.assertEqual(by_source["天花"]["via"], "glossary")
+        self.assertEqual(by_source["这句不在术语表xyz"]["target"], "")
+        self.assertEqual(by_source["这句不在术语表xyz"]["via"], "needs_engine")
+        self.assertGreaterEqual(result["glossary"], 1)
+        self.assertEqual(result["mt"], 0)
+        self.assertGreaterEqual(result["skipped"], 1)
+        self.assertFalse(result["has_engine"])
+
+    def test_empty_cloud_keys_skip_mt_and_do_not_call_network(self):
+        with patch("urllib.request.urlopen") as open_url, patch("deepl.Translator") as deepl_cls:
+            open_url.side_effect = AssertionError("empty key must not call the network")
+            deepl_cls.side_effect = AssertionError("empty DeepL key must not construct a client")
+            deepl = self.client.post(
+                "/api/drawings/translate",
+                json={"items": GLOSSARY_ROWS, "translation_mode": "zh_to_en", "provider": "deepl", "deepl_key": ""},
+            )
+            azure = self.client.post(
+                "/api/drawings/translate",
+                json={"items": GLOSSARY_ROWS, "translation_mode": "zh_to_en", "provider": "azure", "azure_key": ""},
+            )
+        self.assertEqual(deepl.status_code, 200, deepl.text)
+        self.assertEqual(azure.status_code, 200, azure.text)
+        self.assertNotIn("Traceback", deepl.text)
+        self.assertNotIn("Traceback", azure.text)
+        for payload in (deepl.json(), azure.json()):
+            self.assertFalse(payload["has_engine"])
+            self.assertEqual(payload["mt"], 0)
+            self.assertTrue(any(item["source"] == "天花" and item["target"] == "ceiling" for item in payload["items"]))
+            self.assertTrue(any(item["via"] == "needs_engine" for item in payload["items"]))
+
+    def test_custom_empty_url_is_not_ready_and_does_not_default_to_deepseek(self):
+        with patch("backend.providers.openai_compat.urllib.request.urlopen") as open_url:
+            with self.assertRaisesRegex(TranslationProviderError, "自定义接口地址") as raised:
+                OpenAICompatProvider("sk-test", "")
+            self.assertFalse(raised.exception.retryable)
+            open_url.assert_not_called()
+        engine = {"openai_key": "sk-test", "openai_base": ""}
+        self.assertFalse(service._engine_ready("openai", engine))
+        self.assertIn("接口地址", service._engine_missing_message("openai", engine))
+        with patch("urllib.request.urlopen") as open_url:
+            open_url.side_effect = AssertionError("empty custom URL must not call the network")
+            result = translate_rows(GLOSSARY_ROWS, mode="zh_to_en", provider="openai", engine=engine)
+        self.assertFalse(result["has_engine"])
+        self.assertEqual(result["mt"], 0)
+        self.assertTrue(any(item["target"] == "ceiling" for item in result["items"]))
+
+    def test_ollama_down_is_fast_and_skips_mt(self):
+        with patch("backend.providers.ollama.urllib.request.urlopen", side_effect=OSError("down")) as open_url:
+            self.assertFalse(ollama_reachable("http://127.0.0.1:9"))
+            self.assertLessEqual(open_url.call_args.kwargs.get("timeout", 99), 2.0)
+        with patch("backend.providers.ollama.ollama_reachable", return_value=False):
+            self.assertFalse(service._engine_ready("ollama", {}))
+            self.assertIn("Ollama", service._engine_missing_message("ollama", {}))
+            result = translate_rows(GLOSSARY_ROWS, mode="zh_to_en", provider="ollama", engine={})
+        self.assertFalse(result["has_engine"])
+        self.assertEqual(result["mt"], 0)
+        self.assertTrue(any(item["target"] == "ceiling" for item in result["items"]))
+
+    def test_empty_azure_and_deepl_providers_raise_without_network(self):
+        with patch("urllib.request.urlopen") as open_url:
+            with self.assertRaisesRegex(AzureTranslatorError, "Azure Translator Key") as azure:
+                AzureTranslator("")
+            with self.assertRaisesRegex(TranslationProviderError, "DeepL API Key") as deepl:
+                DeepLProvider("")
+            self.assertFalse(azure.exception.retryable)
+            self.assertFalse(deepl.exception.retryable)
+            open_url.assert_not_called()
+
+    def test_batch_start_rejects_empty_engines(self):
+        cases = [
+            ({"provider": "deepl", "deepl_key": "", "output_dir": self.tmp.name}, "DeepL"),
+            ({"provider": "azure", "azure_key": "", "output_dir": self.tmp.name}, "Azure"),
+            ({"provider": "openai", "openai_key": "sk", "openai_base": "", "output_dir": self.tmp.name}, "接口地址"),
+            ({"provider": "openai", "openai_key": "", "openai_base": "https://example.test/v1", "output_dir": self.tmp.name}, "API Key"),
+        ]
+        for body, needle in cases:
+            response = self.client.post("/api/batch/start", json=body)
+            self._assert_calm(response, 400, needle)
+        with patch("backend.providers.ollama.ollama_reachable", return_value=False):
+            ollama = self.client.post("/api/batch/start", json={"provider": "ollama", "output_dir": self.tmp.name})
+        self._assert_calm(ollama, 400, "Ollama")
+
+    def test_glossary_missing_empty_and_bad_encoding_are_calm(self):
+        missing = self.client.post(
+            "/api/language-assets/project",
+            json={"path": str(Path(self.tmp.name) / "gone.hcterms.json")},
+        )
+        self._assert_calm(missing, 400, "术语表不存在")
+
+        empty_file = Path(self.tmp.name) / "empty.hcterms.json"
+        empty_file.write_bytes(b"   \n")
+        empty = self.client.post("/api/language-assets/project", json={"path": str(empty_file)})
+        self._assert_calm(empty, 400, "术语表是空的")
+
+        blank_terms = Path(self.tmp.name) / "blank.hcterms.json"
+        blank_terms.write_text('{"format":"honsen-cad-terms/v1","name":"blank","terms":[]}', encoding="utf-8")
+        blank = self.client.post("/api/language-assets/project", json={"path": str(blank_terms)})
+        self._assert_calm(blank, 400, "术语表是空的")
+
+        gbk = Path(self.tmp.name) / "gbk.hcterms.json"
+        gbk.write_bytes('{"name":"测","terms":[{"source":"天花","target":"ceiling"}]}'.encode("gbk"))
+        encoding = self.client.post("/api/language-assets/project", json={"path": str(gbk)})
+        self._assert_calm(encoding, 400, "UTF-8")
+
+        broken = Path(self.tmp.name) / "broken.hcterms.json"
+        broken.write_text("{not json", encoding="utf-8")
+        invalid = self.client.post("/api/language-assets/project", json={"path": str(broken)})
+        self._assert_calm(invalid, 400, "术语表")
+        self.assertNotIn("JSONDecodeError", invalid.text)
+
+        imported = self.client.post("/api/language-assets/import", json={"mode": "zh_to_en", "csv": "\n# comment\n"})
+        self._assert_calm(imported, 400, "术语表是空的")
+
+    def test_frontend_engine_and_glossary_hints(self):
+        text = Path(__file__).resolve().parents[1].joinpath("frontend", "src", "App.jsx").read_text(encoding="utf-8")
+        self.assertIn("请先启动 Ollama。", text)
+        self.assertIn("请配置自定义接口地址和 Key。", text)
+        self.assertIn("剩下的要填云引擎 Key，或手填译文。", text)
+        self.assertIn('setStatus("术语表是空的")', text)
+        self.assertIn("术语表读不出来。", text)
 
 
 if __name__ == "__main__":

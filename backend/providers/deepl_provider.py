@@ -15,7 +15,9 @@ class DeepLProvider(TranslationProvider):
     def __init__(self, api_key: str):
         self.api_key = (api_key or "").strip()
         if not self.api_key:
-            raise TranslationProviderError("请配置 DeepL API Key")
+            error = TranslationProviderError("请配置 DeepL API Key")
+            error.retryable = False
+            raise error
         try:
             self.client = deepl.Translator(self.api_key)
         except Exception as exc:

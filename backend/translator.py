@@ -263,6 +263,8 @@ class CADChineseTranslator:
     ):
         provider = (provider or "deepl").strip() or "deepl"
         self.mt_provider = None
+        self.azure_translator = None
+        self.deepl_translator = None
         if provider == "azure":
             if azure_key.strip():
                 self.configure_azure(azure_key, azure_region)
@@ -270,13 +272,17 @@ class CADChineseTranslator:
                 self.translation_provider = "azure"
             return
         if provider == "openai":
-            if openai_key.strip():
+            if openai_key.strip() and openai_base.strip():
                 self.configure_openai(openai_key, openai_base, openai_model)
             else:
                 self.translation_provider = "openai"
             return
         if provider == "ollama":
+            from backend.providers.ollama import ollama_reachable
+
             self.configure_ollama(ollama_host, ollama_model)
+            if not ollama_reachable(ollama_host):
+                self.mt_provider = None
             return
         if deepl_key.strip():
             self.configure_deepl(deepl_key)

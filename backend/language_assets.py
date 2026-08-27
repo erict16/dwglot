@@ -93,18 +93,32 @@ class LanguageAssets:
         except (OSError, ValueError, TypeError):
             return []
 
-    def project_info(self, path: str) -> dict:
+    def project_info(self, path: str, *, require_terms: bool = False) -> dict:
         if not path:
             return {"path": "", "name": "", "terms": []}
         target = Path(path)
         if not target.is_file():
             raise ValueError("术语表不存在或无法读取")
         try:
-            data = json.loads(target.read_text(encoding="utf-8"))
+            raw = target.read_bytes()
+            if not raw.strip():
+                raise ValueError("术语表是空的")
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise ValueError("术语表编码无法读取，请另存为 UTF-8") from exc
+            data = json.loads(text)
             if not isinstance(data, dict):
                 raise ValueError("术语表不存在或无法读取")
-            return {"path": str(target), "name": str(data.get("name") or target.stem), "terms": data.get("terms", [])}
-        except (OSError, ValueError, TypeError) as exc:
+            terms = data.get("terms") or []
+            if require_terms and not terms:
+                raise ValueError("术语表是空的")
+            return {"path": str(target), "name": str(data.get("name") or target.stem), "terms": terms}
+        except json.JSONDecodeError as exc:
+            raise ValueError("术语表不存在或无法读取") from exc
+        except ValueError:
+            raise
+        except (OSError, TypeError) as exc:
             raise ValueError("术语表不存在或无法读取") from exc
 
     def create_project(self, path: str, name: str = "") -> dict:

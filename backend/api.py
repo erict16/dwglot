@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from backend.app_meta import APP_TITLE, APP_VERSION, GITHUB_URL, default_output_dir as dwglot_output_dir
 from backend.providers.azure import AzureFreeQuotaExceededError
+from backend.providers.base import TranslationProviderError
 from backend.queue import BatchQueue
 from backend.cad import ODA_OUTPUT_VERSIONS, analyze_source, dwg_unavailable_short, odafc_available, odafc_status, output_path_for
 from backend.translator import CADChineseTranslator, CONFIG_PATH, load_yaml_data, output_prefix, resource_path
@@ -262,8 +263,8 @@ class TranslationService:
         provider = task.get("provider", "deepl")
         config = self.load_config()
         engine = self._engine_from(config, task)
-        if provider != "ollama" and not self._engine_ready(provider, engine):
-            raise _fatal_batch_error(self._engine_missing_message(provider))
+        if not self._engine_ready(provider, engine):
+            raise _fatal_batch_error(self._engine_missing_message(provider, engine))
         fmt = task.get("output_format", "source")
         ext = os.path.splitext(path)[1] if fmt == "source" else f".{fmt}"
         name = f"{output_prefix(task['translation_mode'])}_{Path(path).stem}"
@@ -272,7 +273,7 @@ class TranslationService:
         translator.configure_language_assets(task.get("project_package_path") or config.get("project_package_path", ""))
         translator.configure_engine(provider, **engine)
         if not translator.has_mt():
-            raise _fatal_batch_error(self._engine_missing_message(provider))
+            raise _fatal_batch_error(self._engine_missing_message(provider, engine))
         try:
             translator.translate_cad_file(path, output, task["translation_mode"], task["translate_blocks"], fmt, task.get("output_version", ""), resume_event, cancel_event)
         except FileNotFoundError as exc:
@@ -320,18 +321,23 @@ class TranslationService:
     @staticmethod
     def _engine_ready(provider: str, engine: dict) -> bool:
         if provider == "ollama":
-            return True
+            from backend.providers.ollama import ollama_reachable
+
+            return ollama_reachable(engine.get("ollama_host") or "")
         if provider == "azure":
             return bool(engine.get("azure_key", "").strip())
         if provider == "openai":
-            return bool(engine.get("openai_key", "").strip())
+            return bool(engine.get("openai_key", "").strip()) and bool(engine.get("openai_base", "").strip())
         return bool(engine.get("deepl_key", "").strip())
 
     @staticmethod
-    def _engine_missing_message(provider: str) -> str:
+    def _engine_missing_message(provider: str, engine: dict | None = None) -> str:
+        engine = engine or {}
         if provider == "azure":
             return "请配置 Azure Translator Key"
         if provider == "openai":
+            if not str(engine.get("openai_base") or "").strip():
+                return "请配置自定义接口地址"
             return "请配置自定义接口的 API Key"
         if provider == "ollama":
             return "请先启动 Ollama"
@@ -486,7 +492,7 @@ class TranslationService:
             return "不支持的翻译服务"
         engine = self._engine_from(self.load_config(), body.model_dump())
         if not self._engine_ready(body.provider, engine):
-            return self._engine_missing_message(body.provider)
+            return self._engine_missing_message(body.provider, engine)
         return None
 
     def start_translation(self, body: TranslateBody):
@@ -520,8 +526,9 @@ class TranslationService:
             engine = self._engine_from(self.load_config(), body.model_dump())
             translator.configure_engine(body.provider, **engine)
             if not translator.has_mt():
-                self.emit_log(self._engine_missing_message(body.provider))
-                self.set_status("error", self._engine_missing_message(body.provider))
+                message = self._engine_missing_message(body.provider, engine)
+                self.emit_log(message)
+                self.set_status("error", message)
                 return
 
             try:
@@ -629,7 +636,7 @@ def drawings_translate(body: TranslateRowsBody):
             project_package_path=body.project_package_path or config.get("project_package_path", ""),
             engine=engine,
         )
-    except ValueError as exc:
+    except (ValueError, TranslationProviderError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"翻译失败: {exc}") from exc
@@ -728,7 +735,7 @@ def get_language_assets():
 @app.post("/api/language-assets/project")
 def select_project_package(body: ProjectPackageBody):
     try:
-        project = service.language_assets.create_project(body.path, body.name) if body.create else service.language_assets.project_info(body.path)
+        project = service.language_assets.create_project(body.path, body.name) if body.create else service.language_assets.project_info(body.path, require_terms=True)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     config = service.load_config()
@@ -772,6 +779,8 @@ def import_language_terms(body: ImportTermsBody):
             count += 1
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if count == 0:
+        raise HTTPException(status_code=400, detail="术语表是空的")
     return {"ok": True, "count": count}
 
 
@@ -920,7 +929,7 @@ def start_batch(body: BatchStartBody):
         raise HTTPException(status_code=400, detail="不支持的输出版本")
     engine = service._engine_from(service.load_config(), body.model_dump())
     if not service._engine_ready(body.provider, engine):
-        raise HTTPException(status_code=400, detail=service._engine_missing_message(body.provider))
+        raise HTTPException(status_code=400, detail=service._engine_missing_message(body.provider, engine))
     pending = [
         task for task in service.batch.snapshot()["tasks"]
         if task["status"] in {"queued", "retrying", "cancelled", "failed"}
