@@ -125,9 +125,9 @@ def output_prefix(mode):
 def wait_for_translation(resume_event=None, cancel_event=None):
     while resume_event and not resume_event.wait(0.1):
         if cancel_event and cancel_event.is_set():
-            raise InterruptedError("translation cancelled")
+            raise InterruptedError("翻译已取消")
     if cancel_event and cancel_event.is_set():
-        raise InterruptedError("translation cancelled")
+        raise InterruptedError("翻译已取消")
 
 
 def _is_layout_space_block(name: str) -> bool:

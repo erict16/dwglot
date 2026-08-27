@@ -934,6 +934,12 @@ class BatchApiTests(unittest.TestCase):
         fatal.retryable = False
         self.assertFalse(_retryable(fatal))
         self.assertTrue(_retryable(OSError("temporary network error")))
+        self.assertFalse(_retryable(InterruptedError("translation cancelled")))
+        self.assertFalse(_retryable(InterruptedError("translation stopped")))
+        self.assertEqual(_calm_error(InterruptedError("translation cancelled")), "翻译已取消")
+        self.assertEqual(_calm_error(InterruptedError("translation stopped")), "翻译已取消")
+        self.assertEqual(_calm_error(InterruptedError("翻译已停止")), "翻译已停止")
+        self.assertNotIn("cancelled", _calm_error(InterruptedError("translation cancelled")))
         self.assertEqual(_calm_error(OSError("No space left on device")), "翻译失败")
         self.assertNotIn("No space", _calm_error(OSError("No space left on device")))
         self.assertEqual(_calm_error(ValueError("无法读取DXF文件")), "无法读取DXF文件")

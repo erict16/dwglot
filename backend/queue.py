@@ -292,7 +292,7 @@ class BatchQueue:
                 with lock:
                     output = self.run(task, log, self.resume_event, cancel_event)
             if cancel_event.is_set():
-                raise InterruptedError("translation stopped")
+                raise InterruptedError("翻译已停止")
             with self.lock:
                 task.update(status="succeeded", progress=100, output_file=output, message="成功")
         except Exception as exc:
@@ -333,7 +333,7 @@ def _retryable(exc: BaseException) -> bool:
     flagged = getattr(exc, "retryable", None)
     if flagged is not None:
         return bool(flagged)
-    if isinstance(exc, (FileNotFoundError, PermissionError, ValueError)):
+    if isinstance(exc, (FileNotFoundError, PermissionError, ValueError, InterruptedError)):
         return False
     text = str(exc)
     if "ODA" in text or "图纸不存在" in text or "无效 CAD" in text or "无法读取DXF" in text:
@@ -344,6 +344,10 @@ def _retryable(exc: BaseException) -> bool:
 def _calm_error(exc: BaseException) -> str:
     text = str(exc).strip() or exc.__class__.__name__
     first = text.splitlines()[0].strip()
+    if isinstance(exc, InterruptedError):
+        if first and any("\u4e00" <= char <= "\u9fff" for char in first):
+            return first[:240]
+        return "翻译已取消"
     if "ODA" in text:
         return "未检测到 ODA，无法处理 DWG；请安装 ODA 或将 DWG 另存为 DXF"
     if first and "Traceback" not in text and any("\u4e00" <= char <= "\u9fff" for char in first):
