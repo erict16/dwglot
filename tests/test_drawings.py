@@ -718,6 +718,8 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("include_model: params.model", text)
         self.assertIn("include_paper: params.paper", text)
         self.assertIn("include_frozen: params.frozen", text)
+        self.assertIn("include_locked: params.locked", text)
+        self.assertIn("include_off: params.off", text)
         self.assertIn("skip_numbers: filters.numbers", text)
         self.assertIn("skip_dupes: filters.dupes", text)
         self.assertIn("skip_nonsource: filters.nonsource", text)

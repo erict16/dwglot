@@ -554,6 +554,52 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("shear wall", model)
         self.assertNotIn("剪力墙", model)
 
+    def test_batch_locked_off_leaves_locked_layer(self):
+        fixture = FIXTURES / "floor_plan.dxf"
+        src = Path(self.tmp.name) / "locked_title.dxf"
+        doc = ezdxf.readfile(fixture)
+        doc.layers.get("TITLE").lock()
+        doc.saveas(src)
+        preview = extract_preview(
+            str(src), include_locked=False, skip_dupes=False, skip_nonsource=False, skip_numbers=False
+        )
+        self.assertNotIn("天花图", {item["source"] for item in preview["items"]})
+        self.assertIn("剪力墙", {item["source"] for item in preview["items"]})
+        task = self._start_glossary_batch(src, {"include_locked": False})
+        model = [
+            entity.dxf.text
+            for entity in ezdxf.readfile(task["output_file"]).modelspace()
+            if entity.dxftype() == "TEXT"
+        ]
+        self.assertIn("天花图", model)
+        self.assertIn("平面布置图", model)
+        self.assertNotIn("reflected ceiling plan", model)
+        self.assertIn("shear wall", model)
+        self.assertNotIn("剪力墙", model)
+
+    def test_batch_layer_off_leaves_off_layer(self):
+        fixture = FIXTURES / "floor_plan.dxf"
+        src = Path(self.tmp.name) / "off_title.dxf"
+        doc = ezdxf.readfile(fixture)
+        doc.layers.get("TITLE").off()
+        doc.saveas(src)
+        preview = extract_preview(
+            str(src), include_off=False, skip_dupes=False, skip_nonsource=False, skip_numbers=False
+        )
+        self.assertNotIn("天花图", {item["source"] for item in preview["items"]})
+        self.assertIn("剪力墙", {item["source"] for item in preview["items"]})
+        task = self._start_glossary_batch(src, {"include_off": False})
+        model = [
+            entity.dxf.text
+            for entity in ezdxf.readfile(task["output_file"]).modelspace()
+            if entity.dxftype() == "TEXT"
+        ]
+        self.assertIn("天花图", model)
+        self.assertIn("平面布置图", model)
+        self.assertNotIn("reflected ceiling plan", model)
+        self.assertIn("shear wall", model)
+        self.assertNotIn("剪力墙", model)
+
     def test_batch_text_filters_skip_digits_dupes_nonsource(self):
         src = Path(self.tmp.name) / "filter_rows.dxf"
         doc = ezdxf.new("R2010")
