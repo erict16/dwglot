@@ -48,9 +48,18 @@ class BatchQueueTests(unittest.TestCase):
                 assert queue.snapshot()["tasks"][0]["status"] not in batch_queue.ACTIVE
 
             batch_queue.STATE_PATH = Path(tmp) / "queue.json"
-            batch_queue.STATE_PATH.write_text(json.dumps({"tasks": [{"id": "old", "status": "running"}]}), encoding="utf-8")
+            batch_queue.STATE_PATH.write_text(json.dumps({"tasks": [{"id": "old", "status": "running", "input_file": str(Path(tmp) / "alive.dxf")}]}), encoding="utf-8")
+            (Path(tmp) / "alive.dxf").write_bytes(b"0\nEOF\n")
             probe = object.__new__(batch_queue.BatchQueue)
             assert batch_queue.BatchQueue._load(probe)[0]["status"] == "queued"
+            gone = Path(tmp) / "gone.dxf"
+            batch_queue.STATE_PATH.write_text(
+                json.dumps({"tasks": [{"id": "ghost", "status": "queued", "input_file": str(gone), "message": "等待中"}]}),
+                encoding="utf-8",
+            )
+            ghost = batch_queue.BatchQueue(lambda *_: "out.dxf", lambda _: None, lambda _: "k")
+            assert ghost.tasks[0]["status"] == "failed"
+            assert "图纸不存在" in ghost.tasks[0]["message"]
             batch_queue.STATE_PATH.write_text("{not json", encoding="utf-8")
             assert batch_queue.BatchQueue._load(probe) == []
             assert list(Path(tmp).glob("queue.json.corrupt-*"))
@@ -58,7 +67,10 @@ class BatchQueueTests(unittest.TestCase):
             assert batch_queue.BatchQueue._load(probe) == []
             batch_queue.STATE_PATH.write_text("null", encoding="utf-8")
             assert batch_queue.BatchQueue._load(probe) == []
-            batch_queue.STATE_PATH.write_text(json.dumps({"tasks": [{"id": "old", "status": "running"}]}), encoding="utf-8")
+            batch_queue.STATE_PATH.write_text(
+                json.dumps({"tasks": [{"id": "old", "status": "running", "input_file": str(Path(tmp) / "alive.dxf")}]}),
+                encoding="utf-8",
+            )
             ran = []
             def run(task, log, resume_event, cancel_event):
                 resume_event.wait()
@@ -70,7 +82,11 @@ class BatchQueueTests(unittest.TestCase):
             q.tasks = []
             q.pause(True)
             settings = {"output_dir": tmp, "translation_mode": "zh_to_en", "translate_blocks": False, "output_format": "source", "output_version": "", "deepl_key": "secret"}
-            q.add(["one.dxf", "two.dxf"])
+            one = Path(tmp) / "one.dxf"
+            two = Path(tmp) / "two.dxf"
+            one.write_bytes(b"0\nEOF\n")
+            two.write_bytes(b"0\nEOF\n")
+            q.add([str(one), str(two)])
             first = q.snapshot()["tasks"][0]["id"]
             q.remove(first)
             assert len(q.snapshot()["tasks"]) == 1  # queued items can be removed
@@ -105,7 +121,9 @@ class BatchQueueTests(unittest.TestCase):
             def fail(*_):
                 raise OSError("temporary network error")
             retry_queue = batch_queue.BatchQueue(fail, lambda _: None, lambda _: "secret")
-            retry_queue.add(["retry.dxf"])
+            retry_dxf = Path(tmp) / "retry.dxf"
+            retry_dxf.write_bytes(b"0\nEOF\n")
+            retry_queue.add([str(retry_dxf)])
             retry_queue.start(settings)
             deadline = time.monotonic() + 1
             while retry_queue.snapshot()["tasks"][0]["status"] != "retrying" and time.monotonic() < deadline:
@@ -117,7 +135,9 @@ class BatchQueueTests(unittest.TestCase):
             time.sleep(.1)  # let the cancelled worker complete its final state save
 
             quota_queue = batch_queue.BatchQueue(lambda *_: (_ for _ in ()).throw(AzureFreeQuotaExceededError("F0 quota exceeded")), lambda _: None, lambda _: "azure-key")
-            quota_queue.add(["quota.dxf"])
+            quota_dxf = Path(tmp) / "quota.dxf"
+            quota_dxf.write_bytes(b"0\nEOF\n")
+            quota_queue.add([str(quota_dxf)])
             quota_queue.start({**settings, "provider": "azure", "api_key": "azure-key"})
             deadline = time.monotonic() + 1
             while quota_queue.snapshot()["tasks"][-1]["status"] != "failed" and time.monotonic() < deadline:
@@ -129,7 +149,9 @@ class BatchQueueTests(unittest.TestCase):
             providers = []
             recovered_queue = batch_queue.BatchQueue(run, lambda _: None, lambda task: providers.append(task["provider"]) or "azure-key")
             recovered_queue.tasks = []
-            recovered_queue.add(["azure.dxf"])
+            azure_dxf = Path(tmp) / "azure.dxf"
+            azure_dxf.write_bytes(b"0\nEOF\n")
+            recovered_queue.add([str(azure_dxf)])
             recovered_queue.start({**settings, "provider": "azure", "deepl_key": "", "api_key": ""})
             wait_for_terminal(recovered_queue)
             assert providers == ["azure"]
@@ -366,6 +388,44 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("无法读取", task["message"])
         self.assertNotIn("Traceback", task["message"])
         self.assertEqual(task.get("retries") or 0, 0)
+
+    def test_start_skips_stale_missing_paths(self):
+        live = Path(self.tmp.name) / "live.dxf"
+        shutil.copy(FIXTURES / "floor_plan.dxf", live)
+        gone = Path(self.tmp.name) / "gone.dxf"
+        gone.write_bytes(b"0\nEOF\n")
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"):
+            added = self.client.post("/api/batch/add", json={"files": [str(gone), str(live)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            gone.unlink()
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            deadline = time.monotonic() + 20
+            tasks = []
+            while time.monotonic() < deadline:
+                tasks = self.client.get("/api/batch").json()["tasks"]
+                if tasks and all(task["status"] not in {"queued", "retrying", "running"} for task in tasks):
+                    break
+                time.sleep(0.05)
+        by_path = {task["input_file"]: task for task in tasks}
+        self.assertEqual(by_path[str(gone)]["status"], "failed")
+        self.assertIn("图纸不存在", by_path[str(gone)]["message"])
+        self.assertEqual(by_path[str(live)]["status"], "succeeded", by_path[str(live)])
+        sources = {
+            item["source"]
+            for item in extract_preview(by_path[str(live)]["output_file"], include_attribs=True, include_paper=True)["items"]
+        }
+        self.assertIn("reflected ceiling plan", sources)
 
     def test_missing_file_and_oda_are_not_retried(self):
         self.assertFalse(_retryable(FileNotFoundError("图纸不存在")))

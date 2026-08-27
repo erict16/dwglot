@@ -987,9 +987,11 @@ def start_batch(body: BatchStartBody):
         raise HTTPException(status_code=400, detail="不支持的输出格式")
     if body.output_version not in {"", *ODA_OUTPUT_VERSIONS}:
         raise HTTPException(status_code=400, detail="不支持的输出版本")
+    service.batch.fail_missing()
     pending = [
         task for task in service.batch.snapshot()["tasks"]
         if task["status"] in {"queued", "retrying", "cancelled", "failed"}
+        and os.path.isfile(task.get("input_file") or "")
     ]
     if not pending:
         raise HTTPException(status_code=400, detail="请选择 CAD 文件")

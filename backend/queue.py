@@ -25,6 +25,11 @@ class BatchQueue:
         self.oda_lock = threading.Lock()
         self.key_locks: dict[str, threading.BoundedSemaphore] = {}
         self.tasks: list[dict] = self._load()
+        if self._fail_missing():
+            try:
+                self._save()
+            except OSError:
+                pass
         self.paused = False
         self.started = False
         self.resumable = any(task["status"] in {"queued", "retrying"} for task in self.tasks)
@@ -52,6 +57,31 @@ class BatchQueue:
                 task["message"] = "应用重启后等待继续"
             recovered.append(task)
         return recovered
+
+    @staticmethod
+    def _input_missing(task: dict) -> bool:
+        path = task.get("input_file") or ""
+        return not os.path.isfile(path)
+
+    def _fail_missing(self) -> bool:
+        dirty = False
+        for task in self.tasks:
+            if task.get("status") == "succeeded":
+                continue
+            if not self._input_missing(task):
+                continue
+            if task.get("status") != "failed" or task.get("message") != "图纸不存在":
+                task["status"] = "failed"
+                task["message"] = "图纸不存在"
+                dirty = True
+        return dirty
+
+    def fail_missing(self) -> bool:
+        with self.lock:
+            dirty = self._fail_missing()
+            if dirty:
+                self._save()
+            return dirty
 
     def _save(self):
         # API keys intentionally never enter the persisted task model.
@@ -124,6 +154,9 @@ class BatchQueue:
             if settings:
                 for task in self.tasks:
                     if task["status"] in {"queued", "retrying", "cancelled", "failed"}:
+                        if self._input_missing(task):
+                            task.update(status="failed", message="图纸不存在")
+                            continue
                         task.update(
                             output_dir=settings["output_dir"], output_format=settings["output_format"],
                             output_version=settings["output_version"], translation_mode=settings["translation_mode"],
