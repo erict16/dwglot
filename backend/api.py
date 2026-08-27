@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -1080,7 +1080,13 @@ def start_batch(body: BatchStartBody):
 
 
 @app.post("/api/batch/pause")
-def pause_batch(paused: bool = True):
+async def pause_batch(request: Request, paused: bool = True):
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = None
+    if isinstance(payload, dict) and "paused" in payload:
+        paused = bool(payload["paused"])
     return service.batch.pause(paused)
 
 

@@ -969,6 +969,24 @@ class BatchApiTests(unittest.TestCase):
             self.assertEqual(cleared.status_code, 200, cleared.text)
             self.assertEqual(cleared.json()["tasks"], [])
 
+    def test_batch_pause_http_route(self):
+        paused = self.client.post("/api/batch/pause")
+        self.assertEqual(paused.status_code, 200, paused.text)
+        self.assertTrue(paused.json()["paused"])
+        self.assertNotIn("Traceback", paused.text)
+        via_query = self.client.post("/api/batch/pause", params={"paused": False})
+        self.assertEqual(via_query.status_code, 200, via_query.text)
+        self.assertFalse(via_query.json()["paused"])
+        via_json = self.client.post("/api/batch/pause", json={"paused": False})
+        self.assertEqual(via_json.status_code, 200, via_json.text)
+        self.assertFalse(via_json.json()["paused"])
+        via_json_pause = self.client.post("/api/batch/pause", json={"paused": True})
+        self.assertEqual(via_json_pause.status_code, 200, via_json_pause.text)
+        self.assertTrue(via_json_pause.json()["paused"])
+        resumed = self.client.post("/api/batch/pause", json={"paused": False})
+        self.assertEqual(resumed.status_code, 200, resumed.text)
+        self.assertFalse(resumed.json()["paused"])
+
     def test_start_skips_stale_missing_paths(self):
         live = Path(self.tmp.name) / "live.dxf"
         shutil.copy(FIXTURES / "floor_plan.dxf", live)
