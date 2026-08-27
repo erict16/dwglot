@@ -640,6 +640,7 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("enable_v02: params.dims,", text)
         self.assertNotIn("translate_blocks: params.attribs", text)
         self.assertIn("translate_blocks: false", text)
+        self.assertIn("include_attribs: params.attribs", text)
 
 
 class DrawingsApiTests(unittest.TestCase):

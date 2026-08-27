@@ -427,6 +427,7 @@ export default function App() {
           output_dir: config.output_dir,
           translation_mode: modeKey(sourceLang, targetLang),
           translate_blocks: false,
+          include_attribs: params.attribs,
           enable_v02: params.dims,
           output_format: "source",
           style: layout,

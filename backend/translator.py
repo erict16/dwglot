@@ -568,7 +568,7 @@ class CADChineseTranslator:
         return map_translatable(raw, lambda run: self.translate_text(run, lang_config_key, layer))
 
 
-    def extract_text_entities(self, doc, lang_config, include_blocks=False):
+    def extract_text_entities(self, doc, lang_config, include_blocks=False, include_attribs=True):
         """
         提取文本实体。
         支持从模型空间、布局以及块定义中提取文字。
@@ -633,6 +633,11 @@ class CADChineseTranslator:
             else:
                 self.safe_log("ℹ️ 未勾选'包含块'，仅跳过普通块定义。")
 
+        if not include_attribs:
+            items = [
+                item for item in items
+                if str(item.get("type") or "").upper() not in {"ATTRIB", "ATTDEF"}
+            ]
         self.safe_log(f"📝 总共提取到 {len(items)} 个文本对象。")
         return items
 
@@ -1060,7 +1065,7 @@ class CADChineseTranslator:
             self.safe_log(f"写回失败: {e}\n{traceback.format_exc()}")
             raise
 
-    def translate_cad_file(self, input_file, output_file, lang_config, include_blocks=False, output_format="source", output_version="", resume_event=None, cancel_event=None, style="纯译文", enable_v02=True):
+    def translate_cad_file(self, input_file, output_file, lang_config, include_blocks=False, output_format="source", output_version="", resume_event=None, cancel_event=None, style="纯译文", enable_v02=True, include_attribs=True):
         from backend.cad import CadConversionSession
 
         self.enable_v02_entities = bool(enable_v02)
@@ -1070,14 +1075,14 @@ class CADChineseTranslator:
             work_output = session.work_output_path() or output_file
             wait_for_translation(resume_event, cancel_event)
             self._translate_cad_file_dxf(
-                work_input, work_output, lang_config, include_blocks, input_file, "", resume_event, cancel_event, style=style
+                work_input, work_output, lang_config, include_blocks, input_file, "", resume_event, cancel_event, style=style, include_attribs=include_attribs
             )
             if session.meta.is_dwg or output_version or output_format == "dwg":
                 wait_for_translation(resume_event, cancel_event)
                 session.finalize(work_output, output_file)
 
     def _translate_cad_file_dxf(
-        self, input_file, output_file, lang_config, include_blocks=False, source_label=None, output_version="", resume_event=None, cancel_event=None, style="纯译文"
+        self, input_file, output_file, lang_config, include_blocks=False, source_label=None, output_version="", resume_event=None, cancel_event=None, style="纯译文", include_attribs=True
     ):
         display_name = source_label or input_file
         self.safe_log(f"正在读取: {display_name}")
@@ -1099,7 +1104,9 @@ class CADChineseTranslator:
         # 🔥 核心逻辑：直接提取 (不再炸开块)
         # ============================================================
         # 注意：这里直接调用修改后的 extract_text_entities，它内部会处理块遍历
-        items = self.extract_text_entities(doc, lang_config, include_blocks=include_blocks)
+        items = self.extract_text_entities(
+            doc, lang_config, include_blocks=include_blocks, include_attribs=include_attribs
+        )
 
         # ============================================================
         # 执行翻译循环

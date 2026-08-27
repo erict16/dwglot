@@ -175,6 +175,7 @@ class BatchQueue:
                             translate_blocks=settings["translate_blocks"], provider=settings.get("provider", "deepl"),
                             azure_region=settings.get("azure_region", ""), style=settings.get("style") or "纯译文",
                             enable_v02=settings.get("enable_v02", True),
+                            include_attribs=settings.get("include_attribs", True),
                             status="queued", progress=0,
                             retries=0, output_file="", message="等待中", logs=[], _key=settings.get("api_key") or settings.get("deepl_key", ""),
                         )

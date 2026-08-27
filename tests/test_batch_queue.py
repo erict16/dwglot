@@ -326,6 +326,62 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("partition", mtext["source"].lower())
         self.assertIn("\\C1;", mtext["raw"])
 
+    def test_batch_attribs_off_leaves_insert_attribs(self):
+        fixture = FIXTURES / "floor_plan.dxf"
+        src = Path(self.tmp.name) / "floor_plan.dxf"
+        shutil.copy(fixture, src)
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+
+        def _attrib_texts(path):
+            doc = ezdxf.readfile(path)
+            texts = []
+            for entity in doc.modelspace():
+                if entity.dxftype() != "INSERT":
+                    continue
+                texts.extend(attrib.dxf.text for attrib in entity.attribs)
+            for block in doc.blocks:
+                texts.extend(
+                    entity.dxf.text for entity in block if entity.dxftype() == "ATTDEF"
+                )
+            return texts
+
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"), patch(
+            "urllib.request.urlopen"
+        ) as open_url:
+            open_url.side_effect = AssertionError("batch attribs-off must not call the network")
+            added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                    "include_attribs": False,
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            task = None
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.05)
+            open_url.assert_not_called()
+        self.assertEqual(task["status"], "succeeded", task)
+        texts = _attrib_texts(task["output_file"])
+        self.assertIn("配电箱", texts)
+        self.assertNotIn("distribution board", texts)
+        sources = {
+            item["source"]
+            for item in extract_preview(task["output_file"], include_attribs=False, include_paper=True)["items"]
+        }
+        self.assertIn("reflected ceiling plan", sources)
+        self.assertNotIn("天花图", sources)
+
     def test_batch_dims_tables_writes_dimension_and_table(self):
         fixture = FIXTURES / "dims_tables.dxf"
         self.assertTrue(fixture.is_file(), "tests/fixtures/dims_tables.dxf")
