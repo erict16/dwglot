@@ -15,18 +15,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from backend.app_meta import APP_TITLE, APP_VERSION, GITHUB_URL, default_output_dir as dwglot_output_dir
 from backend.providers.azure import AzureFreeQuotaExceededError
 from backend.queue import BatchQueue
 from backend.cad import ODA_OUTPUT_VERSIONS, analyze_source, dwg_unavailable_short, odafc_available, odafc_status, output_path_for
 from backend.translator import CADChineseTranslator, CONFIG_PATH, load_yaml_data, output_prefix, resource_path
-from backend.licensing import LICENSE_ENFORCEMENT_ENABLED, SUPPORT_ALIPAY_QR_URL, SUPPORT_WECHAT_QR_URL, LicenseManager
 from backend.language_assets import LanguageAssets
-from backend.storage import atomic_write_bytes, atomic_write_json, quarantine_corrupt_file
+from backend.storage import atomic_write_json, quarantine_corrupt_file
+from backend.updates import check_github_release
+from backend.drawings import extract_preview
+from backend.languages import split_mode
 
 
 def _frontend_dist() -> Path:
@@ -40,9 +43,6 @@ FRONTEND_DIST = _frontend_dist()
 API_PORT = 8765
 SSE_QUEUE_SIZE = 500
 DROPPED_FILE_RETENTION_SECONDS = 30 * 24 * 60 * 60
-QR_CACHE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
-QR_CACHE_DIR = Path.home() / ".cad_translator_qr_cache"
-_QR_CACHE_LOCK = threading.Lock()
 BUILTIN_GLOSSARIES = {
     "zh_to_fr": ("glossaries/translation_context.yaml", "context_zh_to_fr"),
     "fr_to_zh": ("glossaries/translation_context_fr_to_zh.yaml", "context_fr_to_zh"),
@@ -67,35 +67,6 @@ def system_accent_theme() -> dict:
     return {"color": [round(channel, 4) for channel in rgb]}
 
 
-def _qr_cache_path(kind: str) -> Path:
-    return QR_CACHE_DIR / f"{kind}.bin"
-
-
-def _download_qr(kind: str) -> bytes:
-    url = {"wechat": SUPPORT_WECHAT_QR_URL, "alipay": SUPPORT_ALIPAY_QR_URL}.get(kind)
-    if not url:
-        raise ValueError("未配置收款码")
-    request = urllib.request.Request(url, headers={"User-Agent": "HonsenCADTranslator/1"})
-    with urllib.request.urlopen(request, timeout=10) as remote:
-        content = remote.read()
-        content_type = remote.headers.get_content_type()
-    if not content_type.startswith("image/"):
-        raise ValueError("外部链接未返回图片")
-    return content
-
-
-def preload_support_qrcodes() -> None:
-    with _QR_CACHE_LOCK:
-        for kind in ("wechat", "alipay"):
-            path = _qr_cache_path(kind)
-            if path.is_file() and time.time() - path.stat().st_mtime < QR_CACHE_MAX_AGE_SECONDS:
-                continue
-            try:
-                atomic_write_bytes(path, _download_qr(kind))
-            except Exception:
-                pass  # Retain any existing binary cache when the remote is unavailable.
-
-
 def builtin_terms() -> list[dict]:
     """Expose the shipped YAML glossary as a read-only asset list."""
     entries = []
@@ -118,7 +89,7 @@ class TranslateBody(BaseModel):
     input_file: str
     output_dir: str
     output_name: str
-    translation_mode: str = "zh_to_fr"
+    translation_mode: str = "zh_to_en"
     translate_blocks: bool = False
     deepl_key: str
     provider: str = "deepl"
@@ -133,7 +104,7 @@ class BatchBody(BaseModel):
 
 class BatchStartBody(BaseModel):
     output_dir: str = ""
-    translation_mode: str = "zh_to_fr"
+    translation_mode: str = "zh_to_en"
     translate_blocks: bool = False
     output_format: str = "source"
     output_version: str = ""
@@ -184,7 +155,6 @@ class TranslationService:
         self.dropped_files_dir.mkdir(exist_ok=True)
         self.batch = BatchQueue(self._run_batch, self.emit_log, lambda task: self.load_config().get(f"{task.get('provider', 'deepl')}_key", ""))
         self.cleanup_dropped_files()
-        threading.Thread(target=preload_support_qrcodes, daemon=True).start()
 
     def save_dropped_files(self, files: list[UploadFile]) -> list[str]:
         paths = []
@@ -298,13 +268,9 @@ class TranslationService:
     def default_output_dir() -> str:
         """Return the user-facing default output directory.
 
-        macOS localizes ``Documents`` as “文稿” in Finder.  Keep the physical
-        path stable as ``~/Documents/Honsen CAD output`` rather than deriving
-        it from the selected CAD file or the application bundle.
+        macOS localizes ``Documents`` as “文稿” in Finder.
         """
-        path = Path.home() / "Documents" / "Honsen CAD output"
-        path.mkdir(parents=True, exist_ok=True)
-        return str(path)
+        return dwglot_output_dir()
 
     def save_config(self, deepl_key: str, output_dir: str = "", provider: str = "deepl", azure_key: str = "", azure_region: str = "", project_package_path: Optional[str] = None):
         config = self.load_config()
@@ -423,64 +389,48 @@ class TranslationService:
 
 
 service = TranslationService()
-license_manager = LicenseManager()
-app = FastAPI(title="CAD Translator API")
-
-
-@app.middleware("http")
-async def require_license(request: Request, call_next):
-    if not request.url.path.startswith("/api/") or request.url.path in {"/api/health", "/api/license/status", "/api/license/activate", "/api/support"}:
-        return await call_next(request)
-    status = license_manager.status()
-    if not status["usable"]:
-        return JSONResponse(status_code=403, content={"detail": status["message"], "license": status})
-    return await call_next(request)
+app = FastAPI(title=APP_TITLE)
 
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "status": service.status}
+    return {"ok": True, "status": service.status, "name": APP_TITLE, "version": APP_VERSION}
 
 
-class ActivationBody(BaseModel):
-    code: str
-
-
-@app.get("/api/license/status")
-def license_status():
-    return license_manager.status()
-
-
-@app.post("/api/license/activate")
-def activate_license(body: ActivationBody):
-    status = license_manager.activate(body.code)
-    if not status["usable"]:
-        raise HTTPException(status_code=400, detail=status["message"])
-    return status
-
-
-@app.get("/api/support")
-def support_info():
+@app.get("/api/meta")
+def app_meta():
     return {
-        "licensing_enabled": LICENSE_ENFORCEMENT_ENABLED,
-        "wechat_qr_url": SUPPORT_WECHAT_QR_URL,
-        "alipay_qr_url": SUPPORT_ALIPAY_QR_URL,
+        "name_zh": "图译",
+        "name_en": "Dwglot",
+        "title": APP_TITLE,
+        "version": APP_VERSION,
+        "github": GITHUB_URL,
+        "licensing_enabled": False,
     }
 
 
-@app.get("/api/support/qrcode/{kind}")
-def support_qrcode(kind: str):
-    if kind not in {"wechat", "alipay"}:
-        raise HTTPException(status_code=404, detail="未配置收款码")
-    path = _qr_cache_path(kind)
-    if not path.is_file():
-        try:
-            atomic_write_bytes(path, _download_qr(kind))
-        except Exception as exc:
-            raise HTTPException(status_code=503, detail=f"收款码加载失败: {exc}") from exc
-    elif time.time() - path.stat().st_mtime >= QR_CACHE_MAX_AGE_SECONDS:
-        threading.Thread(target=preload_support_qrcodes, daemon=True).start()
-    return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+@app.get("/api/updates/check")
+def updates_check():
+    return check_github_release()
+
+
+class ExtractBody(BaseModel):
+    path: str
+    include_blocks: bool = False
+    translation_mode: str = "zh_to_en"
+
+
+@app.post("/api/drawings/extract")
+def drawings_extract(body: ExtractBody):
+    try:
+        split_mode(body.translation_mode)
+        return extract_preview(body.path, include_blocks=body.include_blocks, mode=body.translation_mode)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"提取失败: {exc}") from exc
 
 
 @app.get("/api/config")
@@ -614,16 +564,20 @@ async def drop_batch(files: list[UploadFile] = File(...)):
 def start_batch(body: BatchStartBody):
     output_dir = body.output_dir or service.load_config().get("output_dir") or service.default_output_dir()
     os.makedirs(output_dir, exist_ok=True)
-    if body.translation_mode not in {"zh_to_fr", "fr_to_zh", "zh_to_en", "en_to_zh"}:
-        raise HTTPException(status_code=400, detail="不支持的翻译方向")
-    if body.provider not in {"deepl", "azure"}:
+    try:
+        split_mode(body.translation_mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if body.provider not in {"deepl", "azure", "openai", "ollama"}:
         raise HTTPException(status_code=400, detail="不支持的翻译服务")
     if body.output_format not in {"source", "dxf", "dwg"}:
         raise HTTPException(status_code=400, detail="不支持的输出格式")
     if body.output_version not in {"", *ODA_OUTPUT_VERSIONS}:
         raise HTTPException(status_code=400, detail="不支持的输出版本")
-    if not (body.azure_key if body.provider == "azure" else body.deepl_key).strip():
-        raise HTTPException(status_code=400, detail=f"请配置 {'Azure Translator' if body.provider == 'azure' else 'DeepL'} API Key")
+    if body.provider == "azure" and not body.azure_key.strip():
+        raise HTTPException(status_code=400, detail="请配置 Azure Translator Key")
+    if body.provider == "deepl" and not body.deepl_key.strip():
+        raise HTTPException(status_code=400, detail="请配置 DeepL API Key")
     for task in service.batch.snapshot()["tasks"]:
         if task["status"] in {"queued", "retrying", "cancelled", "failed"} and (task["input_file"].lower().endswith(".dwg") or body.output_format == "dwg") and not odafc_available():
             raise HTTPException(status_code=400, detail=dwg_unavailable_short())
@@ -686,7 +640,7 @@ async def stream_logs():
 
 
 @app.get("/api/default-output-name")
-def default_output_name(mode: str = "zh_to_fr", base: str = ""):
+def default_output_name(mode: str = "zh_to_en", base: str = ""):
     prefix = output_prefix(mode)
     ts = datetime.now().strftime("%Hh%M_%d-%m-%y")
     name = f"{prefix}_{base}_{ts}" if base else f"translated_cad_{ts}"

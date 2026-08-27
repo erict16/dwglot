@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1280, height=800" />
+  <title>03 批量导出 · 图译</title>
+  <link rel="stylesheet" href="_frame.css" />
+</head>
+<body>
+  <a class="skip" href="#jobs">跳到导出队列</a>
+  <div class="win" role="application" aria-label="图译">
+    <header class="tb">
+      <div class="lights" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+      <div class="brand">图译</div>
+      <div class="seg" role="tablist">
+        <button type="button">常规处理</button>
+        <button type="button" class="on">批量导出</button>
+        <button type="button">批量导入</button>
+      </div>
+      <div class="pair">
+        <select aria-label="源语言"><option selected>中</option></select>
+        →
+        <select aria-label="目标语言"><option selected>英</option></select>
+      </div>
+      <div class="pill" role="radiogroup" aria-label="引擎">
+        <label><input type="radio" name="eng" checked />云</label>
+        <label><input type="radio" name="eng" />本地</label>
+        <label><input type="radio" name="eng" />自定义</label>
+      </div>
+      <span class="grow"></span>
+      <button type="button" class="tbtn">打开图纸</button>
+      <button type="button" class="tbtn">加载术语表</button>
+      <button type="button" class="tbtn">参数</button>
+      <button type="button" class="tbtn pri">开始导出</button>
+    </header>
+    <div class="body">
+      <aside class="side">
+        <h2>待导出 · 6</h2>
+        <div class="item on"><span class="dot"></span>电气原理图.dwg</div>
+        <div class="item"><span class="dot dxf"></span>配电箱.dxf</div>
+        <div class="item"><span class="dot"></span>总图-A1.dwg</div>
+        <div class="item"><span class="dot"></span>电缆桥架.dwg</div>
+        <div class="item"><span class="dot dxf"></span>材料表.dxf</div>
+        <div class="item"><span class="dot"></span>平面-L2.dwg</div>
+        <p class="hint">批量时全部去重，并还原目录结构。</p>
+      </aside>
+      <div class="jobs" id="jobs">
+        <div class="job"><span>电气原理图.dwg</span><span>纯译文</span><span class="bar"><i style="width:72%"></i></span><span>写回中</span></div>
+        <div class="job"><span>配电箱.dxf</span><span>纯译文</span><span class="bar"><i style="width:18%"></i></span><span>排队</span></div>
+        <div class="job"><span>总图-A1.dwg</span><span>纯译文</span><span class="bar"><i style="width:0"></i></span><span>排队</span></div>
+        <div class="job"><span>电缆桥架.dwg</span><span>纯译文</span><span class="bar"><i style="width:0"></i></span><span>排队</span></div>
+        <div class="job"><span>材料表.dxf</span><span>纯译文</span><span class="bar"><i style="width:0"></i></span><span>排队</span></div>
+        <div class="job"><span>平面-L2.dwg</span><span>纯译文</span><span class="bar"><i style="width:0"></i></span><span>排队</span></div>
+      </div>
+      <aside class="insp">
+        <h3>导出版式</h3>
+        <label class="row"><input type="radio" name="lay" checked /> 纯译文</label>
+        <label class="row"><input type="radio" name="lay" /> 原译对照</label>
+        <label class="row"><input type="radio" name="lay" /> 译原对照</label>
+        <h3>输出位置</h3>
+        <div class="path">
+          <input value="~/Documents/图译输出" readonly />
+          <button type="button">选取</button>
+        </div>
+        <label class="row"><input type="checkbox" checked /> 还原目录结构</label>
+        <label class="row"><input type="checkbox" checked /> 无 ODA 时改写 DXF</label>
+        <h3>过滤</h3>
+        <label class="row"><input type="checkbox" checked /> 纯数字</label>
+        <label class="row"><input type="checkbox" checked /> 重复</label>
+        <label class="row"><input type="checkbox" checked /> 非源语言</label>
+        <p class="note">去重前 12,840 · 后 3,921<br />术语表 393 · ODA 已安装</p>
+      </aside>
+    </div>
+    <footer class="foot">
+      <span class="live">ODA 已安装</span>
+      <span>术语表 <b>393</b></span>
+      <span>版式 <b>纯译文</b></span>
+      <span>输出 <b>~/Documents/图译输出</b></span>
+      <span>6 个文件</span>
+    </footer>
+  </div>
+</body>
+</html>

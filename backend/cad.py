@@ -94,7 +94,8 @@ def _log(fn: LogFn, message: str) -> None:
 
 
 def _mount_embedded_macos_odafc() -> Optional[Path]:
-    """Mount the official embedded ODA DMG read-only without modifying its signature."""
+    """Dwglot does not ship ODA. Never mount a Resources DMG we might have inherited."""
+    return None
     global _oda_mount_dir
     if sys.platform != "darwin":
         return None
@@ -213,15 +214,13 @@ def configure_odafc() -> Optional[str]:
 
 
 def dwg_unavailable_message() -> str:
-    app_dir = get_app_dir()
-    if sys.platform == "win32":
-        bundled = app_dir / ODA_BUNDLE_DIR / ODA_BUNDLE_EXE
-    else:
-        bundled = app_dir / ODA_MACOS_APP
     return (
-        "未检测到 ODA File Converter，无法自动处理 DWG。\n"
-        f"- 请确认已安装 ODA（推荐路径：{bundled}）\n"
-        "- 或在 AutoCAD 中将图纸「另存为 DXF」后，直接选择 .dxf 文件翻译"
+        "未检测到 ODA File Converter，无法自动处理 DWG。图译不附带 ODA。\n"
+        "- 从 Open Design Alliance 官网自行安装 ODA File Converter\n"
+        "- 或设置环境变量 CAD_ODA_EXEC 指向 ODAFileConverter 可执行文件\n"
+        f"- Windows 常见路径：{ODA_SYSTEM_EXE}\n"
+        "- macOS 常见路径：/Applications/ODAFileConverter.app\n"
+        "- 或将图纸另存为 DXF 后直接翻译（无需 ODA）"
     )
 
 

@@ -6,26 +6,32 @@ import urllib.parse
 import urllib.request
 
 
+from backend.languages import azure_code as map_azure_code
+from backend.providers.base import QuotaExceededError, TranslationProvider, TranslationProviderError
+
 AZURE_ENDPOINT = "https://api.cognitive.microsofttranslator.com/translate"
 AZURE_LANGUAGE_CODES = {"zh-cn": "zh-Hans", "en": "en", "en-us": "en", "fr": "fr"}
 
 
-class AzureTranslatorError(RuntimeError):
+class AzureTranslatorError(TranslationProviderError):
     retryable = True
 
 
-class AzureFreeQuotaExceededError(AzureTranslatorError):
+class AzureFreeQuotaExceededError(QuotaExceededError, AzureTranslatorError):
     retryable = False
 
 
-class AzureTranslator:
+class AzureTranslator(TranslationProvider):
+    name = "azure"
+    needs_key = True
+
     def __init__(self, key: str, region: str = ""):
         self.key = key.strip()
         self.region = region.strip()
 
     def translate_text(self, text: str, source_lang: str, target_lang: str) -> str:
-        source = AZURE_LANGUAGE_CODES[source_lang.lower()]
-        target = AZURE_LANGUAGE_CODES[target_lang.lower()]
+        source = AZURE_LANGUAGE_CODES.get(source_lang.lower()) or map_azure_code(source_lang)
+        target = AZURE_LANGUAGE_CODES.get(target_lang.lower()) or map_azure_code(target_lang)
         query = urllib.parse.urlencode({"api-version": "3.0", "from": source, "to": target, "textType": "plain"})
         headers = {"Ocp-Apim-Subscription-Key": self.key, "Content-Type": "application/json; charset=UTF-8"}
         if self.region:

@@ -20,7 +20,6 @@ try:  # The removed legacy GUI is retained only for config compatibility tests.
 except ImportError:  # Homebrew Python on macOS does not include Tk by default.
     tk = ttk = filedialog = messagebox = None
 
-from backend.providers.azure import AzureFreeQuotaExceededError, AzureTranslator
 from backend.language_assets import LanguageAssets
 from backend.storage import atomic_output_path, atomic_write_json
 from backend.text_cleaning import TextCleaner
@@ -30,7 +29,16 @@ try:
 except ImportError:
     winreg = None
 
-APP_VERSION = "1.8.8"
+from backend.app_meta import APP_VERSION, CONFIG_PATH as DWGLOT_CONFIG_PATH
+from backend.languages import mode_key, split_mode, language_name
+from backend.mtext_runs import map_translatable
+from backend.providers.azure import AzureFreeQuotaExceededError, AzureTranslator
+from backend.providers.deepl_provider import DeepLProvider
+from backend.providers.ollama import OllamaProvider
+from backend.providers.openai_compat import OpenAICompatProvider
+from backend.styles import rewrite_shx_styles
+
+
 
 # ODA can export legacy SHX/GBK text as ``\M+5C6BD`` rather than Unicode.
 # The leading nibble identifies the legacy codepage; the following four hex
@@ -94,7 +102,7 @@ def pick_available_font():
     return "Arial"  # 默认 fallback
 
 
-CONFIG_PATH = os.path.expanduser("~/.cad_translator_config.json")
+CONFIG_PATH = str(DWGLOT_CONFIG_PATH)
 OUTPUT_PREFIXES = {
     "zh_to_fr": "fr",
     "fr_to_zh": "zh",
@@ -104,7 +112,14 @@ OUTPUT_PREFIXES = {
 
 
 def output_prefix(mode):
-    return OUTPUT_PREFIXES.get(mode, "fr")
+    if mode in OUTPUT_PREFIXES:
+        return OUTPUT_PREFIXES[mode]
+    from backend.languages import output_prefix as lang_prefix
+
+    try:
+        return lang_prefix(mode)
+    except ValueError:
+        return "out"
 
 
 def wait_for_translation(resume_event=None, cancel_event=None):
@@ -138,6 +153,8 @@ class CADChineseTranslator:
         self.deepl_translator = None
         self.translation_provider = "deepl"
         self.azure_translator = None
+        self.mt_provider = None
+        self.enable_v02_entities = False
         self.cleaner = TextCleaner()
         abbrev_data = load_yaml_data("glossaries/translation_abbreviations.yaml")
         self.abbrev_map_fr_to_zh = abbrev_data.get("abbrev_map", {})
@@ -216,9 +233,45 @@ class CADChineseTranslator:
     def configure_azure(self, key, region=""):
         self.translation_provider = "azure"
         self.azure_translator = AzureTranslator(key, region) if key else None
+        self.mt_provider = self.azure_translator
+
+    def configure_deepl(self, key):
+        self.translation_provider = "deepl"
+        self.deepl_api_key = (key or "").strip()
+        self.mt_provider = DeepLProvider(self.deepl_api_key) if self.deepl_api_key else None
+
+    def configure_openai(self, key, base_url="", model=""):
+        self.translation_provider = "openai"
+        self.mt_provider = OpenAICompatProvider(key, base_url, model)
+
+    def configure_ollama(self, host="", model=""):
+        self.translation_provider = "ollama"
+        self.mt_provider = OllamaProvider(host, model)
 
     def configure_language_assets(self, project_package_path=""):
         self.project_package_path = project_package_path or ""
+
+    def ensure_lang_config(self, lang_config_key):
+        if lang_config_key in self.language_configs:
+            return self.language_configs[lang_config_key]
+        try:
+            source, target = split_mode(lang_config_key)
+        except ValueError:
+            return None
+        canonical = mode_key(source, target)
+        if canonical in self.language_configs:
+            self.language_configs[lang_config_key] = self.language_configs[canonical]
+            return self.language_configs[canonical]
+        config = {
+            "source": source,
+            "target": target,
+            "name": f"{language_name(source)}→{language_name(target)}",
+            "context": {},
+            "glossary": {},
+        }
+        self.language_configs[lang_config_key] = config
+        self.language_configs[canonical] = config
+        return config
 
     def preprocess_abbreviations(self, text, lang_config_key):
         """在翻译前处理常见缩写，例如 W:800mm → 宽度:800mm，W400*H650 → 宽度400×高度650"""
@@ -345,15 +398,15 @@ class CADChineseTranslator:
         cleaned = self.preprocess_abbreviations(cleaned, lang_config_key)
         cleaned = self.cleaner.safe_utf8(cleaned)
 
-        if lang_config_key.startswith("zh_to_") and not re.search(r'[\u4e00-\u9fff]', cleaned):
+        lang_config = self.ensure_lang_config(lang_config_key)
+        source_code = (lang_config or {}).get("source", "")
+        if str(source_code).lower().startswith("zh") and not re.search(r'[\u4e00-\u9fff]', cleaned):
             self.safe_log(f"跳过非中文内容（疑似编号）: \"{cleaned}\"")
             return self.cleaner.safe_utf8(text)
 
-        if lang_config_key not in self.language_configs:
+        if not lang_config:
             self.safe_log(f"无效的翻译配置: {lang_config_key}")
             return self.cleaner.safe_utf8(text)
-
-        lang_config = self.language_configs[lang_config_key]
         glossary_translation = self.language_assets.lookup_term(cleaned, lang_config_key, layer, self.project_package_path)
         glossary_translation = glossary_translation or self.get_layer_glossary_translation(cleaned, lang_config_key, layer)
         glossary_translation = glossary_translation or self.get_glossary_translation(cleaned, lang_config_key)
@@ -383,7 +436,11 @@ class CADChineseTranslator:
                 self.safe_log(f"提示术语: {context}")
 
             # Step 5: provider translation
-            if self.translation_provider == "azure":
+            if self.mt_provider is not None:
+                translated_result = self.mt_provider.translate_text(
+                    cleaned, lang_config['source'], lang_config['target']
+                )
+            elif self.translation_provider == "azure":
                 if not self.azure_translator:
                     raise RuntimeError("Azure Translator 未初始化，请配置 API Key")
                 translated_result = self.azure_translator.translate_text(
@@ -421,7 +478,7 @@ class CADChineseTranslator:
             self.translated_cache[cache_key] = final
             self.language_assets.record_memory(cleaned, final, lang_config_key, layer, self.translation_provider)
             self.language_assets.record_usage(self.translation_provider, len(cleaned))
-            self.safe_log(f"✔ 翻译完成 ({'Azure Translator' if self.translation_provider == 'azure' else 'DeepL'}): \"{cleaned}\" → \"{final}\"")
+            self.safe_log(f"✔ 翻译完成 ({self.translation_provider}): \"{cleaned}\" → \"{final}\"")
             time.sleep(0.5)
             return final
 
@@ -430,9 +487,13 @@ class CADChineseTranslator:
             self.safe_log(str(e), level="error")
             raise
         except Exception as e:
-            provider = "Azure Translator" if self.translation_provider == "azure" else "DeepL"
-            self.safe_log(f"翻译失败 ({provider}): {e} → 原文: \"{cleaned}\"")
-            raise RuntimeError(f"{provider} 翻译失败: {e}") from e
+            provider = self.translation_provider or "mt"
+            label = "DeepL" if provider == "deepl" else provider
+            self.safe_log(f"翻译失败 ({label}): {e} → 原文: \"{cleaned}\"")
+            raise RuntimeError(f"{label} 翻译失败: {e}") from e
+
+    def translate_mtext(self, raw, lang_config_key, layer=""):
+        return map_translatable(raw, lambda run: self.translate_text(run, lang_config_key, layer))
 
 
     def extract_text_entities(self, doc, lang_config, include_blocks=False):

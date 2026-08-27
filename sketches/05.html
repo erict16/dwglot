@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1280, height=800" />
+  <title>05 常规 深色 · 图译</title>
+  <link rel="stylesheet" href="_frame.css" />
+</head>
+<body>
+  <a class="skip" href="#grid">跳到文本表</a>
+  <div class="win" role="application" aria-label="图译">
+    <header class="tb">
+      <div class="lights" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+      <div class="brand">图译</div>
+      <div class="seg" role="tablist" aria-label="工作页">
+        <button type="button" class="on">常规处理</button>
+        <button type="button">批量导出</button>
+        <button type="button">批量导入</button>
+      </div>
+      <div class="pair">
+        <select aria-label="源语言"><option selected>中</option><option>英</option></select>
+        →
+        <select aria-label="目标语言"><option selected>英</option><option>中</option><option>日</option></select>
+      </div>
+      <div class="pill" role="radiogroup" aria-label="引擎">
+        <label><input type="radio" name="eng" checked />云</label>
+        <label><input type="radio" name="eng" />本地</label>
+        <label><input type="radio" name="eng" />自定义</label>
+      </div>
+      <span class="grow"></span>
+      <button type="button" class="tbtn">打开图纸</button>
+      <button type="button" class="tbtn">加载术语表</button>
+      <button type="button" class="tbtn">参数</button>
+      <button type="button" class="tbtn pri">翻译</button>
+      <button type="button" class="tbtn">写回</button>
+    </header>
+    <div class="body">
+      <aside class="side">
+        <h2>已打开</h2>
+        <div class="item on"><span class="dot"></span>电气原理图.dwg<span class="meta">当前</span></div>
+        <div class="item"><span class="dot dxf"></span>配电箱.dxf<span class="meta">DXF</span></div>
+        <div class="item"><span class="dot"></span>总图-A1.dwg<span class="meta">DWG</span></div>
+        <p class="hint">拖入 DWG / DXF，或点工具栏「打开图纸」</p>
+      </aside>
+      <section class="main">
+        <div class="filters">
+          过滤
+          <label><input type="checkbox" checked /> 纯数字</label>
+          <label><input type="checkbox" checked /> 重复</label>
+          <label><input type="checkbox" checked /> 非源语言</label>
+          <span style="margin-left:auto">
+            版式
+            <select aria-label="导出版式" style="height:24px;border:0;background:rgba(118,118,128,.24);border-radius:6px;padding:0 8px;font:600 12px -apple-system,system-ui,sans-serif;color:var(--text)">
+              <option selected>纯译文</option>
+              <option>原译对照</option>
+              <option>译原对照</option>
+            </select>
+          </span>
+        </div>
+        <div class="table">
+          <table id="grid">
+            <thead>
+              <tr>
+                <th style="width:36px"><input type="checkbox" checked aria-label="全选" /></th>
+                <th>原文</th>
+                <th>译文</th>
+                <th>图层 / 类型</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="on"><td><input type="checkbox" checked /></td><td class="src">电气原理图</td><td>Electrical Schematic</td><td class="kind">0 · MTEXT</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">平面布置图</td><td>Floor Plan</td><td class="kind">0 · TEXT</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">隔墙定位图</td><td class="cell-edit">Partition Location Plan</td><td class="kind">A-WALL · TEXT</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">进线柜</td><td>Incoming Cabinet</td><td class="kind">E-POWR · ATTRIB</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">接地</td><td>Earthing</td><td class="kind">E-POWR · MTEXT</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">总图</td><td>General Layout</td><td class="kind">TITLE · TEXT</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">材料表</td><td>Bill of Materials</td><td class="kind">0 · TABLE</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">预留洞</td><td>Reserved Opening</td><td class="kind">A-WALL · TEXT</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">供电</td><td>Power Supply</td><td class="kind">E-POWR · TEXT</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">图纸会签</td><td>Drawing Approval</td><td class="kind">TITLE · TEXT</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">模型空间</td><td>Model Space</td><td class="kind">0 · TEXT</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">图纸空间</td><td>Paper Space</td><td class="kind">PAPER · TEXT</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">电缆桥架</td><td>Cable Tray</td><td class="kind">E-TRAY · MTEXT</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">开洞</td><td>Opening</td><td class="kind">A-WALL · TEXT</td></tr>
+              <tr><td><input type="checkbox" checked /></td><td class="src">配电箱</td><td>Distribution Board</td><td class="kind">E-POWR · ATTRIB</td></tr>
+              <tr class="skip"><td><input type="checkbox" /></td><td class="src">1200</td><td>—</td><td class="kind">0 · DIM · 已过滤</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+    <footer class="foot">
+      <span class="live">ODA 已安装</span>
+      <span>术语表 <b>393</b></span>
+      <span>去重前 <b>12,840</b></span>
+      <span>去重后 <b>3,921</b></span>
+      <span>已选 <b>86</b> / 112</span>
+      <span>双击译文可改</span>
+    </footer>
+  </div>
+</body>
+</html>

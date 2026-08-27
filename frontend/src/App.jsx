@@ -1,724 +1,521 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import Iridescence from "./components/Iridescence";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
-const THEMES = {
-  system: { label: "果冻", color: [0.56, 0.56, 0.58] },
-  magenta: { label: "紫", color: [0.68, 0.12, 0.5] },
-  forest: { label: "绿", color: [0.05, 0.42, 0.37] },
-};
-const versions = [
-  ["", "保持默认"],
-  ["ACAD9", "AutoCAD R9"],
-  ["ACAD10", "AutoCAD R10"],
-  ["ACAD12", "AutoCAD R12"],
-  ["ACAD13", "AutoCAD R13"],
-  ["ACAD14", "AutoCAD R14"],
-  ["ACAD2000", "AutoCAD 2000"],
-  ["ACAD2004", "AutoCAD 2004"],
-  ["ACAD2007", "AutoCAD 2007"],
-  ["ACAD2010", "AutoCAD 2010"],
-  ["ACAD2013", "AutoCAD 2013"],
-  ["ACAD2018", "AutoCAD 2018"],
+
+const LANGS = [
+  ["zh-Hans", "中"],
+  ["en", "英"],
+  ["ja", "日"],
+  ["ko", "韩"],
+  ["de", "德"],
+  ["fr", "法"],
 ];
-const modes = [
-  ["zh_to_fr", "中文 → 法语"],
-  ["fr_to_zh", "法语 → 中文"],
-  ["zh_to_en", "中文 → 英语"],
-  ["en_to_zh", "英语 → 中文"],
-];
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.12 },
-  },
-};
-const itemVariants = {
-  hidden: { opacity: 0, y: 22, scale: 0.97 },
-  show: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { type: "spring", stiffness: 260, damping: 22 },
-  },
-};
-async function api(path, options) {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
+
+function py() {
+  return window.pywebview?.api || null;
+}
+
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     ...options,
   });
-  if (!res.ok)
-    throw new Error(
-      (await res.json().catch(() => ({}))).detail || res.statusText,
-    );
-  return res.json();
+  const text = await response.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { detail: text };
+  }
+  if (!response.ok) {
+    throw new Error(data.detail || data.message || `HTTP ${response.status}`);
+  }
+  return data;
 }
-function usePywebview() {
-  return typeof window !== "undefined" && window.pywebview?.api;
+
+function modeKey(source, target) {
+  if (source === "zh-Hans" && target === "en") return "zh_to_en";
+  if (source === "en" && target === "zh-Hans") return "en_to_zh";
+  if (source === "zh-Hans" && target === "fr") return "zh_to_fr";
+  if (source === "fr" && target === "zh-Hans") return "fr_to_zh";
+  return `${source}_to_${target}`;
 }
-function Field({ label, children }) {
-  return (
-    <div className="field">
-      <span>{label}</span>
-      {children}
-    </div>
-  );
+
+function engineProvider(engine, config) {
+  if (engine === "local") return "ollama";
+  if (engine === "custom") return "openai";
+  return config.provider === "azure" ? "azure" : "deepl";
 }
-function SelectMenu({ value, onChange, options }) {
-  const selected = options.find(([optionValue]) => optionValue === value)?.[1];
-  return (
-    <details className="select-menu">
-      <summary>{selected}<span aria-hidden="true">⌄</span></summary>
-      <div className="select-options" role="listbox">
-        {options.map(([optionValue, optionLabel]) => (
-          <button
-            type="button"
-            className={optionValue === value ? "selected" : ""}
-            key={optionValue}
-            onClick={(event) => {
-              onChange(optionValue);
-              event.currentTarget.closest("details").removeAttribute("open");
-            }}
-          >
-            {optionLabel}
-          </button>
-        ))}
-      </div>
-    </details>
-  );
-}
+
 export default function App() {
-  const [theme, setTheme] = useState("system");
-  const [systemAccent, setSystemAccent] = useState(THEMES.system.color);
-  const pyApi = usePywebview();
-  const [batch, setBatch] = useState({
-    tasks: [],
-    progress: 0,
-    paused: false,
-    started: false,
-    resumable: false,
+  const [tab, setTab] = useState("regular");
+  const [sheet, setSheet] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [current, setCurrent] = useState("");
+  const [rows, setRows] = useState([]);
+  const [engine, setEngine] = useState("cloud");
+  const [sourceLang, setSourceLang] = useState("zh-Hans");
+  const [targetLang, setTargetLang] = useState("en");
+  const [layout, setLayout] = useState("纯译文");
+  const [filters, setFilters] = useState({ numbers: true, dupes: true, nonsource: true });
+  const [params, setParams] = useState({
+    attribs: true,
+    dims: false,
+    model: true,
+    paper: true,
+    frozen: false,
+    locked: false,
+    off: false,
   });
-  const [logs, setLogs] = useState([]);
-  const [outputDir, setOutputDir] = useState("");
-  const [mode, setMode] = useState("zh_to_fr");
-  const [format, setFormat] = useState("source");
-  const [version, setVersion] = useState("");
-  const [blocks, setBlocks] = useState(true);
-  const [provider, setProvider] = useState("deepl");
-  const [deeplKey, setDeeplKey] = useState("");
-  const [azureKey, setAzureKey] = useState("");
-  const [azureRegion, setAzureRegion] = useState("");
-  const [projectPackagePath, setProjectPackagePath] = useState("");
-  const [showAssets, setShowAssets] = useState(false);
-  const [assetTab, setAssetTab] = useState("terms");
-  const [assets, setAssets] = useState({ terms: [], builtin_terms: [], memory: [], usage: {} });
-  const [assetSearch, setAssetSearch] = useState("");
-  const [termForm, setTermForm] = useState({ scope: "global", mode: "zh_to_fr", source: "", target: "", layer_contains: "", id: null });
-  const [memoryForm, setMemoryForm] = useState({ mode: "zh_to_fr", source: "", target: "", layer_contains: "", id: null });
-  const [license, setLicense] = useState({ checking: true, usable: false });
-  const [activationCode, setActivationCode] = useState("");
-  const [activationError, setActivationError] = useState("");
-  const [support, setSupport] = useState({ licensing_enabled: false });
-  const [showSupport, setShowSupport] = useState(false);
-  const [draggingFiles, setDraggingFiles] = useState(false);
-  const logRef = useRef();
-  const refresh = useCallback(
-    () =>
-      api("/api/batch")
-        .then(setBatch)
-        .catch(() => {}),
-    [],
-  );
+  const [oda, setOda] = useState({ installed: false, path: "" });
+  const [glossary, setGlossary] = useState(0);
+  const [status, setStatus] = useState("放入 DWG / DXF，提取文字后再译。");
+  const [config, setConfig] = useState({ provider: "deepl", deepl_key: "", azure_key: "", azure_region: "", output_dir: "" });
+  const [batch, setBatch] = useState({ tasks: [], running: false });
+  const [updateMsg, setUpdateMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const visibleRows = useMemo(() => {
+    return rows.filter((row) => {
+      if (filters.dupes && row.duplicate) return false;
+      if (filters.numbers && /^[\d.\-\s]+$/.test(row.source)) return false;
+      return true;
+    });
+  }, [rows, filters]);
+
+  const selected = files.find((item) => item.path === current);
+
+  const refreshMeta = useCallback(async () => {
+    try {
+      const [odaStatus, assets, cfg] = await Promise.all([
+        api("/api/odafc-status"),
+        api("/api/language-assets"),
+        api("/api/config"),
+      ]);
+      setOda(odaStatus);
+      setGlossary((assets.builtin_terms || []).length + (assets.terms || []).length);
+      setConfig(cfg);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }, []);
+
   useEffect(() => {
-    const checkLicense = () => api("/api/license/status").then(setLicense).catch((error) => setLicense({ usable: false, message: error.message }));
-    checkLicense();
-    const timer = setInterval(checkLicense, 300000);
+    refreshMeta();
+  }, [refreshMeta]);
+
+  useEffect(() => {
+    if (tab !== "export") return undefined;
+    const timer = setInterval(() => {
+      api("/api/batch").then(setBatch).catch(() => {});
+    }, 1200);
+    api("/api/batch").then(setBatch).catch(() => {});
     return () => clearInterval(timer);
-  }, []);
-  useEffect(() => {
-    api("/api/support").then(setSupport).catch(() => {});
-  }, []);
-  useEffect(() => {
-    api("/api/system-theme")
-      .then((result) => {
-        if (Array.isArray(result.color) && result.color.length === 3) setSystemAccent(result.color);
-      })
-      .catch(() => {});
-  }, []);
-  useEffect(() => {
-    if (support.licensing_enabled && !license.checking && !license.usable) setShowSupport(true);
-  }, [license.checking, license.usable, support.licensing_enabled]);
-  useEffect(() => {
-    if (!license.usable) return;
-    api("/api/config")
-      .then((c) => {
-        setProvider(c.provider || "deepl");
-        setDeeplKey(c.deepl_key || "");
-        setAzureKey(c.azure_key || "");
-        setAzureRegion(c.azure_region || "");
-        setOutputDir(c.output_dir || "");
-        setProjectPackagePath(c.project_package_path || "");
-      })
-      .catch(() => {});
-    refresh();
-    const t = setInterval(refresh, 1000);
-    return () => clearInterval(t);
-  }, [license.usable, refresh]);
-  useEffect(() => {
-    if (!license.usable) return;
-    const es = new EventSource("/api/logs/stream");
-    es.onmessage = (e) => {
-      try {
-        const d = JSON.parse(e.data);
-        if (d.type === "log") setLogs((p) => [...p.slice(-499), d.message]);
-      } catch {}
-    };
-    return () => es.close();
-  }, [license.usable]);
-  useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [logs]);
-  const action = async (path, body) => {
-    if (!license.usable) return;
+  }, [tab]);
+
+  async function openDrawings() {
+    const native = py();
+    let paths = [];
+    if (native?.pick_cad_files) {
+      const picked = await native.pick_cad_files();
+      paths = picked?.paths || [];
+    }
+    if (!paths.length) {
+      setStatus("没有选择文件。");
+      return;
+    }
+    const next = paths.map((path) => ({
+      path,
+      name: path.split(/[/\\]/).pop(),
+      ext: path.toLowerCase().endsWith(".dxf") ? "DXF" : "DWG",
+    }));
+    setFiles(next);
+    setCurrent(next[0].path);
+    await extractFile(next[0].path);
+  }
+
+  async function extractFile(path) {
+    setBusy(true);
+    setStatus("正在提取文字…");
     try {
-      await api(path, {
+      const data = await api("/api/drawings/extract", {
         method: "POST",
-        ...(body && { body: JSON.stringify(body) }),
+        body: JSON.stringify({
+          path,
+          include_blocks: params.attribs,
+          translation_mode: modeKey(sourceLang, targetLang),
+        }),
       });
-      refresh();
-    } catch (e) {
-      setLogs((p) => [...p, `ERROR: ${e.message}`]);
-    }
-  };
-  const activate = async () => {
-    setActivationError("");
-    try {
-      const status = await api("/api/license/activate", { method: "POST", body: JSON.stringify({ code: activationCode }) });
-      setLicense(status);
-      setActivationCode("");
-      setShowSupport(false);
+      setRows(data.items || []);
+      setStatus(`提取 ${data.count} 条，去重后 ${data.unique}。`);
     } catch (error) {
-      setActivationError(error.message);
+      setRows([]);
+      setStatus(error.message);
+    } finally {
+      setBusy(false);
     }
-  };
-  const closeSupport = () => {
-    setShowSupport(false);
-    if (support.licensing_enabled && !license.usable) pyApi?.close_window?.() || window.close();
-  };
-  const settings = () => ({
-    output_dir: outputDir,
-    translation_mode: mode,
-    translate_blocks: blocks,
-    output_format: format,
-    output_version: version,
-    provider,
-    deepl_key: deeplKey,
-    azure_key: azureKey,
-    azure_region: azureRegion,
-    project_package_path: projectPackagePath,
-  });
-  const refreshAssets = async () => {
-    const result = await api("/api/language-assets");
-    setAssets(result);
-    setProjectPackagePath(result.project?.path || "");
-  };
-  const openAssets = async (tab = "terms") => {
-    setAssetTab(tab);
-    setShowAssets(true);
-    try {
-      await refreshAssets();
-      if (tab === "usage") {
-        const usage = await api("/api/language-assets/usage", { method: "POST", body: JSON.stringify({ deepl_key: deeplKey }) });
-        setAssets((old) => ({ ...old, usage: usage.local, deepl_remote: usage.deepl_remote }));
-      }
-    } catch (error) { setLogs((p) => [...p, `ERROR: ${error.message}`]); }
-  };
-  const saveTerm = async () => {
-    await api("/api/language-assets/terms", { method: "POST", body: JSON.stringify({ ...termForm, project_package_path: projectPackagePath }) });
-    setTermForm({ scope: termForm.scope, mode: termForm.mode, source: "", target: "", layer_contains: "", id: null });
-    await refreshAssets();
-  };
-  const saveMemory = async () => {
-    await api("/api/language-assets/memory", { method: "POST", body: JSON.stringify(memoryForm) });
-    setMemoryForm({ mode: memoryForm.mode, source: "", target: "", layer_contains: "", id: null });
-    await refreshAssets();
-  };
-  const chooseProjectPackage = async (create = false) => {
-    const result = create ? await pyApi?.save_term_package?.() : await pyApi?.pick_term_package?.();
-    const path = result?.path || projectPackagePath;
-    if (!path) return;
-    const project = await api("/api/language-assets/project", { method: "POST", body: JSON.stringify({ path, create }) });
-    setProjectPackagePath(project.path);
-    await refreshAssets();
-  };
-  const chooseFiles = async () => {
-    const r = await pyApi?.pick_cad_files?.();
-    if (r?.paths?.length)
-      action("/api/batch/add", { files: r.paths });
-  };
-  const dropFiles = async (event) => {
-    event.preventDefault();
-    setDraggingFiles(false);
-    const files = [...event.dataTransfer.files].filter((file) => /\.(dxf|dwg)$/i.test(file.name));
-    if (!files.length) {
-      setLogs((p) => [...p, "ERROR: 请拖入 DXF 或 DWG 文件"]);
+  }
+
+  async function runTranslate() {
+    if (!current) {
+      setStatus("先打开图纸。");
       return;
     }
-    const body = new FormData();
-    files.forEach((file) => body.append("files", file));
-    try {
-      const response = await fetch("/api/batch/drop", { method: "POST", body });
-      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || response.statusText);
-      refresh();
-    } catch (error) {
-      setLogs((p) => [...p, `ERROR: ${error.message}`]);
+    const provider = engineProvider(engine, config);
+    if (provider === "deepl" && !config.deepl_key) {
+      setStatus("云引擎需要 DeepL Key，在参数里填写。");
+      setSheet(true);
+      return;
     }
-  };
-  const chooseOutput = async () => {
-    const r = await pyApi?.pick_output_dir?.();
-    if (r?.path) {
-      setOutputDir(r.path);
-      api("/api/config", {
+    if (provider === "azure" && !config.azure_key) {
+      setStatus("云引擎需要 Azure Key，在参数里填写。");
+      setSheet(true);
+      return;
+    }
+    setBusy(true);
+    setStatus("正在翻译并写回…");
+    try {
+      const named = await api(
+        `/api/default-output-name?mode=${encodeURIComponent(modeKey(sourceLang, targetLang))}&base=${encodeURIComponent(selected?.name?.replace(/\.[^.]+$/, "") || "drawing")}`
+      );
+      await api("/api/translate", {
         method: "POST",
-        body: JSON.stringify({ ...settings(), output_dir: r.path }),
-      }).catch(() => {});
+        body: JSON.stringify({
+          input_file: current,
+          output_dir: config.output_dir,
+          output_name: named.name,
+          translation_mode: modeKey(sourceLang, targetLang),
+          translate_blocks: params.attribs,
+          deepl_key: config.deepl_key,
+          provider,
+          azure_key: config.azure_key,
+          azure_region: config.azure_region,
+          project_package_path: config.project_package_path || "",
+        }),
+      });
+      setStatus("已开始翻译，完成后看输出目录。");
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setBusy(false);
     }
-  };
-  const exportLogs = async () => {
-    if (pyApi?.export_logs) {
-      const result = await pyApi.export_logs();
-      if (result?.path) setLogs((p) => [...p, `日志已导出: ${result.path}`]);
+  }
+
+  async function startExport() {
+    const paths = files.map((item) => item.path);
+    if (!paths.length) {
+      setStatus("先打开图纸。");
       return;
     }
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([logs.join("\n")], { type: "text/plain;charset=utf-8" }));
-    link.download = "Honsen_CAD_Translator_log.txt";
-    link.click();
-    URL.revokeObjectURL(link.href);
-  };
-  const clearLogs = () => {
-    setLogs([]);
-    action("/api/logs/clear");
-  };
-  const revealOutput = async (path) => {
-    const result = await pyApi?.reveal_file?.(path);
-    if (result?.error) setLogs((p) => [...p, `ERROR: ${result.error}`]);
-    else if (!result) setLogs((p) => [...p, "ERROR: 定位文件仅支持桌面应用"]);
-  };
-  const toggle = () =>
-    batch.started
-      ? action(`/api/batch/pause?paused=${!batch.paused}`)
-      : action("/api/batch/start", settings());
-  const canStart = batch.tasks.some((t) =>
-    ["queued", "retrying", "cancelled", "failed"].includes(t.status),
-  );
-  const canClear =
-    !batch.started && !batch.tasks.some((t) => t.status === "running");
-  const mainLabel = !batch.started
-    ? batch.resumable
-      ? "继续"
-      : "开始翻译"
-    : batch.paused
-      ? "继续"
-      : "暂停";
-  const status = batch.tasks.some((t) => t.status === "running")
-    ? "running"
-    : batch.tasks.some((t) => t.status === "failed")
-      ? "error"
-      : "idle";
-  const statusColor = { idle: "#94a3b8", running: "#38bdf8", error: "#f87171" }[
-    status
-  ];
-  const activeTheme = theme === "system" ? { ...THEMES.system, color: systemAccent } : THEMES[theme];
-  const systemRgb = systemAccent.map((channel) => Math.round(Math.max(0, Math.min(1, channel)) * 255));
-  const systemThemeStyle = theme === "system" ? {
-    "--accent": `rgb(${systemRgb.join(" ")})`,
-    "--accent-strong": `color-mix(in srgb, rgb(${systemRgb.join(" ")}) 72%, white)`,
-    "--accent-soft": `rgb(${systemRgb.join(" ")} / 0.30)`,
-  } : undefined;
+    const provider = engineProvider(engine, config);
+    try {
+      await api("/api/batch/add", { method: "POST", body: JSON.stringify({ files: paths }) });
+      await api("/api/batch/start", {
+        method: "POST",
+        body: JSON.stringify({
+          output_dir: config.output_dir,
+          translation_mode: modeKey(sourceLang, targetLang),
+          translate_blocks: params.attribs,
+          output_format: "source",
+          deepl_key: config.deepl_key,
+          provider,
+          azure_key: config.azure_key,
+          azure_region: config.azure_region,
+        }),
+      });
+      setTab("export");
+      setStatus("批量导出已开始。");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function checkUpdates() {
+    setUpdateMsg("正在检查…");
+    try {
+      const data = await api("/api/updates/check");
+      if (data.available) {
+        setUpdateMsg(`有新版本 ${data.latest}（当前 ${data.current}）`);
+        const native = py();
+        if (native?.open_url && data.html_url) native.open_url(data.html_url);
+        else if (data.html_url) window.open(data.html_url, "_blank");
+      } else {
+        setUpdateMsg(data.message || `已是 ${data.current}`);
+      }
+    } catch (error) {
+      setUpdateMsg(error.message);
+    }
+  }
+
+  async function loadGlossary() {
+    const native = py();
+    if (native?.pick_term_package) {
+      const picked = await native.pick_term_package();
+      if (picked?.path) {
+        try {
+          await api("/api/language-assets/project", {
+            method: "POST",
+            body: JSON.stringify({ path: picked.path, create: false }),
+          });
+          await refreshMeta();
+          setStatus("已加载术语表。");
+        } catch (error) {
+          setStatus(error.message);
+        }
+      }
+    } else {
+      setSheet(true);
+    }
+  }
+
+  function onLights(kind) {
+    const native = py();
+    if (kind === "close") native?.close_window?.();
+    if (kind === "min") native?.minimize_window?.();
+    if (kind === "max") native?.toggle_maximize?.();
+  }
+
   return (
-    <div className={`app-shell theme-${theme}`} style={systemThemeStyle}>
-      <Iridescence
-        color={activeTheme.color}
-        speed={0.85}
-        amplitude={0.14}
-        mouseReact
-      />
-      <div className="bg-vignette" />
-      <div className="bg-noise" />
-      {showAssets && (
-        <div className="support-overlay" onClick={() => setShowAssets(false)}>
-          <div className="asset-card" onClick={(event) => event.stopPropagation()}>
-            <button className="support-close" onClick={() => setShowAssets(false)}>×</button>
-            <h2>语言资产</h2>
-            <div className="asset-tabs">
-              <button className={assetTab === "terms" ? "active" : ""} onClick={() => setAssetTab("terms")}>术语表</button>
-              <button className={assetTab === "builtins" ? "active" : ""} onClick={() => setAssetTab("builtins")}>内置术语</button>
-              <button className={assetTab === "memory" ? "active" : ""} onClick={() => setAssetTab("memory")}>翻译记忆</button>
-              <button className={assetTab === "usage" ? "active" : ""} onClick={() => { setAssetTab("usage"); api("/api/language-assets/usage", { method: "POST", body: JSON.stringify({ deepl_key: deeplKey }) }).then((result) => setAssets((old) => ({ ...old, usage: result.local, deepl_remote: result.deepl_remote }))).catch((error) => setLogs((p) => [...p, `ERROR: ${error.message}`])); }}>服务用量</button>
-            </div>
-            {assetTab === "terms" && <>
-              <div className="asset-project">
-                <input value={projectPackagePath} onChange={(event) => setProjectPackagePath(event.target.value)} placeholder="项目术语包 .hcterms.json" />
-                <button className="btn ghost" onClick={() => chooseProjectPackage(false).catch((error) => setLogs((p) => [...p, `ERROR: ${error.message}`]))}>选择</button>
-                <button className="btn ghost" onClick={() => chooseProjectPackage(true).catch((error) => setLogs((p) => [...p, `ERROR: ${error.message}`]))}>新建</button>
-              </div>
-              <div className="asset-form">
-                <select value={termForm.scope} onChange={(event) => setTermForm((form) => ({ ...form, scope: event.target.value, id: null }))}><option value="global">我的术语</option><option value="project">项目术语</option></select>
-                <select value={termForm.mode} onChange={(event) => setTermForm((form) => ({ ...form, mode: event.target.value }))}>{modes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-                <input value={termForm.source} onChange={(event) => setTermForm((form) => ({ ...form, source: event.target.value }))} placeholder="原文（完整匹配）" />
-                <input value={termForm.target} onChange={(event) => setTermForm((form) => ({ ...form, target: event.target.value }))} placeholder="译文" />
-                <input value={termForm.layer_contains} onChange={(event) => setTermForm((form) => ({ ...form, layer_contains: event.target.value }))} placeholder="图层包含（可选）" />
-                <button className="btn primary" onClick={() => saveTerm().catch((error) => setLogs((p) => [...p, `ERROR: ${error.message}`]))}>{termForm.id === null ? "添加术语" : "保存术语"}</button>
-              </div>
-              <input className="asset-search" value={assetSearch} onChange={(event) => setAssetSearch(event.target.value)} placeholder="搜索术语" />
-              <div className="asset-list">
-                {assets.terms.filter((term) => `${term.source} ${term.target}`.toLowerCase().includes(assetSearch.toLowerCase())).map((term) => <div className="asset-row" key={`${term.scope}-${term.id}`}><div><b>{term.source}</b> → {term.target}<small>{term.scope === "project" ? "项目术语" : "我的术语"} · {term.mode}{term.layer_contains ? ` · 图层:${term.layer_contains}` : ""}</small></div><button className="btn ghost" onClick={() => setTermForm({ ...term })}>编辑</button><button className="btn ghost" onClick={() => api("/api/language-assets/terms/delete", { method: "POST", body: JSON.stringify({ scope: term.scope, id: term.id, project_package_path: projectPackagePath }) }).then(refreshAssets).catch((error) => setLogs((p) => [...p, `ERROR: ${error.message}`]))}>删除</button></div>)}
-              </div>
-            </>}
-            {assetTab === "builtins" && <>
-              <p className="hint">以下为随软件发布的四个 YAML 术语表，只读且始终参与翻译。复制后可在“术语表”中改为项目或我的覆盖词。</p>
-              <input className="asset-search" value={assetSearch} onChange={(event) => setAssetSearch(event.target.value)} placeholder="搜索内置术语" />
-              <div className="asset-list">
-                {assets.builtin_terms.filter((term) => `${term.source} ${term.target}`.toLowerCase().includes(assetSearch.toLowerCase())).map((term) => <div className="asset-row" key={term.id}><div><b>{term.source}</b> → {term.target}<small>内置术语 · {term.mode}</small></div><button className="btn ghost" onClick={() => { setTermForm({ scope: "global", mode: term.mode, source: term.source, target: term.target, layer_contains: "", id: null }); setAssetTab("terms"); }}>复制到我的术语</button><button className="btn ghost" onClick={() => { setTermForm({ scope: "project", mode: term.mode, source: term.source, target: term.target, layer_contains: "", id: null }); setAssetTab("terms"); }}>复制到项目</button></div>)}
-              </div>
-            </>}
-            {assetTab === "memory" && <>
-              <div className="asset-form">
-                <select value={memoryForm.mode} onChange={(event) => setMemoryForm((form) => ({ ...form, mode: event.target.value }))}>{modes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-                <input value={memoryForm.source} onChange={(event) => setMemoryForm((form) => ({ ...form, source: event.target.value }))} placeholder="原文" />
-                <input value={memoryForm.target} onChange={(event) => setMemoryForm((form) => ({ ...form, target: event.target.value }))} placeholder="译文" />
-                <input value={memoryForm.layer_contains} onChange={(event) => setMemoryForm((form) => ({ ...form, layer_contains: event.target.value }))} placeholder="精确图层（可选）" />
-                <button className="btn primary" onClick={() => saveMemory().catch((error) => setLogs((p) => [...p, `ERROR: ${error.message}`]))}>{memoryForm.id === null ? "添加记忆" : "保存记忆"}</button>
-              </div>
-              <div className="asset-list">
-                {assets.memory.map((entry) => <div className="asset-row" key={entry.id}><div><b>{entry.source}</b> → {entry.target}<small>{entry.mode} · {entry.origin === "manual" ? "人工" : entry.provider} · 命中 {entry.hit_count} 次</small></div><button className="btn ghost" onClick={() => setMemoryForm({ mode: entry.mode, source: entry.source, target: entry.target, layer_contains: entry.layer_key, id: entry.id })}>编辑</button><button className="btn ghost" onClick={() => { setTermForm({ scope: "global", mode: entry.mode, source: entry.source, target: entry.target, layer_contains: entry.layer_key, id: null }); setAssetTab("terms"); }}>升为术语</button><button className="btn ghost" onClick={() => api("/api/language-assets/memory/delete", { method: "POST", body: JSON.stringify({ id: entry.id }) }).then(refreshAssets).catch((error) => setLogs((p) => [...p, `ERROR: ${error.message}`]))}>删除</button></div>)}
-              </div>
-            </>}
-            {assetTab === "usage" && <div className="usage-grid">
-              <section><h3>DeepL</h3>{assets.deepl_remote?.available ? <p>{assets.deepl_remote.characters.toLocaleString()} / {assets.deepl_remote.limit.toLocaleString()} 字符</p> : <p>{assets.deepl_remote?.message || "点击此页自动读取"}</p>}<small>本软件本月：{(assets.usage?.deepl?.characters || 0).toLocaleString()} 字符，{assets.usage?.deepl?.requests || 0} 次请求</small></section>
-              <section><h3>Azure Translator F0</h3><p>{(assets.usage?.azure?.characters || 0).toLocaleString()} / {(assets.usage?.azure?.limit || 2000000).toLocaleString()} 字符</p><small>估算剩余 {(assets.usage?.azure?.remaining || 2000000).toLocaleString()}；{assets.usage?.azure?.requests || 0} 次请求{assets.usage?.azure?.quota_exceeded ? "；已收到额度超额信号" : ""}</small></section>
-              <p className="hint">Azure 为本软件本机发送字符统计；DeepL 数值来自当前 Key 的官方用量接口。</p>
-            </div>}
-          </div>
+    <div className="win" data-theme="light">
+      <header className="tb pywebview-drag-region">
+        <div className="lights" aria-hidden="true">
+          <i className="r" onClick={() => onLights("close")} />
+          <i className="y" onClick={() => onLights("min")} />
+          <i className="g" onClick={() => onLights("max")} />
         </div>
-      )}
-      {showSupport && (
-        <div className="support-overlay" onClick={closeSupport}>
-          <div className="support-card" onClick={(event) => event.stopPropagation()}>
-            <button className="support-close" onClick={closeSupport}>×</button>
-            <h2>{support.licensing_enabled ? "购买许可" : "赞助作者"}</h2>
-            {support.licensing_enabled ? (
-              <>
-                <p>{license.message || "正在校验授权…"}</p>
-                {license.expires_on && <p>到期日：{license.expires_on}</p>}
-                {license.plan && <p>套餐：{license.plan}</p>}
-                <input value={activationCode} onChange={(event) => setActivationCode(event.target.value)} placeholder="输入激活码，可用于续期" />
-                <button className="btn primary" disabled={license.checking || !activationCode.trim()} onClick={activate}>激活软件</button>
-                {activationError && <small>{activationError}</small>}
-              </>
-            ) : support.wechat_qr_url || support.alipay_qr_url ? (
-              <div className="support-qrs">
-                {support.wechat_qr_url && <figure><img src="/api/support/qrcode/wechat" alt="微信收款码" /><figcaption>微信收款码</figcaption></figure>}
-                {support.alipay_qr_url && <figure><img src="/api/support/qrcode/alipay" alt="支付宝商家收款码" /><figcaption>支付宝商家收款码</figcaption></figure>}
-              </div>
-            ) : <p>请在 <code>backend/licensing.py</code> 配置两个外部收款码链接。</p>}
-          </div>
+        <div className="brand">图译</div>
+        <div className="seg" role="tablist">
+          <button type="button" className={tab === "regular" ? "on" : ""} onClick={() => setTab("regular")}>常规处理</button>
+          <button type="button" className={tab === "export" ? "on" : ""} onClick={() => setTab("export")}>批量导出</button>
+          <button type="button" className={tab === "import" ? "on" : ""} onClick={() => setTab("import")}>批量导入</button>
         </div>
-      )}
-      {support.licensing_enabled && license.checking && (
-        <div className="license-overlay">
-          <div className="license-card">
-            <h2>正在校验授权</h2>
-            <p>正在联网同步时间…</p>
-          </div>
+        <div className="pair">
+          <select aria-label="源语言" value={sourceLang} onChange={(event) => setSourceLang(event.target.value)}>
+            {LANGS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          </select>
+          →
+          <select aria-label="目标语言" value={targetLang} onChange={(event) => setTargetLang(event.target.value)}>
+            {LANGS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          </select>
         </div>
-      )}
-      <motion.header
-        className="glass topbar"
-        initial={{ y: -28, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-      >
-        <div className="topbar-inner pywebview-drag-region">
-          <div className="brand">
-            <motion.span
-              className="brand-icon"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
-            >
-              ⬡
-            </motion.span>
-            <div className="brand-text">
-              <h1>
-                Honsen CAD <span className="brand-accent">中法英互译</span>
-              </h1>
-            </div>
-          </div>
-          <div className="topbar-spacer" />
-          <button className="support-button" onClick={() => setShowSupport(true)}>
-            {support.licensing_enabled ? "购买许可" : "赞助作者"}
-          </button>
-          <div className="theme-switcher" aria-label="主题切换">
-            {Object.entries(THEMES).map(([name, item]) => (
-              <button type="button" className={`theme-swatch theme-swatch-${name} ${theme === name ? "active" : ""}`} aria-label={`${item.label}主题`} title={`${item.label}主题`} key={name} onClick={() => setTheme(name)} />
-            ))}
-          </div>
-          {pyApi ? (
-            <div className="window-controls">
-              <button
-                className="win-btn"
-                onClick={() => pyApi.minimize_window?.()}
-              >
-                <img src="/icons/minimize.png" alt="" />
-              </button>
-              <button
-                className="win-btn win-btn-close"
-                onClick={() => pyApi.close_window?.()}
-              >
-                <img src="/icons/close.png" alt="" />
-              </button>
-            </div>
-          ) : (
-            <div className="window-controls-spacer" />
-          )}
-        </div>
-      </motion.header>
-      <main className="main-area">
-        <motion.div
-          className="batch-layout"
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-        >
-          <motion.section
-            className={`glass queue-panel${draggingFiles ? " drop-active" : ""}`}
-            variants={itemVariants}
-            onDragEnter={(event) => { event.preventDefault(); setDraggingFiles(true); }}
-            onDragOver={(event) => event.preventDefault()}
-            onDragLeave={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget)) setDraggingFiles(false);
-            }}
-            onDrop={dropFiles}
-          >
-            <div className="panel-head">
-              <div>
-                <h2>翻译队列</h2>
-                <p>
-                  总体进度 {batch.progress}% · {batch.tasks.length} 个文件
-                </p>
-              </div>
-              <div>
-                <button
-                  className="btn secondary"
-                  disabled={!canClear}
-                  onClick={() => action("/api/batch/clear")}
-                >
-                  清空列表
-                </button>
-                <button className="btn primary" onClick={chooseFiles}>
-                  添加文件
-                </button>
-              </div>
-            </div>
-            <div className="progress">
-              <i style={{ width: `${batch.progress}%` }} />
-            </div>
-            <div className="queue-list">
-              <AnimatePresence initial={false}>
-                {batch.tasks.map((t) => (
-                  <motion.article
-                    className="queue-item"
-                    key={t.id}
-                    initial={{ opacity: 0, x: -12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 12 }}
-                  >
-                    <div>
-                      <strong>{t.input_file.split(/[\\/]/).pop()}</strong>
-                      <small>
-                        {t.status} · 进度 {t.progress}% · {t.message}
-                      </small>
-                      <div className="task-progress">
-                        <i style={{ width: `${t.progress}%` }} />
-                      </div>
-                      {t.output_file && <small>输出：{t.output_file}</small>}
-                    </div>
-                    <div className="item-actions">
-                      {t.status === "succeeded" && t.output_file && (
-                        <button className="btn ghost" onClick={() => revealOutput(t.output_file)}>
-                          定位文件
-                        </button>
-                      )}
-                      {!["running", "queued", "retrying"].includes(
-                        t.status,
-                      ) && (
-                        <button
-                          className="btn ghost"
-                          onClick={() => action(`/api/batch/${t.id}/retry`)}
-                        >
-                          重翻
-                        </button>
-                      )}
-                      {t.status !== "running" && (
-                        <button
-                          className="btn ghost"
-                          onClick={() => action(`/api/batch/${t.id}/remove`)}
-                        >
-                          移除
-                        </button>
-                      )}
-                    </div>
-                  </motion.article>
-                ))}
-              </AnimatePresence>
-            </div>
-          </motion.section>
-          <motion.section className="glass log-panel" variants={itemVariants}>
-            <div className="log-head">
-              <div>
-                <h2>实时日志</h2>
-                <p className="log-sub">翻译进度与结果输出</p>
-              </div>
-              <div className="log-actions">
-              <button className="btn ghost" onClick={exportLogs}>
-                导出日志
-              </button>
-              <button className="btn ghost" onClick={clearLogs}>
-                清除
-              </button>
-            </div>
-              </div>
-            <div className="log-box" ref={logRef}>
-              {logs.map((line, i) => (
-                <motion.div
-                  className="log-line"
-                  key={`${i}-${line.slice(0, 32)}`}
-                  initial={{ opacity: 0, x: -12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                >
-                  {line}
-                </motion.div>
-              ))}
-              {!logs.length && <p className="log-empty">等待任务...</p>}
-            </div>
-          </motion.section>
-          <motion.aside
-            className="glass settings-panel"
-            variants={itemVariants}
-          >
-            <h2>翻译设置</h2>
-            <Field label="输出目录">
-              <div className="row">
-                <input
-                  readOnly
-                  value={outputDir}
-                  placeholder="选择输出文件夹"
-                />
-                <button className="btn secondary" onClick={chooseOutput}>
-                  浏览
-                </button>
-              </div>
-            </Field>
-            <div className="field">
-              <span>统一翻译方向</span>
-              <div className="mode-group mode-group-grid">
-                {modes.map(([v, label]) => (
-                  <button
-                    className={`chip ${mode === v ? "on" : ""}`}
-                    key={v}
-                    onClick={() => setMode(v)}
-                  >
-                    {mode === v && (
-                      <motion.span layoutId="mode-glow" className="chip-glow" />
-                    )}
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <Field label="输出格式">
-              <SelectMenu
-                value={format}
-                onChange={setFormat}
-                options={[["source", "保持源格式"], ["dxf", "DXF"], ["dwg", "DWG"]]}
-              />
-            </Field>
-            <Field label="输出版本（ODA）">
-              <SelectMenu
-                value={version}
-                onChange={setVersion}
-                options={versions}
-              />
-            </Field>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={blocks}
-                onChange={(e) => setBlocks(e.target.checked)}
-              />
-              <span>翻译块定义中的文字（推荐）</span>
+        <div className="pill" role="radiogroup" aria-label="引擎">
+          {[["cloud", "云"], ["local", "本地"], ["custom", "自定义"]].map(([value, label]) => (
+            <label key={value}>
+              <input type="radio" name="eng" checked={engine === value} onChange={() => setEngine(value)} />
+              {label}
             </label>
-            <p className="hint">已开启以覆盖图框、目录和复用图例；关闭后仍会翻译可见表格和标注。</p>
-            <Field label="翻译服务">
-              <SelectMenu
-                value={provider}
-                onChange={setProvider}
-                options={[["deepl", "DeepL"], ["azure", "Azure Translator（F0）"]]}
-              />
-            </Field>
-            <div className="asset-actions">
-              <button className="btn secondary" onClick={() => openAssets("terms")}>术语与记忆</button>
-              <button className="btn secondary" onClick={() => openAssets("usage")}>服务用量</button>
+          ))}
+        </div>
+        <span className="grow" />
+        <button type="button" className="tbtn" onClick={openDrawings}>打开图纸</button>
+        <button type="button" className="tbtn" onClick={loadGlossary}>加载术语表</button>
+        <button type="button" className={`tbtn${sheet ? " pri" : ""}`} onClick={() => setSheet(true)}>参数</button>
+        {tab === "export" ? (
+          <button type="button" className="tbtn pri" disabled={busy} onClick={startExport}>开始导出</button>
+        ) : (
+          <>
+            <button type="button" className="tbtn pri" disabled={busy} onClick={runTranslate}>翻译</button>
+            <button type="button" className="tbtn" disabled={busy} onClick={runTranslate}>写回</button>
+          </>
+        )}
+      </header>
+
+      <div className="body">
+        <aside className="side">
+          <h2>{tab === "export" ? `待导出 · ${files.length}` : "已打开"}</h2>
+          {files.map((file) => (
+            <div
+              key={file.path}
+              className={`item${file.path === current ? " on" : ""}`}
+              onClick={() => {
+                setCurrent(file.path);
+                if (tab === "regular") extractFile(file.path);
+              }}
+            >
+              <span className={`dot${file.ext === "DXF" ? " dxf" : ""}`} />
+              {file.name}
+              <span className="meta">{file.path === current ? "当前" : file.ext}</span>
             </div>
-            {provider === "azure" ? (
-              <>
-                <Field label="Azure Translator Key">
-                  <input type="password" value={azureKey} onChange={(e) => setAzureKey(e.target.value)} placeholder="输入 Azure Translator Key" />
-                </Field>
-                <Field label="Azure Region（可选）">
-                  <input value={azureRegion} onChange={(e) => setAzureRegion(e.target.value)} placeholder="全局资源留空；区域资源如 eastus" />
-                </Field>
-                <p className="hint">F0 免费额度用尽后将停止请求，等待下月额度重置。</p>
-              </>
-            ) : (
-              <Field label="DeepL API Key">
-                <input type="password" value={deeplKey} onChange={(e) => setDeeplKey(e.target.value)} placeholder="输入 DeepL API Key" />
-              </Field>
-            )}
-            <div className="queue-controls">
-              <button
-                className="btn primary"
-                disabled={!batch.started && !canStart}
-                onClick={toggle}
-              >
-                {mainLabel}
-              </button>
-              <button
-                className="btn secondary"
-                disabled={!batch.started}
-                onClick={() => action("/api/batch/stop")}
-              >
-                停止
-              </button>
+          ))}
+          <p className="hint">{tab === "export" ? "批量时全部去重，并还原目录结构。" : "点工具栏「打开图纸」，或先提取再译。"}</p>
+        </aside>
+
+        {tab === "regular" && (
+          <section className="main">
+            <div className="filters">
+              过滤
+              <label><input type="checkbox" checked={filters.numbers} onChange={(event) => setFilters((prev) => ({ ...prev, numbers: event.target.checked }))} /> 纯数字</label>
+              <label><input type="checkbox" checked={filters.dupes} onChange={(event) => setFilters((prev) => ({ ...prev, dupes: event.target.checked }))} /> 重复</label>
+              <label><input type="checkbox" checked={filters.nonsource} onChange={(event) => setFilters((prev) => ({ ...prev, nonsource: event.target.checked }))} /> 非源语言</label>
+              <span style={{ marginLeft: "auto" }}>
+                版式
+                <select value={layout} onChange={(event) => setLayout(event.target.value)} aria-label="导出版式" style={{ height: 24, border: 0, background: "rgba(118,118,128,.12)", borderRadius: 6, padding: "0 8px", font: "600 12px -apple-system,system-ui,sans-serif", color: "inherit", marginLeft: 6 }}>
+                  <option>纯译文</option>
+                  <option>原译对照</option>
+                  <option>译原对照</option>
+                </select>
+              </span>
             </div>
-          </motion.aside>
-        </motion.div>
-      </main>
-      <motion.footer className="glass statusbar">
-        <motion.span
-          className="status-dot"
-          animate={{ backgroundColor: statusColor }}
-        />
-        <span>
-          {batch.paused
-            ? "队列已暂停"
-            : status === "running"
-              ? "翻译队列运行中"
-              : "就绪"}
+            <div className="table">
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width: 36 }}><input type="checkbox" defaultChecked aria-label="全选" /></th>
+                    <th>原文</th>
+                    <th>译文</th>
+                    <th>图层 / 类型</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRows.map((row, index) => (
+                    <tr key={row.id} className={index === 0 ? "on" : row.duplicate ? "skip" : ""}>
+                      <td><input type="checkbox" defaultChecked={!row.duplicate} /></td>
+                      <td className="src">{row.source}</td>
+                      <td>
+                        <input
+                          value={row.target}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setRows((prev) => prev.map((item) => (item.id === row.id ? { ...item, target: value } : item)));
+                          }}
+                          style={{ width: "100%", border: 0, background: "transparent", color: "inherit", font: "inherit" }}
+                        />
+                      </td>
+                      <td className="kind">{row.layer} · {row.type}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {tab === "export" && (
+          <>
+            <div className="jobs">
+              {(batch.tasks || []).length === 0 && files.map((file) => (
+                <div className="job" key={file.path}>
+                  <span>{file.name}</span>
+                  <span>{layout}</span>
+                  <span className="bar"><i style={{ width: 0 }} /></span>
+                  <span>待导出</span>
+                </div>
+              ))}
+              {(batch.tasks || []).map((task) => (
+                <div className="job" key={task.id}>
+                  <span>{(task.input_file || "").split(/[/\\]/).pop()}</span>
+                  <span>{layout}</span>
+                  <span className="bar"><i style={{ width: `${task.progress || 0}%` }} /></span>
+                  <span>{task.status}</span>
+                </div>
+              ))}
+            </div>
+            <aside className="insp">
+              <h3>导出版式</h3>
+              {["纯译文", "原译对照", "译原对照"].map((name) => (
+                <label className="row" key={name}>
+                  <input type="radio" name="lay" checked={layout === name} onChange={() => setLayout(name)} /> {name}
+                </label>
+              ))}
+              <h3>输出位置</h3>
+              <div className="path">
+                <input value={config.output_dir || ""} readOnly />
+                <button type="button" onClick={async () => {
+                  const picked = await py()?.pick_output_dir?.();
+                  if (picked?.path) {
+                    await api("/api/config", { method: "POST", body: JSON.stringify({ ...config, output_dir: picked.path }) });
+                    setConfig((prev) => ({ ...prev, output_dir: picked.path }));
+                  }
+                }}>选取</button>
+              </div>
+              <h3>过滤</h3>
+              <label className="row"><input type="checkbox" checked={filters.numbers} onChange={(event) => setFilters((prev) => ({ ...prev, numbers: event.target.checked }))} /> 纯数字</label>
+              <label className="row"><input type="checkbox" checked={filters.dupes} onChange={(event) => setFilters((prev) => ({ ...prev, dupes: event.target.checked }))} /> 重复</label>
+              <label className="row"><input type="checkbox" checked={filters.nonsource} onChange={(event) => setFilters((prev) => ({ ...prev, nonsource: event.target.checked }))} /> 非源语言</label>
+            </aside>
+          </>
+        )}
+
+        {tab === "import" && (
+          <section className="main">
+            <div className="filters">批量导入：把译好的表格写回图纸（v0.1 先走「写回」）。</div>
+            <div className="table" style={{ padding: 24, color: "var(--muted)" }}>
+              打开图纸后用常规处理或批量导出。人工 Excel 回填放在后续版本。
+            </div>
+          </section>
+        )}
+
+        {sheet && (
+          <>
+            <div className="dim" onClick={() => setSheet(false)} />
+            <div className="sheet" role="dialog" aria-label="参数">
+              <div className="sheet-h">
+                <span>参数</span>
+                <button type="button" className="done" onClick={() => setSheet(false)}>完成</button>
+              </div>
+              <div className="sheet-b">
+                <div className="group">
+                  <h4>导入范围</h4>
+                  <label><input type="checkbox" checked={params.attribs} onChange={(event) => setParams((prev) => ({ ...prev, attribs: event.target.checked }))} /> 块属性</label>
+                  <label><input type="checkbox" checked={params.dims} disabled onChange={(event) => setParams((prev) => ({ ...prev, dims: event.target.checked }))} /> 标注（v0.2）</label>
+                  <label><input type="checkbox" checked={params.model} onChange={(event) => setParams((prev) => ({ ...prev, model: event.target.checked }))} /> 模型空间</label>
+                  <label><input type="checkbox" checked={params.paper} onChange={(event) => setParams((prev) => ({ ...prev, paper: event.target.checked }))} /> 图纸空间</label>
+                </div>
+                <div className="group">
+                  <h4>图层</h4>
+                  <label><input type="checkbox" checked={params.frozen} onChange={(event) => setParams((prev) => ({ ...prev, frozen: event.target.checked }))} /> 冻结图层中的文字</label>
+                  <label><input type="checkbox" checked={params.locked} onChange={(event) => setParams((prev) => ({ ...prev, locked: event.target.checked }))} /> 锁定图层中的文字</label>
+                  <label><input type="checkbox" checked={params.off} onChange={(event) => setParams((prev) => ({ ...prev, off: event.target.checked }))} /> 关闭图层中的文字</label>
+                </div>
+                <div className="group">
+                  <h4>过滤</h4>
+                  <label><input type="checkbox" checked={filters.numbers} onChange={(event) => setFilters((prev) => ({ ...prev, numbers: event.target.checked }))} /> 纯数字、符号</label>
+                  <label><input type="checkbox" checked={filters.dupes} onChange={(event) => setFilters((prev) => ({ ...prev, dupes: event.target.checked }))} /> 重复内容</label>
+                  <label><input type="checkbox" checked={filters.nonsource} onChange={(event) => setFilters((prev) => ({ ...prev, nonsource: event.target.checked }))} /> 非源语言</label>
+                </div>
+                <div className="group">
+                  <h4>导出版式</h4>
+                  {["纯译文", "原译对照", "译原对照"].map((name) => (
+                    <label key={name}><input type="radio" name="sheet-lay" checked={layout === name} onChange={() => setLayout(name)} /> {name}</label>
+                  ))}
+                </div>
+                <div className="group">
+                  <h4>引擎 · 语言</h4>
+                  <label><input type="radio" name="sheet-eng" checked={engine === "cloud"} onChange={() => setEngine("cloud")} /> 云</label>
+                  <label><input type="radio" name="sheet-eng" checked={engine === "local"} onChange={() => setEngine("local")} /> 本地</label>
+                  <label><input type="radio" name="sheet-eng" checked={engine === "custom"} onChange={() => setEngine("custom")} /> 自定义</label>
+                  <p className="note">语言　中 → 英（工具栏可改）<br />云目前走 DeepL / Azure Key。</p>
+                  <label>DeepL <input value={config.deepl_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, deepl_key: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                  <label>Azure <input value={config.azure_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_key: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                  <button type="button" className="tbtn" onClick={async () => {
+                    await api("/api/config", { method: "POST", body: JSON.stringify(config) });
+                    setStatus("已保存密钥。");
+                  }}>保存密钥</button>
+                </div>
+                <div className="group">
+                  <h4>ODA · 术语表 · 更新</h4>
+                  <p className="note">
+                    {oda.installed ? `已检测到 ${oda.path}` : "未装 ODA，DWG 请另存 DXF。"}
+                    <br />术语表 {glossary} 条。
+                  </p>
+                  <button type="button" className="tbtn" onClick={checkUpdates}>检查更新</button>
+                  {updateMsg && <p className="note">{updateMsg}</p>}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <footer className="foot">
+        <span className="live">{oda.installed ? "ODA 已安装" : "ODA 未安装 · DXF 仍可译"}</span>
+        <span>术语表 <b>{glossary}</b></span>
+        <span>去重前 <b>{rows.length}</b></span>
+        <span>去重后 <b>{visibleRows.length}</b></span>
+        <span>{status}</span>
+        <span style={{ marginLeft: "auto" }}>
+          <button type="button" className="tbtn" onClick={checkUpdates}>检查更新</button>
         </span>
-        <span className="footer-meta">v1.8.8 · <a href="https://github.com/etianwang" target="_blank" rel="noreferrer">Etienne</a></span>
-      </motion.footer>
+      </footer>
     </div>
   );
 }

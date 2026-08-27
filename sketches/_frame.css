@@ -53,11 +53,10 @@
 * { box-sizing: border-box; }
 
 html,
-body,
-#root {
+body {
   margin: 0;
-  width: 100%;
-  height: 100%;
+  width: 1280px;
+  height: 800px;
   overflow: hidden;
   font-family: -apple-system, "SF Pro Text", "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
   font-size: 13px;
@@ -80,8 +79,8 @@ body,
 }
 
 .win {
-  width: 100%;
-  height: 100%;
+  width: 1280px;
+  height: 800px;
   display: flex;
   flex-direction: column;
   background: var(--win);
@@ -99,12 +98,6 @@ body,
   backdrop-filter: blur(22px) saturate(160%);
   border-bottom: 0.5px solid var(--hair-strong);
 }
-.tb button,
-.tb select,
-.tb label,
-.lights {
-  -webkit-app-region: no-drag;
-}
 
 .lights {
   display: flex;
@@ -120,7 +113,6 @@ body,
   border-radius: 50%;
   display: block;
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18);
-  cursor: default;
 }
 .lights .r { background: var(--red); }
 .lights .y { background: var(--yel); }

@@ -162,16 +162,6 @@ with tempfile.TemporaryDirectory() as tmp:
     TranslationService.export_logs(log_service, str(log_path))
     assert log_path.read_text(encoding="utf-8-sig") == "second log\nthird log"
 
-    original_cache_dir, original_download = web_api.QR_CACHE_DIR, web_api._download_qr
-    try:
-        web_api.QR_CACHE_DIR = Path(tmp) / "qr-cache"
-        web_api._download_qr = lambda _: b"qr-binary"
-        web_api.preload_support_qrcodes()
-        assert (web_api.QR_CACHE_DIR / "wechat.bin").read_bytes() == b"qr-binary"
-        assert not list(web_api.QR_CACHE_DIR.glob("*.jpg"))
-    finally:
-        web_api.QR_CACHE_DIR, web_api._download_qr = original_cache_dir, original_download
-
     # Task status becomes terminal immediately before its final durable state save.
     # Keep the temporary test directory alive until those daemon workers exit.
     time.sleep(.2)

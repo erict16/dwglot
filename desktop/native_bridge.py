@@ -55,18 +55,33 @@ class NativeBridge:
         path = str(paths[0]) if paths else ""
         return {"path": path or ""}
 
+    def open_url(self, url: str) -> dict:
+        if not url or not url.startswith(("https://", "http://")):
+            return {"error": "无效链接"}
+        if sys.platform == "darwin":
+            subprocess.Popen(["open", url])
+        elif sys.platform == "win32":
+            os.startfile(url)  # type: ignore[attr-defined]
+        else:
+            subprocess.Popen(["xdg-open", url])
+        return {"ok": True}
+
+    def toggle_maximize(self) -> None:
+        if webview.windows:
+            webview.windows[0].toggle_fullscreen()
+
     def pick_term_package(self) -> dict:
-        paths = self._open_dialog(file_types=("Honsen term package (*.hcterms.json)", "JSON files (*.json)"))
+        paths = self._open_dialog(file_types=("图译术语包 (*.hcterms.json)", "JSON files (*.json)"))
         path = paths[0] if paths else ""
         return {"path": path or ""}
 
     def save_term_package(self) -> dict:
-        path = self._save_dialog("项目术语.hcterms.json", ("Honsen term package (*.hcterms.json)",))
+        path = self._save_dialog("项目术语.hcterms.json", ("图译术语包 (*.hcterms.json)",))
         return {"path": path or ""}
 
     def export_logs(self) -> dict:
         path = self._save_dialog(
-            f"Honsen_CAD_Translator_log_{datetime.now():%Y%m%d_%H%M%S}.txt",
+            f"Dwglot_log_{datetime.now():%Y%m%d_%H%M%S}.txt",
             ("Text files (*.txt)",),
         )
         if not path:

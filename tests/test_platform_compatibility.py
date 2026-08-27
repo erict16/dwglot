@@ -68,12 +68,12 @@ class PlatformCompatibilityTests(unittest.TestCase):
         popen.assert_called_once_with(["open", "-R", os.path.normpath(output.name)])
 
     def test_macos_default_output_is_in_documents(self):
-        with tempfile.TemporaryDirectory() as home, patch("backend.api.sys.platform", "darwin"), patch("backend.api.Path.home", return_value=Path(home)):
+        with tempfile.TemporaryDirectory() as home, patch("backend.api.sys.platform", "darwin"), patch("backend.api.Path.home", return_value=Path(home)), patch("backend.app_meta.Path.home", return_value=Path(home)):
             self.assertEqual(
                 TranslationService.default_output_dir(),
-                str(Path(home) / "Documents" / "Honsen CAD output"),
+                str(Path(home) / "Documents" / "Dwglot output"),
             )
-            self.assertTrue((Path(home) / "Documents" / "Honsen CAD output").is_dir())
+            self.assertTrue((Path(home) / "Documents" / "Dwglot output").is_dir())
 
     def test_macos_system_theme_uses_control_accent_colour(self):
         color = SimpleNamespace(

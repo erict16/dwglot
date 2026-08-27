@@ -12,9 +12,10 @@ import uvicorn
 
 from desktop.native_bridge import NativeBridge
 from backend.api import API_PORT, FRONTEND_DIST, app, service
+from backend.app_meta import APP_TITLE, APP_VERSION
 from backend.cad import unmount_embedded_odafc
 
-TITLE = "Honsen CAD 中法英互译工具 v1.8.8"
+TITLE = f"{APP_TITLE} v{APP_VERSION}"
 _INSTANCE_MUTEX = None
 
 
@@ -32,7 +33,7 @@ def _acquire_single_instance() -> bool:
 
         global _INSTANCE_MUTEX
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        _INSTANCE_MUTEX = kernel32.CreateMutexW(None, False, "Local\\HonsenCADTranslator")
+        _INSTANCE_MUTEX = kernel32.CreateMutexW(None, False, "Local\\Dwglot")
         return ctypes.get_last_error() != 183  # ERROR_ALREADY_EXISTS
     except Exception:
         return True
@@ -79,7 +80,7 @@ def _enable_windows_acrylic():
 
 def run_web_app():
     if not _acquire_single_instance():
-        print("Honsen CAD Translator is already running.")
+        print("图译已在运行。")
         return
     if not FRONTEND_DIST.exists():
         print("未找到 frontend/dist，请先构建 React 界面：")
@@ -104,18 +105,17 @@ def run_web_app():
     webview.settings["DRAG_REGION_DIRECT_TARGET_ONLY"] = True
 
     bridge = NativeBridge()
-    transparent = os.environ.get("CAD_UI_OPAQUE", "").lower() not in ("1", "true", "yes")
 
     window = webview.create_window(
         TITLE,
         url,
         js_api=bridge,
-        width=1000,
-        height=840,
-        min_size=(860, 680),
+        width=1280,
+        height=800,
+        min_size=(1024, 680),
         resizable=True,
-        transparent=transparent,
-        background_color="#000000" if transparent else "#070b14",
+        transparent=False,
+        background_color="#e8e8ed",
         frameless=True,
         easy_drag=False,
         shadow=True,
