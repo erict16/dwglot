@@ -253,21 +253,30 @@ class TranslationService:
                 shutil.rmtree(candidate)
 
     def _run_batch(self, task: dict, log, resume_event, cancel_event) -> str:
+        path = task.get("input_file") or ""
+        problem = batch_path_problem(path)
+        if problem:
+            raise _fatal_batch_error(problem)
+        if task.get("output_format") == "dwg" and not odafc_available():
+            raise _fatal_batch_error(dwg_unavailable_short())
         provider = task.get("provider", "deepl")
         config = self.load_config()
         engine = self._engine_from(config, task)
         if provider != "ollama" and not self._engine_ready(provider, engine):
-            raise RuntimeError(self._engine_missing_message(provider))
+            raise _fatal_batch_error(self._engine_missing_message(provider))
         fmt = task.get("output_format", "source")
-        ext = os.path.splitext(task["input_file"])[1] if fmt == "source" else f".{fmt}"
-        name = f"{output_prefix(task['translation_mode'])}_{Path(task['input_file']).stem}"
+        ext = os.path.splitext(path)[1] if fmt == "source" else f".{fmt}"
+        name = f"{output_prefix(task['translation_mode'])}_{Path(path).stem}"
         output = self.reserve_output(task, name, ext)
         translator = CADChineseTranslator(log_callback=log)
         translator.configure_language_assets(task.get("project_package_path") or config.get("project_package_path", ""))
         translator.configure_engine(provider, **engine)
         if not translator.has_mt():
-            raise RuntimeError(self._engine_missing_message(provider))
-        translator.translate_cad_file(task["input_file"], output, task["translation_mode"], task["translate_blocks"], fmt, task.get("output_version", ""), resume_event, cancel_event)
+            raise _fatal_batch_error(self._engine_missing_message(provider))
+        try:
+            translator.translate_cad_file(path, output, task["translation_mode"], task["translate_blocks"], fmt, task.get("output_version", ""), resume_event, cancel_event)
+        except FileNotFoundError as exc:
+            raise _fatal_batch_error("图纸不存在") from exc
         return output
 
     @staticmethod
@@ -843,21 +852,48 @@ def clear_logs():
     return {"ok": True}
 
 
+def batch_path_problem(path: str) -> str | None:
+    if not path or not str(path).lower().endswith((".dxf", ".dwg")):
+        return f"无效 CAD 文件: {path or '未命名文件'}"
+    if not os.path.isfile(path):
+        return "图纸不存在"
+    if str(path).lower().endswith(".dwg") and not odafc_available():
+        return dwg_unavailable_short()
+    return None
+
+
+def _fatal_batch_error(message: str) -> RuntimeError:
+    error = RuntimeError(message)
+    error.retryable = False
+    return error
+
+
 @app.post("/api/batch/add")
 def add_batch(body: BatchBody):
     if not body.files:
         raise HTTPException(status_code=400, detail="请选择 CAD 文件")
-    for path in body.files:
-        if not os.path.isfile(path) or not path.lower().endswith((".dxf", ".dwg")):
-            raise HTTPException(status_code=400, detail=f"无效 CAD 文件: {path}")
-    return service.batch.add(body.files)
+    try:
+        for path in body.files:
+            problem = batch_path_problem(path)
+            if problem:
+                raise HTTPException(status_code=400, detail=problem)
+        return service.batch.add(body.files)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc) or "无法加入队列") from exc
 
 
 @app.post("/api/batch/drop")
 async def drop_batch(files: list[UploadFile] = File(...)):
     if not files:
         raise HTTPException(status_code=400, detail="请选择 CAD 文件")
-    return service.batch.add(service.save_dropped_files(files))
+    try:
+        return service.batch.add(service.save_dropped_files(files))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc) or "无法加入队列") from exc
 
 
 @app.post("/api/batch/start")
@@ -877,8 +913,17 @@ def start_batch(body: BatchStartBody):
     engine = service._engine_from(service.load_config(), body.model_dump())
     if not service._engine_ready(body.provider, engine):
         raise HTTPException(status_code=400, detail=service._engine_missing_message(body.provider))
-    for task in service.batch.snapshot()["tasks"]:
-        if task["status"] in {"queued", "retrying", "cancelled", "failed"} and (task["input_file"].lower().endswith(".dwg") or body.output_format == "dwg") and not odafc_available():
+    pending = [
+        task for task in service.batch.snapshot()["tasks"]
+        if task["status"] in {"queued", "retrying", "cancelled", "failed"}
+    ]
+    if not pending:
+        raise HTTPException(status_code=400, detail="请选择 CAD 文件")
+    for task in pending:
+        problem = batch_path_problem(task["input_file"])
+        if problem:
+            raise HTTPException(status_code=400, detail=problem)
+        if body.output_format == "dwg" and not odafc_available():
             raise HTTPException(status_code=400, detail=dwg_unavailable_short())
     service.save_config(
         body.deepl_key,

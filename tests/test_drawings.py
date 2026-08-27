@@ -531,6 +531,18 @@ class RealDwgWithoutOdaTests(unittest.TestCase):
                     )
                 self.assertEqual(opened.status_code, 400, opened.text)
                 self.assertIn("ODA", opened.json()["detail"])
+                added = client.post("/api/batch/add", json={"files": [str(dwg)]})
+                self.assertEqual(added.status_code, 400, added.text)
+                self.assertIn("ODA", added.json()["detail"])
+                self.assertNotIn("Traceback", added.text)
+                with dwg.open("rb") as handle:
+                    dropped = client.post(
+                        "/api/batch/drop",
+                        files={"files": (dwg.name, handle, "application/acad")},
+                    )
+                self.assertEqual(dropped.status_code, 400, dropped.text)
+                self.assertIn("ODA", dropped.json()["detail"])
+                self.assertNotIn("Traceback", dropped.text)
 
     def test_updates_helper_survives_404(self):
         payload = check_github_release()

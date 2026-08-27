@@ -216,21 +216,23 @@ class BatchQueue:
                 task.update(status="succeeded", progress=100, output_file=output, message="成功")
         except Exception as exc:
             retry_delay = None
+            retryable = _retryable(exc)
+            message = _calm_error(exc)
             with self.lock:
                 if cancel_event.is_set():
                     if task["status"] != "cancelled":
                         task.update(status="queued", message="应用关闭，可重新开始")
                     return
-                if not getattr(exc, "retryable", True):
-                    task.update(status="failed", message=str(exc))
+                if not retryable:
+                    task.update(status="failed", message=message)
                 else:
                     task["retries"] += 1
-                if getattr(exc, "retryable", True) and task["retries"] <= 3:
+                if retryable and task["retries"] <= 3:
                     retry_delay = 2 ** task["retries"]
-                    task.update(status="retrying", message=f"失败，{retry_delay} 秒后重试: {exc}")
+                    task.update(status="retrying", message=f"失败，{retry_delay} 秒后重试: {message}")
                     self._save()
-                elif getattr(exc, "retryable", True):
-                    task.update(status="failed", message=str(exc))
+                elif retryable:
+                    task.update(status="failed", message=message)
             if retry_delay:
                 if cancel_event.wait(retry_delay):
                     return
@@ -245,6 +247,28 @@ class BatchQueue:
                     self.started = False
                 self._save()
             self._schedule()
+
+def _retryable(exc: BaseException) -> bool:
+    flagged = getattr(exc, "retryable", None)
+    if flagged is not None:
+        return bool(flagged)
+    if isinstance(exc, (FileNotFoundError, PermissionError, ValueError)):
+        return False
+    text = str(exc)
+    if "ODA" in text or "图纸不存在" in text or "无效 CAD" in text:
+        return False
+    return True
+
+
+def _calm_error(exc: BaseException) -> str:
+    text = str(exc).strip() or exc.__class__.__name__
+    first = text.splitlines()[0].strip()
+    if "Traceback" in text or len(first) > 240:
+        if "ODA" in text:
+            return "未检测到 ODA，无法处理 DWG；请安装 ODA 或将 DWG 另存为 DXF"
+        return first[:240]
+    return first
+
 
 class _NullLock:
     def __enter__(self): return self

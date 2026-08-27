@@ -10,11 +10,13 @@ from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 
+from fastapi.testclient import TestClient
+
 from backend import queue as batch_queue
-from backend import api as web_api
 from backend.providers.azure import AzureFreeQuotaExceededError
 from backend.storage import atomic_output_path
-from backend.api import DROPPED_FILE_RETENTION_SECONDS, SSE_QUEUE_SIZE, TranslationService
+from backend.api import DROPPED_FILE_RETENTION_SECONDS, SSE_QUEUE_SIZE, TranslationService, app, service
+from backend.queue import _calm_error, _retryable
 
 
 class BatchQueueTests(unittest.TestCase):
@@ -169,6 +171,61 @@ class BatchQueueTests(unittest.TestCase):
             # Keep the temporary test directory alive until those daemon workers exit.
             time.sleep(.2)
 
+
+class BatchApiTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self._tasks = list(service.batch.tasks)
+        self._started = service.batch.started
+        service.batch.tasks = []
+        service.batch.started = False
+        self.client = TestClient(app)
+
+    def tearDown(self):
+        service.batch.stop()
+        service.batch.tasks = self._tasks
+        service.batch.started = self._started
+        self.tmp.cleanup()
+
+    def test_add_empty_is_400(self):
+        response = self.client.post("/api/batch/add", json={"files": []})
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn("CAD", response.json()["detail"])
+        self.assertNotIn("Traceback", response.text)
+
+    def test_add_missing_path_is_400(self):
+        response = self.client.post("/api/batch/add", json={"files": [str(Path(self.tmp.name) / "nope.dxf")]})
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn("不存在", response.json()["detail"])
+        self.assertNotIn("Traceback", response.text)
+
+    def test_add_and_drop_dwg_without_oda_is_400(self):
+        dwg = Path(self.tmp.name) / "x.dwg"
+        dwg.write_bytes(b"AC1032" + b"\x00" * 16)
+        added = self.client.post("/api/batch/add", json={"files": [str(dwg)]})
+        self.assertEqual(added.status_code, 400, added.text)
+        self.assertIn("ODA", added.json()["detail"])
+        self.assertNotIn("Traceback", added.text)
+        with dwg.open("rb") as handle:
+            dropped = self.client.post("/api/batch/drop", files={"files": ("x.dwg", handle, "application/acad")})
+        self.assertEqual(dropped.status_code, 400, dropped.text)
+        self.assertIn("ODA", dropped.json()["detail"])
+        self.assertNotIn("Traceback", dropped.text)
+
+    def test_start_empty_is_400(self):
+        response = self.client.post("/api/batch/start", json={"deepl_key": "key", "output_dir": self.tmp.name})
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn("CAD", response.json()["detail"])
+        self.assertNotIn("Traceback", response.text)
+
+    def test_missing_file_and_oda_are_not_retried(self):
+        self.assertFalse(_retryable(FileNotFoundError("图纸不存在")))
+        self.assertFalse(_retryable(RuntimeError("未检测到 ODA，无法处理 DWG；请安装 ODA 或将 DWG 另存为 DXF")))
+        fatal = RuntimeError("请配置 DeepL API Key")
+        fatal.retryable = False
+        self.assertFalse(_retryable(fatal))
+        self.assertTrue(_retryable(OSError("temporary network error")))
+        self.assertNotIn("Traceback", _calm_error(RuntimeError("boom\nTraceback (most recent call last):\n x")))
 
 
 if __name__ == "__main__":
