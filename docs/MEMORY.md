@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: extract / translate / writeback / export-pdf passed English `ValueError`/`RuntimeError` (`layout bbox is invalid`) as 400 body. `_chinese_detail` keeps Chinese (`无法读取`, `文件保存失败`) and falls back (提取失败 / 翻译失败 / 写回失败 / 导出 PDF 失败). `python -m unittest discover -s tests` 142 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/drawings/export-pdf` (and print) unknown exceptions were 500 `导出 PDF 失败: unsupported operand type`. Now 400 `导出 PDF 失败` with no English body. OSError save still 400 `文件保存失败`. `python -m unittest discover -s tests` 141 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/drawings/writeback` unknown exceptions were 500 `写回失败: No space left on device`. Now 400 `写回失败` with no English body. Save fail still 400 `文件保存失败`. `python -m unittest discover -s tests` 140 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/drawings/translate` unknown exceptions were 500 `翻译失败: No space left on device`. Now 400 `翻译失败` with no English body. Provider errors still 400 with their Chinese text. `python -m unittest discover -s tests` 139 ok. Do not edit landing/, README*, docs/icons/.

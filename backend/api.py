@@ -35,6 +35,13 @@ from backend.languages import split_mode
 ENGINE_PROVIDERS = {"deepl", "azure", "openai", "ollama"}
 
 
+def _chinese_detail(exc: BaseException, fallback: str) -> str:
+    text = str(exc).strip().splitlines()[0] if str(exc).strip() else ""
+    if text and "Traceback" not in text and any("\u4e00" <= char <= "\u9fff" for char in text):
+        return text
+    return fallback
+
+
 def _frontend_dist() -> Path:
     bundled = Path(resource_path("frontend/dist"))
     if bundled.is_dir():
@@ -608,9 +615,7 @@ class TranslationService:
                 self.emit_log(str(exc))
                 self.set_status("error", str(exc))
             except Exception as exc:
-                text = str(exc).strip().splitlines()[0] if str(exc).strip() else "翻译失败"
-                if "Traceback" in text or not any("\u4e00" <= char <= "\u9fff" for char in text):
-                    text = "翻译失败"
+                text = _chinese_detail(exc, "翻译失败")
                 self.emit_log(text)
                 self.set_status("error", text)
 
@@ -681,7 +686,7 @@ def drawings_extract(body: ExtractBody):
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (ValueError, RuntimeError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=_chinese_detail(exc, "提取失败")) from exc
     except Exception:
         raise HTTPException(status_code=400, detail="提取失败") from None
 
@@ -705,7 +710,7 @@ def drawings_translate(body: TranslateRowsBody):
             skip_nonsource=body.skip_nonsource,
         )
     except (ValueError, TranslationProviderError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=_chinese_detail(exc, "翻译失败")) from exc
     except Exception:
         raise HTTPException(status_code=400, detail="翻译失败") from None
 
@@ -731,7 +736,7 @@ def drawings_writeback(body: WritebackBody):
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="图纸不存在")
     except (ValueError, RuntimeError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=_chinese_detail(exc, "写回失败")) from exc
     except Exception:
         raise HTTPException(status_code=400, detail="写回失败") from None
 
@@ -752,7 +757,7 @@ def drawings_export_pdf(body: PdfBody):
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (ValueError, RuntimeError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=_chinese_detail(exc, "导出 PDF 失败")) from exc
     except Exception:
         raise HTTPException(status_code=400, detail="导出 PDF 失败") from None
 

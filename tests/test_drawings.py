@@ -1597,6 +1597,59 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertNotIn("unsupported", printed.text)
         self.assertNotIn("Traceback", printed.text)
 
+    def test_english_valueerror_uses_chinese_fallback(self):
+        english = ValueError("layout bbox is invalid")
+        cases = (
+            (
+                "backend.api.extract_preview",
+                "/api/drawings/extract",
+                {"path": str(self.dxf), "translation_mode": "zh_to_en"},
+                "提取失败",
+            ),
+            (
+                "backend.api.translate_rows",
+                "/api/drawings/translate",
+                {
+                    "items": [{"source": "天花图", "type": "TEXT", "layer": "0"}],
+                    "translation_mode": "zh_to_en",
+                    "provider": "deepl",
+                },
+                "翻译失败",
+            ),
+            (
+                "backend.api.writeback_rows",
+                "/api/drawings/writeback",
+                {
+                    "input_file": str(self.dxf),
+                    "items": [{"source": "天花图", "target": "rcp", "selected": True}],
+                    "output_dir": self.tmp.name,
+                    "output_name": "x",
+                },
+                "写回失败",
+            ),
+            (
+                "backend.api.export_pdf",
+                "/api/drawings/export-pdf",
+                {"path": str(self.dxf), "output_dir": self.tmp.name, "output_name": "x.pdf"},
+                "导出 PDF 失败",
+            ),
+        )
+        for target, url, payload, fallback in cases:
+            with self.subTest(url=url), patch(target, side_effect=english):
+                response = self.client.post(url, json=payload)
+                self.assertEqual(response.status_code, 400, response.text)
+                self.assertEqual(response.json()["detail"], fallback)
+                self.assertNotIn("bbox", response.text)
+                self.assertNotIn("Traceback", response.text)
+        with patch("backend.api.extract_preview", side_effect=RuntimeError("layout bbox is invalid")):
+            extracted = self.client.post(
+                "/api/drawings/extract",
+                json={"path": str(self.dxf), "translation_mode": "zh_to_en"},
+            )
+        self.assertEqual(extracted.status_code, 400, extracted.text)
+        self.assertEqual(extracted.json()["detail"], "提取失败")
+        self.assertNotIn("bbox", extracted.text)
+
     def test_extract_digits_only_drawing_is_200(self):
         path = Path(self.tmp.name) / "digits.dxf"
         doc = ezdxf.new("R2010")
