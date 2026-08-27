@@ -2,6 +2,8 @@ context_en_to_zh:
   ceiling: 天花
   suspended ceiling: 吊顶
   reflected ceiling plan: 天花图
+  floor plan: 平面布置图
+  partition location plan: 隔墙定位图
   floor slab: 楼板
   steel plate: 钢板
   wall: 墙

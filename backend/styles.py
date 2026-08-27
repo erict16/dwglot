@@ -30,12 +30,20 @@ BUNDLED_FONT_CANDIDATES = (
 )
 
 
+TTF_SUFFIXES = {".ttf", ".otf", ".ttc"}
+
+
 def looks_like_shx(name: str) -> bool:
     n = (name or "").strip().lower()
     if not n:
-        return True
+        return False
     stem = Path(n).stem.lower()
     return n.endswith(".shx") or stem in SHX_NAMES
+
+
+def looks_like_unicode_font(name: str) -> bool:
+    n = (name or "").strip().lower()
+    return Path(n).suffix.lower() in TTF_SUFFIXES
 
 
 def bundled_font_path() -> Path | None:
@@ -96,7 +104,9 @@ def rewrite_shx_styles(doc, log=None) -> int:
     for style in doc.styles:
         current = getattr(style.dxf, "font", "") or ""
         big = getattr(style.dxf, "bigfont", "") or ""
-        if not (looks_like_shx(current) or looks_like_shx(big)):
+        if looks_like_unicode_font(current) and not looks_like_shx(big):
+            continue
+        if not (looks_like_shx(current) or looks_like_shx(big) or not current.strip()):
             continue
         style.dxf.font = font
         if hasattr(style.dxf, "bigfont"):

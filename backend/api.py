@@ -232,6 +232,8 @@ class TranslationService:
             name = Path(upload.filename or "").name
             if not name.lower().endswith((".dxf", ".dwg")):
                 raise HTTPException(status_code=400, detail=f"无效 CAD 文件: {name or '未命名文件'}")
+            if name.lower().endswith(".dwg") and not odafc_available():
+                raise HTTPException(status_code=400, detail=dwg_unavailable_short())
             target = self.dropped_files_dir / uuid4().hex / name
             target.parent.mkdir(parents=True)
             with target.open("wb") as output:

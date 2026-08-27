@@ -254,7 +254,15 @@ def writeback_rows(
 ) -> dict:
     if not items:
         raise ValueError("没有可写回的译文")
-    writable = [item for item in items if (item.get("target") or "").strip() and item.get("selected", True)]
+    def _should_write(item: dict) -> bool:
+        if not (item.get("target") or "").strip():
+            return False
+        if item.get("selected", True):
+            return True
+        # Grid unchecks duplicates; they still live on the drawing.
+        return bool(item.get("duplicate"))
+
+    writable = [item for item in items if _should_write(item)]
     if not writable:
         raise ValueError("没有勾选且已填译文的条目")
     output_dir = output_dir or default_output_dir()
@@ -305,14 +313,21 @@ def writeback_rows(
     }
 
 
+def _layout_has_entities(layout) -> bool:
+    try:
+        return next(iter(layout), None) is not None
+    except Exception:
+        return False
+
+
 def _layout_pages(doc, layout_name: str = ""):
     if layout_name:
         try:
             return [doc.layouts.get(layout_name)]
         except Exception as exc:
             raise ValueError(f"没有这个布局: {layout_name}") from exc
-    papers = [layout for layout in doc.layouts if not _is_model(layout.name)]
-    return papers or [doc.modelspace()]
+    pages = [layout for layout in doc.layouts if _layout_has_entities(layout)]
+    return pages or [doc.modelspace()]
 
 
 def export_pdf(path: str, output_path: str = "", layout_name: str = "") -> dict:

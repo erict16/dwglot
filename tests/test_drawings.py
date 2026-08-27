@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from backend.api import app
 from backend.drawings import extract_preview, export_pdf, translate_rows, writeback_rows
+from backend.styles import looks_like_shx, rewrite_shx_styles
 from backend.updates import check_github_release
 
 
@@ -30,6 +31,33 @@ def _sample_dxf(path: Path) -> Path:
     dim = msp.add_linear_dim(base=(0, 100), p1=(0, 0), p2=(40, 0))
     dim.render()
     dim.dimension.dxf.text = "安装高度"
+    doc.saveas(path)
+    return path
+
+
+def _floor_plan_dxf(path: Path) -> Path:
+    """Chinese CAD-like sheet: walls, title block, TEXT/MTEXT/attribs, paperspace."""
+    doc = ezdxf.new("R2010")
+    for name, color in (("TITLE", 7), ("A-WALL", 1), ("E-POWR", 3)):
+        doc.layers.add(name, color=color)
+    msp = doc.modelspace()
+    msp.add_lwpolyline(
+        [(0, 0), (12000, 0), (12000, 8000), (0, 8000), (0, 0)],
+        dxfattribs={"layer": "A-WALL"},
+    )
+    msp.add_line((4000, 0), (4000, 8000), dxfattribs={"layer": "A-WALL"})
+    msp.add_circle((2000, 2000), 400, dxfattribs={"layer": "E-POWR"})
+    msp.add_text("平面布置图", dxfattribs={"layer": "TITLE", "insert": (200, 7600), "height": 300})
+    msp.add_text("天花图", dxfattribs={"layer": "TITLE", "insert": (200, 7200), "height": 250})
+    msp.add_text("剪力墙", dxfattribs={"layer": "A-WALL", "insert": (4200, 4000), "height": 200})
+    msp.add_mtext(r"{\C1;隔墙定位图}", dxfattribs={"layer": "TITLE", "insert": (200, 6800), "char_height": 200})
+    block = doc.blocks.new("PANEL")
+    block.add_attdef("NAME", insert=(0, 0), text="配电箱", dxfattribs={"height": 150})
+    insert = msp.add_blockref("PANEL", insert=(8000, 1000), dxfattribs={"layer": "E-POWR"})
+    insert.add_auto_attribs({"NAME": "配电箱"})
+    paper = doc.layouts.new("A1")
+    paper.add_text("接地", dxfattribs={"layer": "E-POWR", "insert": (20, 20), "height": 5})
+    paper.add_text("平面布置图", dxfattribs={"layer": "TITLE", "insert": (20, 280), "height": 8})
     doc.saveas(path)
     return path
 
@@ -108,6 +136,68 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertGreater(result["bytes"], 200)
         self.assertGreaterEqual(result["pages"], 1)
 
+    def test_floor_plan_glossary_writeback_pdf_and_paperspace(self):
+        dxf = _floor_plan_dxf(self.root / "floor_plan.dxf")
+        preview = extract_preview(str(dxf), include_attribs=True, include_paper=True)
+        sources = {item["source"] for item in preview["items"]}
+        self.assertTrue({"平面布置图", "天花图", "剪力墙", "隔墙定位图", "配电箱", "接地"} <= sources)
+        translated = translate_rows(preview["items"], mode="zh_to_en", provider="deepl", engine={})
+        by_source = {item["source"]: item for item in translated["items"]}
+        self.assertEqual(by_source["平面布置图"]["target"], "floor plan")
+        self.assertEqual(by_source["隔墙定位图"]["target"], "partition location plan")
+        self.assertEqual(by_source["天花图"]["target"], "reflected ceiling plan")
+        self.assertFalse(translated["has_engine"])
+        self.assertGreaterEqual(translated["glossary"], 6)
+
+        output = writeback_rows(
+            str(dxf),
+            translated["items"],
+            output_dir=str(self.root),
+            output_name="en_floor_plan",
+            mode="zh_to_en",
+        )
+        doc = ezdxf.readfile(output["path"])
+        paper = [entity.dxf.text for entity in doc.layouts.get("A1") if entity.dxftype() == "TEXT"]
+        self.assertIn("floor plan", paper)
+        self.assertIn("grounding", paper)
+        model = []
+        for entity in doc.modelspace():
+            if entity.dxftype() == "TEXT":
+                model.append(entity.dxf.text)
+            elif entity.dxftype() == "MTEXT":
+                model.append(entity.plain_text(fast=False))
+            elif entity.dxftype() == "INSERT":
+                for attrib in entity.attribs:
+                    model.append(attrib.dxf.text)
+        self.assertIn("floor plan", model)
+        self.assertIn("partition location plan", model)
+        self.assertIn("distribution board", model)
+
+        pdf = export_pdf(str(dxf), str(self.root / "floor_plan.pdf"))
+        self.assertEqual(Path(pdf["path"]).read_bytes()[:5], b"%PDF-")
+        self.assertGreater(pdf["bytes"], 2500)
+        self.assertGreaterEqual(pdf["pages"], 2)
+        names = [layout.name for layout in ezdxf.readfile(dxf).layouts]
+        self.assertIn("Model", names)
+
+    def test_dwg_without_oda_is_a_clear_error(self):
+        dwg = self.root / "no_oda.dwg"
+        dwg.write_bytes(b"AC1032" + b"\x00" * 32)
+        with self.assertRaisesRegex(RuntimeError, "ODA"):
+            extract_preview(str(dwg))
+
+    def test_rewrite_shx_does_not_clobber_ttf(self):
+        doc = ezdxf.new("R2010", setup=True)
+        before = {style.dxf.name: style.dxf.font for style in doc.styles}
+        rewrite_shx_styles(doc)
+        after = {style.dxf.name: style.dxf.font for style in doc.styles}
+        for name, font in before.items():
+            if font and Path(font).suffix.lower() in {".ttf", ".otf", ".ttc"}:
+                self.assertEqual(after[name], font)
+        self.assertFalse(looks_like_shx(""))
+        self.assertFalse(looks_like_shx("OpenSans-Regular.ttf"))
+        self.assertTrue(looks_like_shx("txt.shx"))
+
 
 class DrawingsApiTests(unittest.TestCase):
     def setUp(self):
@@ -177,6 +267,14 @@ class DrawingsApiTests(unittest.TestCase):
         )
         self.assertEqual(imported.status_code, 200, imported.text)
         self.assertGreaterEqual(imported.json()["count"], 1)
+
+    def test_open_dwg_without_oda_rejected(self):
+        dwg = Path(self.tmp.name) / "x.dwg"
+        dwg.write_bytes(b"AC1032" + b"\x00" * 16)
+        with dwg.open("rb") as handle:
+            opened = self.client.post("/api/drawings/open", files={"files": ("x.dwg", handle, "application/acad")})
+        self.assertEqual(opened.status_code, 400, opened.text)
+        self.assertIn("ODA", opened.json()["detail"])
 
     def test_updates_helper_survives_404(self):
         payload = check_github_release()
