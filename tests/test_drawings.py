@@ -1577,6 +1577,26 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertNotIn("OSError", written.text)
         self.assertNotIn("Traceback", written.text)
 
+    def test_export_pdf_unknown_error_is_400(self):
+        with patch("backend.api.export_pdf", side_effect=TypeError("unsupported operand type")):
+            pdf = self.client.post(
+                "/api/drawings/export-pdf",
+                json={"path": str(self.dxf), "output_dir": self.tmp.name, "output_name": "x.pdf"},
+            )
+            printed = self.client.post(
+                "/api/drawings/print",
+                json={"path": str(self.dxf), "output_dir": self.tmp.name, "output_name": "p.pdf"},
+            )
+        self.assertEqual(pdf.status_code, 400, pdf.text)
+        self.assertEqual(pdf.json()["detail"], "导出 PDF 失败")
+        self.assertNotIn("unsupported", pdf.text)
+        self.assertNotIn("TypeError", pdf.text)
+        self.assertNotIn("Traceback", pdf.text)
+        self.assertEqual(printed.status_code, 400, printed.text)
+        self.assertEqual(printed.json()["detail"], "导出 PDF 失败")
+        self.assertNotIn("unsupported", printed.text)
+        self.assertNotIn("Traceback", printed.text)
+
     def test_extract_digits_only_drawing_is_200(self):
         path = Path(self.tmp.name) / "digits.dxf"
         doc = ezdxf.new("R2010")
