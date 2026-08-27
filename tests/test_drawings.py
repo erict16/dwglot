@@ -386,6 +386,19 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertNotIn("Traceback", str(raised.exception))
         self.assertFalse(dest.exists())
 
+    def test_export_pdf_named_a1_layout(self):
+        dxf = FIXTURES / "floor_plan.dxf"
+        self.assertTrue(dxf.is_file(), "tests/fixtures/floor_plan.dxf")
+        names = [layout.name for layout in ezdxf.readfile(dxf).layouts]
+        self.assertEqual(set(names), {"Model", "Layout1", "A1"}, names)
+        all_pages = export_pdf(str(dxf), str(self.root / "floor_all.pdf"))
+        a1 = export_pdf(str(dxf), str(self.root / "floor_a1.pdf"), "A1")
+        self.assertEqual(a1["pages"], 1, a1)
+        self.assertGreater(all_pages["pages"], a1["pages"])
+        self.assertEqual(Path(a1["path"]).read_bytes()[:5], b"%PDF-")
+        self.assertGreater(a1["bytes"], 800)
+        _assert_cjk_pdf(self, Path(a1["path"]), min_ink=800)
+
     def test_floor_plan_glossary_writeback_pdf_and_paperspace(self):
         committed = FIXTURES / "floor_plan.dxf"
         dxf = committed if committed.is_file() else _floor_plan_dxf(self.root / "floor_plan.dxf")
@@ -900,6 +913,41 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertEqual(printed.status_code, 400, printed.text)
         self.assertIn("没有这个布局", printed.json()["detail"])
         self.assertNotIn("Traceback", printed.text)
+
+    def test_export_pdf_and_print_a1_layout(self):
+        dxf = FIXTURES / "floor_plan.dxf"
+        self.assertTrue(dxf.is_file(), "tests/fixtures/floor_plan.dxf")
+        pdf = self.client.post(
+            "/api/drawings/export-pdf",
+            json={
+                "path": str(dxf),
+                "output_dir": self.tmp.name,
+                "output_name": "a1.pdf",
+                "layout": "A1",
+            },
+        )
+        self.assertEqual(pdf.status_code, 200, pdf.text)
+        self.assertNotIn("Traceback", pdf.text)
+        body = pdf.json()
+        self.assertEqual(body["pages"], 1)
+        self.assertGreater(body["bytes"], 800)
+        _assert_cjk_pdf(self, Path(body["path"]), min_ink=800)
+        with patch("backend.drawings.shutil.which", return_value=None):
+            printed = self.client.post(
+                "/api/drawings/print",
+                json={
+                    "path": str(dxf),
+                    "output_dir": self.tmp.name,
+                    "output_name": "a1_print.pdf",
+                    "layout": "A1",
+                },
+            )
+        self.assertEqual(printed.status_code, 200, printed.text)
+        self.assertNotIn("Traceback", printed.text)
+        printed_body = printed.json()
+        self.assertEqual(printed_body["pages"], 1)
+        self.assertFalse(printed_body["print"]["ok"])
+        _assert_cjk_pdf(self, Path(printed_body["path"]), min_ink=800)
 
     def test_print_without_lp_keeps_cjk_pdf(self):
         dest = Path(self.tmp.name) / "print.pdf"
