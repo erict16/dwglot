@@ -480,6 +480,77 @@ class EngineAndGlossaryTests(unittest.TestCase):
         self.assertIn('aria-label="源语言"', text)
         self.assertIn('aria-label="目标语言"', text)
 
+    def test_translate_api_failure_logs_stay_chinese(self):
+        dxf = Path(self.tmp.name) / "ok.dxf"
+        ezdxf.new("R2010").saveas(dxf)
+        service.set_status("idle", "")
+        service.clear_logs()
+
+        def wait_error():
+            deadline = time.monotonic() + 3
+            status = {}
+            while time.monotonic() < deadline:
+                status = self.client.get("/api/status").json()
+                if status["status"] in {"error", "success"}:
+                    return status
+                time.sleep(0.02)
+            return status
+
+        with patch.object(service, "save_config"), patch(
+            "backend.api.CADChineseTranslator.configure_engine"
+        ), patch("backend.api.CADChineseTranslator.has_mt", return_value=True), patch(
+            "backend.api.CADChineseTranslator.translate_cad_file",
+            side_effect=RuntimeError("File is not a DXF file."),
+        ):
+            started = self.client.post(
+                "/api/translate",
+                json={
+                    "input_file": str(dxf),
+                    "output_dir": self.tmp.name,
+                    "output_name": "out",
+                    "translation_mode": "zh_to_en",
+                    "provider": "deepl",
+                    "deepl_key": "fake",
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            status = wait_error()
+        self.assertEqual(status["status"], "error", status)
+        self.assertIn("翻译失败", status["message"])
+        self.assertNotIn("Traceback", status["message"])
+        self.assertNotIn("File is not a DXF", status["message"])
+        logs = "\n".join(service._logs)
+        self.assertNotIn("Traceback", logs)
+        self.assertNotIn("File is not a DXF", logs)
+        self.assertNotIn('File "', logs)
+
+        service.set_status("idle", "")
+        service.clear_logs()
+        with patch.object(service, "save_config"), patch(
+            "backend.api.CADChineseTranslator.configure_engine"
+        ), patch("backend.api.CADChineseTranslator.has_mt", return_value=True), patch(
+            "backend.api.CADChineseTranslator.translate_cad_file",
+            side_effect=ValueError("无法读取DXF文件"),
+        ):
+            again = self.client.post(
+                "/api/translate",
+                json={
+                    "input_file": str(dxf),
+                    "output_dir": self.tmp.name,
+                    "output_name": "out2",
+                    "translation_mode": "zh_to_en",
+                    "provider": "deepl",
+                    "deepl_key": "fake",
+                },
+            )
+            self.assertEqual(again.status_code, 200, again.text)
+            status = wait_error()
+        self.assertEqual(status["status"], "error", status)
+        self.assertIn("无法读取", status["message"])
+        self.assertNotIn("Traceback", status["message"])
+        self.assertNotIn("Traceback", "\n".join(service._logs))
+        service.set_status("idle", "")
+
 
 class ConfigAndDirectionTests(unittest.TestCase):
     def setUp(self):

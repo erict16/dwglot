@@ -607,10 +607,12 @@ class TranslationService:
             except AzureFreeQuotaExceededError as exc:
                 self.emit_log(str(exc))
                 self.set_status("error", str(exc))
-            except Exception:
-                import traceback
-                self.emit_log(f"ERROR: {traceback.format_exc()}")
-                self.set_status("error", "翻译失败")
+            except Exception as exc:
+                text = str(exc).strip().splitlines()[0] if str(exc).strip() else "翻译失败"
+                if "Traceback" in text or not any("\u4e00" <= char <= "\u9fff" for char in text):
+                    text = "翻译失败"
+                self.emit_log(text)
+                self.set_status("error", text)
 
         threading.Thread(target=worker, daemon=True).start()
 
