@@ -130,6 +130,12 @@ def wait_for_translation(resume_event=None, cancel_event=None):
         raise InterruptedError("translation cancelled")
 
 
+def _is_layout_space_block(name: str) -> bool:
+    """True for *Model_Space / *Paper_Space* — already extracted as layouts."""
+    upper = (name or "").upper()
+    return upper == "*MODEL_SPACE" or upper.startswith("*PAPER_SPACE")
+
+
 class CADChineseTranslator:
 
     @staticmethod
@@ -593,7 +599,7 @@ class CADChineseTranslator:
                 if len(list(block)) == 0:
                     continue
                 # 跳过已经处理过的特殊布局块
-                if block.name in processed_layouts:
+                if block.name in processed_layouts or _is_layout_space_block(block.name):
                     continue
                 
                 # ⚠️ 重要：不再跳过匿名块 (*Uxxx)，确保所有块都被扫描

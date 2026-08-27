@@ -426,7 +426,7 @@ export default function App() {
         body: JSON.stringify({
           output_dir: config.output_dir,
           translation_mode: modeKey(sourceLang, targetLang),
-          translate_blocks: params.attribs,
+          translate_blocks: false,
           enable_v02: params.dims,
           output_format: "source",
           style: layout,

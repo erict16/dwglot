@@ -240,6 +240,23 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("天花", mtext.dxf.text)
         self.assertIn("ceiling", mtext.dxf.text.lower())
 
+    def test_include_blocks_does_not_double_stamp_modelspace(self):
+        dest = self.root / "en_blocks_bilingual.dxf"
+        translator = CADChineseTranslator(log_callback=lambda *_a, **_k: None)
+        translator.configure_engine("deepl")
+        translator.translate_cad_file(
+            str(self.dxf), str(dest), "zh_to_en", True, style="原译对照"
+        )
+        texts = [
+            entity.dxf.text
+            for entity in ezdxf.readfile(dest).modelspace()
+            if entity.dxftype() == "TEXT"
+        ]
+        self.assertEqual(texts.count("天花图"), 1)
+        self.assertEqual(texts.count("reflected ceiling plan"), 1)
+        self.assertEqual(texts.count("剪力墙"), 1)
+        self.assertEqual(texts.count("shear wall"), 1)
+
     def test_multileader_glossary_writeback_keeps_mtext_codes(self):
         dxf = _multileader_dxf(self.root / "mleader.dxf")
         preview = extract_preview(str(dxf), include_attribs=True, include_paper=True)
@@ -621,6 +638,8 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("enable_v02: params.dims", text)
         self.assertIn("dims: true", text)
         self.assertIn("enable_v02: params.dims,", text)
+        self.assertNotIn("translate_blocks: params.attribs", text)
+        self.assertIn("translate_blocks: false", text)
 
 
 class DrawingsApiTests(unittest.TestCase):

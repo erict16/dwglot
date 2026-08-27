@@ -416,6 +416,47 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("\\C1;", mtext.dxf.text)
         self.assertIn("\\P", mtext.dxf.text)
 
+    def test_batch_bilingual_does_not_double_stamp_when_blocks_on(self):
+        fixture = FIXTURES / "floor_plan.dxf"
+        src = Path(self.tmp.name) / "floor_plan.dxf"
+        shutil.copy(fixture, src)
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"), patch(
+            "urllib.request.urlopen"
+        ) as open_url:
+            open_url.side_effect = AssertionError("batch 对照 must not call the network")
+            added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                    "style": "原译对照",
+                    "translate_blocks": True,
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            task = None
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.05)
+            open_url.assert_not_called()
+        self.assertEqual(task["status"], "succeeded", task)
+        texts = [
+            entity.dxf.text
+            for entity in ezdxf.readfile(task["output_file"]).modelspace()
+            if entity.dxftype() == "TEXT"
+        ]
+        self.assertEqual(texts.count("天花图"), 1, texts)
+        self.assertEqual(texts.count("reflected ceiling plan"), 1, texts)
+
     def test_unreadable_dxf_fails_calmly_without_retry(self):
         src = Path(self.tmp.name) / "junk.dxf"
         src.write_text("not a dxf at all", encoding="utf-8")
