@@ -842,6 +842,86 @@ class BatchApiTests(unittest.TestCase):
         self.assertNotIn("Traceback", task["message"])
         self.assertEqual(task.get("retries") or 0, 0)
 
+    def test_batch_stop_during_run_stays_chinese(self):
+        src = Path(self.tmp.name) / "live.dxf"
+        shutil.copy(FIXTURES / "floor_plan.dxf", src)
+        entered = threading.Event()
+
+        def hang(*args, **kwargs):
+            entered.set()
+            cancel = args[7]
+            while not cancel.is_set():
+                time.sleep(0.02)
+            raise InterruptedError("翻译已取消")
+
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"), patch(
+            "backend.api.CADChineseTranslator.translate_cad_file",
+            side_effect=hang,
+        ):
+            added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            self.assertTrue(entered.wait(2), "worker never entered wait")
+            stopped = self.client.post("/api/batch/stop")
+            self.assertEqual(stopped.status_code, 200, stopped.text)
+            self.assertNotIn("Traceback", stopped.text)
+            deadline = time.monotonic() + 3
+            task = None
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.02)
+        self.assertEqual(task["status"], "cancelled", task)
+        self.assertEqual(task["message"], "已停止")
+        self.assertNotIn("cancelled", task["message"])
+        self.assertNotIn("stopped", task["message"])
+        self.assertNotIn("Traceback", task["message"])
+
+        other = Path(self.tmp.name) / "other.dxf"
+        shutil.copy(FIXTURES / "floor_plan.dxf", other)
+        cleared = self.client.post("/api/batch/clear")
+        self.assertEqual(cleared.status_code, 200, cleared.text)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"), patch(
+            "backend.api.CADChineseTranslator.translate_cad_file",
+            side_effect=InterruptedError("翻译已取消"),
+        ):
+            added = self.client.post("/api/batch/add", json={"files": [str(other)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            deadline = time.monotonic() + 8
+            task = None
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.02)
+        self.assertEqual(task["status"], "failed", task)
+        self.assertEqual(task["message"], "翻译已取消")
+        self.assertNotIn("cancelled", task["message"])
+        self.assertEqual(task.get("retries") or 0, 0)
+
     def test_start_skips_stale_missing_paths(self):
         live = Path(self.tmp.name) / "live.dxf"
         shutil.copy(FIXTURES / "floor_plan.dxf", live)
