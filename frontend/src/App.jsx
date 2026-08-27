@@ -421,7 +421,7 @@ export default function App() {
     }
     try {
       await api("/api/batch/add", { method: "POST", body: JSON.stringify({ files: paths }) });
-      await api("/api/batch/start", {
+      const started = await api("/api/batch/start", {
         method: "POST",
         body: JSON.stringify({
           output_dir: config.output_dir,
@@ -440,7 +440,7 @@ export default function App() {
         }),
       });
       setTab("export");
-      setStatus("批量导出已开始。");
+      setStatus(started.message || "批量导出已开始。");
     } catch (error) {
       setStatus(error.message);
     }

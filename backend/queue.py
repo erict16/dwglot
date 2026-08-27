@@ -170,14 +170,17 @@ class BatchQueue:
             self._schedule()
         return self.snapshot()
 
-    def start(self, settings: dict | None = None):
+    def start(self, settings: dict | None = None, *, include_succeeded: bool = False):
         with self.lock:
             if self.cancel_event.is_set():
                 self.cancel_event = threading.Event()
+            startable = {"queued", "retrying", "cancelled", "failed"}
+            if include_succeeded:
+                startable.add("succeeded")
             if settings:
                 output_format = settings.get("output_format") or "source"
                 for task in self.tasks:
-                    if task["status"] in {"queued", "retrying", "cancelled", "failed"}:
+                    if task["status"] in startable:
                         task.update(
                             output_dir=settings["output_dir"], output_format=settings["output_format"],
                             output_version=settings["output_version"], translation_mode=settings["translation_mode"],

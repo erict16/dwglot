@@ -311,6 +311,68 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("CAD", response.json()["detail"])
         self.assertNotIn("Traceback", response.text)
 
+    def test_start_all_succeeded_reruns_same_task(self):
+        fixture = FIXTURES / "floor_plan.dxf"
+        src = Path(self.tmp.name) / "floor_plan.dxf"
+        shutil.copy(fixture, src)
+        first = self._start_glossary_batch(src, {})
+        self.assertEqual(first["status"], "succeeded", first)
+        task_id = first["id"]
+        first_out = first["output_file"]
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"), patch(
+            "urllib.request.urlopen"
+        ) as open_url:
+            open_url.side_effect = AssertionError("re-run succeeded must not call the network")
+            again = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+            self.assertEqual(again.status_code, 200, again.text)
+            self.assertEqual(len(again.json()["tasks"]), 1)
+            self.assertEqual(again.json()["tasks"][0]["id"], task_id)
+            task = None
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.05)
+            open_url.assert_not_called()
+        self.assertEqual(task["status"], "succeeded", task)
+        self.assertEqual(task["id"], task_id)
+        self.assertTrue(task["output_file"])
+        self.assertNotEqual(task["output_file"], first_out)
+
+    def test_start_while_running_is_200(self):
+        fixture = FIXTURES / "floor_plan.dxf"
+        src = Path(self.tmp.name) / "floor_plan.dxf"
+        shutil.copy(fixture, src)
+        added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+        self.assertEqual(added.status_code, 200, added.text)
+        service.batch.tasks[0]["status"] = "running"
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"):
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+        self.assertEqual(started.status_code, 200, started.text)
+        self.assertIn("没有待处理", started.json().get("message") or "")
+        self.assertEqual(started.json()["tasks"][0]["status"], "running")
+
     def test_glossary_only_floor_plan_succeeds_without_engine(self):
         fixture = FIXTURES / "floor_plan.dxf"
         self.assertTrue(fixture.is_file(), "tests/fixtures/floor_plan.dxf")

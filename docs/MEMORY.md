@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: `/api/batch/start` on an all-succeeded queue re-runs those rows (same task id, new output). Skip already-running (200 `没有待处理的图纸`). Empty queue still 400 `请选择 CAD 文件`. 常规 DWG-without-ODA still 400. `python -m unittest discover -s tests` 105 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/add` does not enqueue a second row for the same path (abspath/normcase). 开始导出 add+start reuses the existing task id. New paths still append. 常规 DWG-without-ODA still 400. `python -m unittest discover -s tests` 103 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: Batch honors 模型 / 图纸空间 / 冻结图层 (and 锁定 / 关闭), same defaults as 常规. floor_plan: 图纸空间 off leaves `接地`; 模型 off leaves `天花图`; frozen TITLE leaves `天花图`, still writes `剪力墙`. 开始导出 sends params.model/paper/frozen/locked/off. 常规 DWG-without-ODA still 400. `python -m unittest discover -s tests` 102 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: Batch honors 块属性 (`include_attribs`, default on, same as 常规). Off: floor_plan INSERT ATTRIB/ATTDEF stay `配电箱`; TEXT still translates. 开始导出 sends `include_attribs: params.attribs`. 常规 DWG-without-ODA still 400. `python -m unittest discover -s tests` 99 ok. Do not edit landing/, README*, docs/icons/.

@@ -1009,13 +1009,22 @@ def start_batch(body: BatchStartBody):
     if body.output_version not in {"", *ODA_OUTPUT_VERSIONS}:
         raise HTTPException(status_code=400, detail="不支持的输出版本")
     service.batch.fail_missing(body.output_format)
-    pending = [
-        task for task in service.batch.snapshot()["tasks"]
-        if task["status"] in {"queued", "retrying", "cancelled", "failed"}
-        and not service.batch._unrunnable_reason(task, body.output_format)
+    tasks = service.batch.snapshot()["tasks"]
+    runnable = [
+        task
+        for task in tasks
+        if not service.batch._unrunnable_reason(task, body.output_format)
     ]
-    if not pending:
+    unfinished = [task for task in runnable if task["status"] in {"queued", "retrying", "cancelled", "failed"}]
+    succeeded = [task for task in runnable if task["status"] == "succeeded"]
+    running = any(task["status"] == "running" for task in tasks)
+    if not unfinished and not succeeded:
+        if running:
+            snap = service.batch.snapshot()
+            snap["message"] = "没有待处理的图纸"
+            return snap
         raise HTTPException(status_code=400, detail="请选择 CAD 文件")
+    include_succeeded = not unfinished and not running and bool(succeeded)
     service.save_config(
         body.deepl_key,
         output_dir,
@@ -1039,7 +1048,7 @@ def start_batch(body: BatchStartBody):
         settings["api_key"] = "ollama"
     else:
         settings["api_key"] = body.deepl_key
-    return service.batch.start(settings)
+    return service.batch.start(settings, include_succeeded=include_succeeded)
 
 
 @app.post("/api/batch/pause")
