@@ -732,8 +732,8 @@ def drawings_writeback(body: WritebackBody):
         raise HTTPException(status_code=404, detail="图纸不存在")
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"写回失败: {exc}") from exc
+    except Exception:
+        raise HTTPException(status_code=400, detail="写回失败") from None
 
 
 @app.post("/api/drawings/export-pdf")

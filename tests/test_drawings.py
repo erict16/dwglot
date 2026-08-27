@@ -1560,6 +1560,23 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertNotIn("OSError", translated.text)
         self.assertNotIn("Traceback", translated.text)
 
+    def test_writeback_unknown_error_is_400(self):
+        with patch("backend.api.writeback_rows", side_effect=OSError("No space left on device")):
+            written = self.client.post(
+                "/api/drawings/writeback",
+                json={
+                    "input_file": str(self.dxf),
+                    "items": [{"source": "天花图", "target": "rcp", "selected": True}],
+                    "output_dir": self.tmp.name,
+                    "output_name": "x",
+                },
+            )
+        self.assertEqual(written.status_code, 400, written.text)
+        self.assertEqual(written.json()["detail"], "写回失败")
+        self.assertNotIn("No space", written.text)
+        self.assertNotIn("OSError", written.text)
+        self.assertNotIn("Traceback", written.text)
+
     def test_extract_digits_only_drawing_is_200(self):
         path = Path(self.tmp.name) / "digits.dxf"
         doc = ezdxf.new("R2010")
