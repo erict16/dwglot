@@ -900,7 +900,12 @@ class BatchApiTests(unittest.TestCase):
         fatal.retryable = False
         self.assertFalse(_retryable(fatal))
         self.assertTrue(_retryable(OSError("temporary network error")))
+        self.assertEqual(_calm_error(OSError("No space left on device")), "翻译失败")
+        self.assertNotIn("No space", _calm_error(OSError("No space left on device")))
+        self.assertEqual(_calm_error(ValueError("无法读取DXF文件")), "无法读取DXF文件")
+        self.assertEqual(_calm_error(RuntimeError("boom\nTraceback (most recent call last):\n x")), "翻译失败")
         self.assertNotIn("Traceback", _calm_error(RuntimeError("boom\nTraceback (most recent call last):\n x")))
+        self.assertNotIn("boom", _calm_error(RuntimeError("boom\nTraceback (most recent call last):\n x")))
 
 
 if __name__ == "__main__":

@@ -344,11 +344,11 @@ def _retryable(exc: BaseException) -> bool:
 def _calm_error(exc: BaseException) -> str:
     text = str(exc).strip() or exc.__class__.__name__
     first = text.splitlines()[0].strip()
-    if "Traceback" in text or len(first) > 240:
-        if "ODA" in text:
-            return "未检测到 ODA，无法处理 DWG；请安装 ODA 或将 DWG 另存为 DXF"
+    if "ODA" in text:
+        return "未检测到 ODA，无法处理 DWG；请安装 ODA 或将 DWG 另存为 DXF"
+    if first and "Traceback" not in text and any("\u4e00" <= char <= "\u9fff" for char in first):
         return first[:240]
-    return first
+    return "翻译失败"
 
 
 class _NullLock:
