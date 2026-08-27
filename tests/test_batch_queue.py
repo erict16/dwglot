@@ -283,11 +283,15 @@ class BatchApiTests(unittest.TestCase):
         out = Path(task["output_file"])
         self.assertTrue(out.is_file(), task)
         self.assertTrue(out.name.startswith("en_"))
-        sources = {item["source"] for item in extract_preview(str(out), include_attribs=True, include_paper=True)["items"]}
+        preview = extract_preview(str(out), include_attribs=True, include_paper=True)
+        sources = {item["source"] for item in preview["items"]}
         self.assertIn("reflected ceiling plan", sources)
         self.assertIn("floor plan", sources)
         self.assertNotIn("天花图", sources)
         self.assertNotIn("平面布置图", sources)
+        mtext = next(item for item in preview["items"] if item["type"] == "MTEXT")
+        self.assertIn("partition", mtext["source"].lower())
+        self.assertIn("\\C1;", mtext["raw"])
 
     def test_missing_file_and_oda_are_not_retried(self):
         self.assertFalse(_retryable(FileNotFoundError("图纸不存在")))

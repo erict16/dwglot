@@ -1113,17 +1113,34 @@ class CADChineseTranslator:
                     item['translated_text'] = original_text
                     continue
 
-                translated = self.translate_text(original_text, lang_config, item.get('layer', ''))
-                item['translated_text'] = translated
+                entity = item['entity']
+                field = item.get('field', 'text')
+                layer = item.get('layer', '')
+                raw = item.get('raw_source') or original_text
+                kind = entity.dxftype() if hasattr(entity, 'dxftype') else str(item.get('type') or '')
+                formatted = kind in {"MTEXT", "MULTILEADER"} and ("\\" in str(raw) or "{" in str(raw))
+                if formatted:
+                    translated_raw = map_translatable(
+                        raw,
+                        lambda run, layer=layer: self.translate_text(run, lang_config, layer),
+                    )
+                    translated = original_text if translated_raw == raw else self.translate_text(original_text, lang_config, layer)
+                    item['translated_text'] = translated
+                    payload = translated_raw
+                    changed = translated_raw != raw
+                else:
+                    translated = self.translate_text(original_text, lang_config, layer)
+                    item['translated_text'] = translated
+                    payload = translated
+                    changed = translated != original_text
 
-                if translated != original_text:
+                if changed:
                     try:
-                        self.write_back_translation(
-                            item['entity'],
-                            translated,
-                            item.get('field', 'text'),
-                        )
-                        if item.get('field') == 'tag':
+                        if kind == "MTEXT" and formatted:
+                            self._write_mtext_entity(entity, payload)
+                        else:
+                            self.write_back_translation(entity, payload, field)
+                        if field == 'tag':
                             self._sync_attrib_tags(
                                 doc,
                                 item.get('raw_source', original_text),
