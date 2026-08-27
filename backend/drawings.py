@@ -424,7 +424,13 @@ def apply_pdf_style(doc, items: list[dict] | None, style: str) -> int:
     style = normalize_pdf_style(style)
     if style == "纯译文" or not items:
         return 0
+    table_sources = {
+        str(item.get("source") or "")
+        for item in items
+        if str(item.get("type") or "").upper() == "ACAD_TABLE"
+    }
     applied = 0
+    writer = None
     for item in items:
         pair = _pair_labels(item.get("source") or "", item.get("target") or "", style)
         if not pair:
@@ -435,6 +441,15 @@ def apply_pdf_style(doc, items: list[dict] | None, style: str) -> int:
         first, second = pair
         kind = entity.dxftype()
         field = str(item.get("field") or "text")
+        location = str(item.get("location") or "")
+        source = str(item.get("source") or "")
+        if (
+            kind in {"TEXT", "MTEXT"}
+            and source in table_sources
+            and location.startswith("*")
+        ):
+            # *T preview of a table we already stamp via group-code 302.
+            continue
         if kind in {"MTEXT", "MULTILEADER"}:
             if style == "译原对照":
                 first, second = _label_payload(item, "target"), _label_payload(item, "source")
@@ -456,6 +471,10 @@ def apply_pdf_style(doc, items: list[dict] | None, style: str) -> int:
                 entity.dxf.text = f"{first} / {second}"
             elif kind == "DIMENSION" and field == "text":
                 entity.dxf.text = f"{first} / {second}"
+            elif kind == "ACAD_TABLE" and field.startswith("table:"):
+                if writer is None:
+                    writer = CADChineseTranslator()
+                writer._write_acad_table_text_slot(entity, field[6:], f"{first} / {second}")
             else:
                 continue
         except Exception:

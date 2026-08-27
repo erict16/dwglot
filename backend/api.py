@@ -132,6 +132,7 @@ class BatchStartBody(BaseModel):
     ollama_host: str = ""
     ollama_model: str = ""
     style: str = "纯译文"
+    enable_v02: bool = True
 
 
 class ExtractBody(BaseModel):
@@ -285,6 +286,7 @@ class TranslationService:
                 resume_event,
                 cancel_event,
                 style=task.get("style") or "纯译文",
+                enable_v02=task.get("enable_v02", True),
             )
         except FileNotFoundError as exc:
             raise _fatal_batch_error("图纸不存在") from exc

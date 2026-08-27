@@ -526,6 +526,35 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertGreaterEqual(pdf["pages"], 1)
         _assert_cjk_pdf(self, Path(pdf["path"]), min_ink=800)
 
+    def test_writeback_bilingual_stamps_table_cells(self):
+        committed = FIXTURES / "dims_tables.dxf"
+        dxf = committed if committed.is_file() else _dims_tables_dxf(self.root / "dims_tables.dxf")
+        preview = extract_preview(str(dxf), enable_v02=True)
+        translated = translate_rows(preview["items"], mode="zh_to_en", provider="deepl", engine={})
+        output = writeback_rows(
+            str(dxf),
+            translated["items"],
+            output_dir=str(self.root),
+            output_name="bilingual_tables",
+            mode="zh_to_en",
+            style="原译对照",
+        )
+        self.assertGreater(output["written"], 0)
+        doc = ezdxf.readfile(output["path"])
+        dim_texts = [entity.dxf.text for entity in doc.modelspace() if entity.dxftype() == "DIMENSION"]
+        self.assertTrue(any("安装高度" in text and "installation height" in text for text in dim_texts), dim_texts)
+        table_cells = []
+        for entity in doc.modelspace():
+            if entity.dxftype() != "ACAD_TABLE":
+                continue
+            tags = entity.xtags.get_subclass("AcDbTable")
+            table_cells.extend(tag.value for tag in tags if tag.code == 302)
+        self.assertTrue(any("墙体拆除图" in cell and "wall demolition plan" in cell for cell in table_cells), table_cells)
+        self.assertTrue(any("材料表" in cell and "bill of materials" in cell for cell in table_cells), table_cells)
+        reread = extract_preview(output["path"], enable_v02=True)
+        table_sources = {item["source"] for item in reread["items"] if item["type"] == "ACAD_TABLE"}
+        self.assertTrue(any("墙体拆除图" in source and "wall demolition plan" in source for source in table_sources), table_sources)
+
     def test_acad_table_write_updates_preview_block(self):
         dxf = _dims_tables_dxf(self.root / "table_preview.dxf")
         doc = ezdxf.readfile(dxf)
@@ -591,6 +620,7 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertNotIn("标注（v0.2）", text)
         self.assertIn("enable_v02: params.dims", text)
         self.assertIn("dims: true", text)
+        self.assertIn("enable_v02: params.dims,", text)
 
 
 class DrawingsApiTests(unittest.TestCase):

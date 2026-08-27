@@ -1054,9 +1054,10 @@ class CADChineseTranslator:
             self.safe_log(f"写回失败: {e}\n{traceback.format_exc()}")
             raise
 
-    def translate_cad_file(self, input_file, output_file, lang_config, include_blocks=False, output_format="source", output_version="", resume_event=None, cancel_event=None, style="纯译文"):
+    def translate_cad_file(self, input_file, output_file, lang_config, include_blocks=False, output_format="source", output_version="", resume_event=None, cancel_event=None, style="纯译文", enable_v02=True):
         from backend.cad import CadConversionSession
 
+        self.enable_v02_entities = bool(enable_v02)
         wait_for_translation(resume_event, cancel_event)
         with CadConversionSession(input_file, self.safe_log, output_format, output_version) as session:
             work_input = session.work_input
@@ -1149,6 +1150,7 @@ class CADChineseTranslator:
                         "target_raw": payload if formatted else translated,
                         "field": field,
                         "type": kind,
+                        "location": item.get("location") or "",
                     })
                     if style == "纯译文":
                         try:

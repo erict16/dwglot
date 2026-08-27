@@ -326,6 +326,53 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("partition", mtext["source"].lower())
         self.assertIn("\\C1;", mtext["raw"])
 
+    def test_batch_dims_tables_writes_dimension_and_table(self):
+        fixture = FIXTURES / "dims_tables.dxf"
+        self.assertTrue(fixture.is_file(), "tests/fixtures/dims_tables.dxf")
+        src = Path(self.tmp.name) / "dims_tables.dxf"
+        shutil.copy(fixture, src)
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"), patch(
+            "urllib.request.urlopen"
+        ) as open_url:
+            open_url.side_effect = AssertionError("batch dims/tables must not call the network")
+            added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            task = None
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.05)
+            open_url.assert_not_called()
+        self.assertEqual(task["status"], "succeeded", task)
+        out = Path(task["output_file"])
+        self.assertTrue(out.is_file(), task)
+        reread = extract_preview(str(out), enable_v02=True)
+        by_type = {}
+        for item in reread["items"]:
+            by_type.setdefault(item["type"], []).append(item["source"])
+        self.assertIn("installation height", by_type.get("DIMENSION", []))
+        self.assertNotIn("安装高度", by_type.get("DIMENSION", []))
+        table = set(by_type.get("ACAD_TABLE", []))
+        self.assertIn("wall demolition plan", table)
+        self.assertIn("bill of materials", table)
+        self.assertNotIn("墙体拆除图", table)
+        self.assertNotIn("材料表", table)
+        self.assertIn("reflected ceiling plan", set(by_type.get("TEXT", [])))
+
     def test_batch_bilingual_style_writes_two_lines(self):
         fixture = FIXTURES / "floor_plan.dxf"
         src = Path(self.tmp.name) / "floor_plan.dxf"
