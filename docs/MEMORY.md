@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: batch `_run_batch` wrapped English `ValueError` (`layout bbox is invalid`) as `_fatal_batch_error(str(exc))`. Now `_chinese_detail` → queue `翻译失败`. `无法读取DXF文件` still that line. `python -m unittest discover -s tests` 145 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: extract/export-pdf FileNotFoundError 404 used `str(exc)` (`No such file or directory`). Now 图纸不存在. Print maps that 404 to 400 图纸不存在. 写回 already hardcoded. `python -m unittest discover -s tests` 144 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: DeepL/Azure/Ollama/custom `TranslationProviderError` appended `{exc}` (auth failed, network unavailable, invalid, model not found). Now Chinese only: 初始化失败 / 翻译失败 / 请求失败. Quota 403001 still 免费额度已用尽. `python -m unittest discover -s tests` 143 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: batch `_calm_error` used English `str(exc)` (`No space left on device`, `boom`+Traceback) as the queue message. Now keeps Chinese (`无法读取DXF文件`, ODA line) and falls back to `翻译失败`. `python -m unittest discover -s tests` 142 ok. Do not edit landing/, README*, docs/icons/.

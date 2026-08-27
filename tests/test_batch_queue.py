@@ -808,6 +808,40 @@ class BatchApiTests(unittest.TestCase):
         self.assertNotIn("OSError", logs)
         self.assertNotIn("Traceback", logs)
 
+    def test_batch_english_valueerror_is_chinese(self):
+        src = Path(self.tmp.name) / "live.dxf"
+        shutil.copy(FIXTURES / "floor_plan.dxf", src)
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"), patch(
+            "backend.api.CADChineseTranslator.translate_cad_file",
+            side_effect=ValueError("layout bbox is invalid"),
+        ):
+            added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "output_format": "source",
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            task = None
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.05)
+        self.assertEqual(task["status"], "failed", task)
+        self.assertEqual(task["message"], "翻译失败")
+        self.assertNotIn("bbox", task["message"])
+        self.assertNotIn("Traceback", task["message"])
+        self.assertEqual(task.get("retries") or 0, 0)
+
     def test_start_skips_stale_missing_paths(self):
         live = Path(self.tmp.name) / "live.dxf"
         shutil.copy(FIXTURES / "floor_plan.dxf", live)
