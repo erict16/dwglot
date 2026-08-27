@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: Empty-entity DXF extract is 200, `count`/`unique` 0, `items` []. Stop adding empty-file tests. Batch has no PDF layout. `python -m unittest discover -s tests` 125 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: Junk/zero-byte DXF extract was already 400 `无法读取DXF文件`. export-pdf, print, and 写回 were 500 with the English ezdxf `OSError`. Same `_read_dxf` now raises ValueError, so those routes are 400 `无法读取` too. Batch already failed calmly. `python -m unittest discover -s tests` 124 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: DXF with no entities (empty Model + empty Layout1) still export-pdf/print: `_layout_pages` falls back to modelspace, 200, 1-page `%PDF-`, no traceback. Missing `lp` leaves the PDF. Batch has no PDF layout. `python -m unittest discover -s tests` 123 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/drawings/export-pdf` `print_after` is 200. Missing `lp` leaves the CJK PDF (`print.ok` false, 系统没有打印命令). Mocked `lp` exit 0 is `print.ok` true. UI still uses `/print`. Batch has no PDF layout. `python -m unittest discover -s tests` 121 ok. Do not edit landing/, README*, docs/icons/.

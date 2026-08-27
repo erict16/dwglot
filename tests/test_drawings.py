@@ -1264,6 +1264,25 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertTrue(any(item["source"] == "1234" for item in kept.json()["items"]))
         self.assertTrue(all(isinstance(item.get("layer"), str) for item in kept.json()["items"]))
 
+    def test_extract_empty_drawing_is_200(self):
+        dxf = Path(self.tmp.name) / "empty.dxf"
+        ezdxf.new("R2010").saveas(dxf)
+        self.assertFalse(any(_layout_has_entities(layout) for layout in ezdxf.readfile(dxf).layouts))
+        preview = extract_preview(str(dxf))
+        self.assertEqual(preview["count"], 0)
+        self.assertEqual(preview["unique"], 0)
+        self.assertEqual(preview["items"], [])
+        extracted = self.client.post(
+            "/api/drawings/extract",
+            json={"path": str(dxf), "translation_mode": "zh_to_en"},
+        )
+        self.assertEqual(extracted.status_code, 200, extracted.text)
+        self.assertNotIn("Traceback", extracted.text)
+        body = extracted.json()
+        self.assertEqual(body["count"], 0)
+        self.assertEqual(body["unique"], 0)
+        self.assertEqual(body["items"], [])
+
     def test_translate_api_skips_digits_dupes_nonsource(self):
         items = [
             {"source": "天花图", "type": "TEXT", "layer": "0", "duplicate": False},
