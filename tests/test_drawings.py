@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from backend.api import app
 from backend.drawings import extract_preview, export_pdf, translate_rows, writeback_rows
 from backend.styles import bundled_font_path, looks_like_shx, register_cjk_font, rewrite_shx_styles
+from backend.translator import CADChineseTranslator
 from backend.updates import check_github_release
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -361,6 +362,22 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertGreater(pdf["bytes"], 800)
         self.assertGreaterEqual(pdf["pages"], 1)
         _assert_cjk_pdf(self, Path(pdf["path"]), min_ink=800)
+
+    def test_acad_table_write_updates_preview_block(self):
+        dxf = _dims_tables_dxf(self.root / "table_preview.dxf")
+        doc = ezdxf.readfile(dxf)
+        table = next(entity for entity in doc.modelspace() if entity.dxftype() == "ACAD_TABLE")
+        block_name = table.get_block_name()
+        before = [entity.dxf.text for entity in doc.blocks.get(block_name) if entity.dxftype() == "TEXT"]
+        self.assertIn("墙体拆除图", before)
+        translator = CADChineseTranslator(log_callback=lambda *args, **kwargs: None)
+        wall_slot = next(index for index, text in translator._get_acad_table_text_slots(table) if text == "墙体拆除图")
+        translator.write_back_translation(table, "wall demolition plan", f"table:{wall_slot}")
+        cells = [tag.value for tag in table.xtags.get_subclass("AcDbTable") if tag.code == 302]
+        self.assertIn("wall demolition plan", cells)
+        after = [entity.dxf.text for entity in doc.blocks.get(block_name) if entity.dxftype() == "TEXT"]
+        self.assertIn("wall demolition plan", after)
+        self.assertNotIn("墙体拆除图", after)
 
     def test_frontend_dims_label_is_honest(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"

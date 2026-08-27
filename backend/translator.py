@@ -673,7 +673,59 @@ class CADChineseTranslator:
         if getattr(tag, "code", None) != 302:
             raise ValueError(f"ACAD_TABLE 文字槽 {slot} 不再指向文本")
         from ezdxf.lldxf.types import DXFTag
+        old_text = tag.value
         tags[index] = DXFTag(302, text)
+        self._sync_acad_table_preview_block(entity, old_text, text)
+
+    def _sync_acad_table_preview_block(self, entity, old_text, new_text):
+        """Keep the anonymous ``*T`` render block in step with group-code 302.
+
+        AutoCAD may rebuild the table from 302, or keep showing the ``*T``
+        preview. Writing both is what survives a regen; ezdxf cannot prove
+        AutoCAD's own rebuild.
+        """
+        if not old_text or old_text == new_text:
+            return
+        doc = getattr(entity, "doc", None)
+        if doc is None:
+            return
+        block_name = ""
+        try:
+            getter = getattr(entity, "get_block_name", None)
+            if callable(getter):
+                block_name = getter() or ""
+            if not block_name:
+                block_name = entity.dxf.get("geometry", "") or ""
+        except Exception:
+            return
+        if not block_name:
+            return
+        try:
+            block = doc.blocks.get(block_name)
+        except Exception:
+            return
+        if block is None:
+            return
+        old_clean = self._clean_entity_text(old_text)
+        replaced = 0
+        for preview in block:
+            kind = preview.dxftype()
+            if kind == "TEXT":
+                current = getattr(preview.dxf, "text", "") or ""
+                if current == old_text or self._clean_entity_text(current) == old_clean:
+                    preview.dxf.text = new_text
+                    replaced += 1
+            elif kind == "MTEXT":
+                current = getattr(preview.dxf, "text", "") or ""
+                try:
+                    visible = preview.plain_text(fast=False)
+                except Exception:
+                    visible = current
+                if current == old_text or self._clean_entity_text(visible) == old_clean:
+                    self._write_mtext_entity(preview, new_text)
+                    replaced += 1
+        if replaced:
+            self.safe_log(f"  已同步表格预览块 '{block_name}' 中 {replaced} 处文字")
 
     def _append_text_item(self, items, entity, layout, field, raw_text, raw_source=None):
         if not raw_text or not str(raw_text).strip():
