@@ -62,6 +62,16 @@ function enginePayload(engine, config) {
   };
 }
 
+function asText(value) {
+  if (value == null) return "";
+  return typeof value === "string" ? value : String(value);
+}
+
+function asCount(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function asFiles(paths) {
   return (paths || []).map((path) => ({
     path,
@@ -140,13 +150,15 @@ export default function App() {
   }, []);
 
   const visibleRows = useMemo(() => {
+    const list = Array.isArray(rows) ? rows : [];
     const sourceIsZh = sourceLang.startsWith("zh");
     const sourceIsAscii = sourceLang === "en" || sourceLang === "de" || sourceLang === "fr";
-    return rows.filter((row) => {
-      if (filters.dupes && row.duplicate) return false;
-      if (filters.numbers && /^[\d.\-\s]+$/.test(row.source)) return false;
+    return list.filter((row) => {
+      const source = asText(row?.source);
+      if (filters.dupes && row?.duplicate) return false;
+      if (filters.numbers && source && /^[\d.\-\s]+$/.test(source)) return false;
       if (filters.nonsource) {
-        const hasCjk = /[\u4e00-\u9fff]/.test(row.source);
+        const hasCjk = /[\u4e00-\u9fff]/.test(source);
         if (sourceIsZh && !hasCjk) return false;
         if (sourceIsAscii && hasCjk) return false;
       }
@@ -164,8 +176,8 @@ export default function App() {
         api("/api/config"),
       ]);
       setOda(odaStatus);
-      setGlossary((assets.builtin_terms || []).length + (assets.terms || []).length);
-      setConfig(cfg);
+      setGlossary(asCount(assets.builtin_terms?.length) + asCount(assets.terms?.length));
+      setConfig(cfg && typeof cfg === "object" ? cfg : {});
     } catch (error) {
       setStatus(error.message);
     }
@@ -248,8 +260,8 @@ export default function App() {
           translation_mode: modeKey(sourceLang, targetLang),
         }),
       });
-      setRows(data.items || []);
-      setStatus(`提取 ${data.count} 条，去重后 ${data.unique}。`);
+      setRows(Array.isArray(data.items) ? data.items : []);
+      setStatus(`提取 ${asCount(data.count)} 条，去重后 ${asCount(data.unique)}。`);
     } catch (error) {
       setRows([]);
       setStatus(error.message);
@@ -283,9 +295,9 @@ export default function App() {
           ...enginePayload(engine, config),
         }),
       });
-      setRows(data.items || []);
-      const bits = [`术语 ${data.glossary || 0}`, `引擎 ${data.mt || 0}`];
-      if (data.skipped) bits.push(`未译 ${data.skipped}`);
+      setRows(Array.isArray(data.items) ? data.items : []);
+      const bits = [`术语 ${asCount(data.glossary)}`, `引擎 ${asCount(data.mt)}`];
+      if (asCount(data.skipped)) bits.push(`未译 ${asCount(data.skipped)}`);
       if (data.skipped && !data.has_engine) {
         const hint = engine === "local"
           ? "请先启动 Ollama。"
@@ -309,7 +321,7 @@ export default function App() {
       setStatus("先打开图纸。");
       return;
     }
-    const ready = visibleRows.filter((row) => row.selected !== false && (row.target || "").trim());
+    const ready = visibleRows.filter((row) => row.selected !== false && asText(row.target).trim());
     if (!ready.length) {
       setStatus("没有可写回的译文。先点翻译，或手填译文。");
       return;
@@ -601,7 +613,11 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleRows.map((row, index) => (
+                  {visibleRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="kind">{rows.length ? "过滤后没有可显示的文字。" : "这张图没有可译文字。"}</td>
+                    </tr>
+                  ) : visibleRows.map((row, index) => (
                     <tr key={row.id} className={index === 0 ? "on" : row.duplicate ? "skip" : ""}>
                       <td>
                         <input
@@ -613,10 +629,10 @@ export default function App() {
                           }}
                         />
                       </td>
-                      <td className="src">{row.source}</td>
+                      <td className="src">{asText(row.source)}</td>
                       <td>
                         <input
-                          value={row.target}
+                          value={asText(row.target)}
                           onChange={(event) => {
                             const value = event.target.value;
                             setRows((prev) => prev.map((item) => (item.id === row.id ? { ...item, target: value, via: "edit" } : item)));
@@ -624,7 +640,7 @@ export default function App() {
                           style={{ width: "100%", border: 0, background: "transparent", color: "inherit", font: "inherit" }}
                         />
                       </td>
-                      <td className="kind">{row.layer} · {row.type}</td>
+                      <td className="kind">{asText(row.layer) || "0"} · {asText(row.type)}</td>
                     </tr>
                   ))}
                 </tbody>

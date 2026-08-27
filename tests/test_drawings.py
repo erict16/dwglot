@@ -381,6 +381,48 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("wall demolition plan", after)
         self.assertNotIn("墙体拆除图", after)
 
+    def test_digits_empty_layer_and_odd_types_stay_calm(self):
+        path = self.root / "digits.dxf"
+        doc = ezdxf.new("R2010")
+        msp = doc.modelspace()
+        msp.add_text("1234", dxfattribs={"insert": (0, 0)})
+        msp.add_text("-5.0", dxfattribs={"insert": (0, 20)})
+        msp.add_text("天花", dxfattribs={"insert": (0, 40)})
+        doc.saveas(path)
+        preview = extract_preview(str(path))
+        sources = {item["source"] for item in preview["items"]}
+        self.assertIn("1234", sources)
+        self.assertIn("-5.0", sources)
+        self.assertTrue(all(isinstance(item["layer"], str) and item["layer"] for item in preview["items"]))
+        self.assertIsInstance(preview["count"], int)
+        self.assertIsInstance(preview["unique"], int)
+
+        translated = translate_rows(
+            [
+                {"source": "天花", "type": "TEXT", "layer": ""},
+                {"source": "1234", "type": "TEXT", "layer": None},
+                {"source": "天花", "type": "TEXT", "layer": 0},
+            ],
+            mode="zh_to_en",
+            provider="deepl",
+            engine={},
+        )
+        self.assertEqual(translated["items"][0]["target"], "ceiling")
+        self.assertEqual(translated["items"][2]["target"], "ceiling")
+        self.assertFalse(translated["has_engine"])
+        self.assertNotIn("Traceback", str(translated))
+
+        translator = CADChineseTranslator(log_callback=lambda *_a, **_k: None)
+        self.assertEqual(translator.glossary_hit("天花", "zh_to_en", 0), "ceiling")
+        self.assertEqual(translator.glossary_hit("天花", "zh_to_en", ""), "ceiling")
+        self.assertIsNone(translator.get_layer_glossary_translation("alimentation", "fr_to_zh", 0))
+
+        from backend.language_assets import LanguageAssets
+
+        assets = LanguageAssets(self.root / "assets.sqlite3")
+        self.assertIsNone(assets.lookup_term("天花", "zh_to_en", 0))
+        self.assertIsNone(assets.lookup_memory("天花", "zh_to_en", None))
+
     def test_frontend_dims_label_is_honest(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
         text = source.read_text(encoding="utf-8")
@@ -574,6 +616,15 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertIn("disabled={busy || !current} onClick={() => exportPdf(true)}", text)
         self.assertIn("已送到系统打印", text)
 
+    def test_frontend_empty_filter_is_calm(self):
+        source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
+        text = source.read_text(encoding="utf-8")
+        self.assertIn("过滤后没有可显示的文字。", text)
+        self.assertIn("这张图没有可译文字。", text)
+        self.assertIn("function asCount(value)", text)
+        self.assertIn("function asText(value)", text)
+        self.assertIn("/^[\\d.\\-\\s]+$/", text)
+
     def test_frontend_import_tab_is_honest(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
         text = source.read_text(encoding="utf-8")
@@ -588,6 +639,22 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertEqual(opened.status_code, 400, opened.text)
         self.assertIn("ODA", opened.json()["detail"])
         self.assertNotIn("Traceback", opened.text)
+
+    def test_extract_digits_only_drawing_is_200(self):
+        path = Path(self.tmp.name) / "digits.dxf"
+        doc = ezdxf.new("R2010")
+        doc.modelspace().add_text("1234", dxfattribs={"insert": (0, 0)})
+        doc.saveas(path)
+        extracted = self.client.post(
+            "/api/drawings/extract",
+            json={"path": str(path), "translation_mode": "zh_to_en"},
+        )
+        self.assertEqual(extracted.status_code, 200, extracted.text)
+        self.assertNotIn("Traceback", extracted.text)
+        body = extracted.json()
+        self.assertIsInstance(body["count"], int)
+        self.assertTrue(any(item["source"] == "1234" for item in body["items"]))
+        self.assertTrue(all(isinstance(item.get("layer"), str) for item in body["items"]))
 
 
 REAL_DWG_DIR = Path("/workspace/dwglot-drawings")

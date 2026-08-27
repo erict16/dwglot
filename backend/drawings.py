@@ -32,6 +32,13 @@ V01_TYPES = {"TEXT", "MTEXT", "ATTDEF", "ATTRIB", "MULTILEADER"}
 V02_TYPES = {"DIMENSION", "ACAD_TABLE"}
 
 
+def _as_text(value, default: str = "") -> str:
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text or default
+
+
 @contextmanager
 def open_work_dxf(path: str):
     if not path or not os.path.isfile(path):
@@ -107,8 +114,8 @@ def extract_preview(
         rows = []
         seen = {}
         for index, item in enumerate(raw):
-            source = item.get("original_text") or ""
-            kind = (item.get("type") or "").upper()
+            source = _as_text(item.get("original_text"))
+            kind = _as_text(item.get("type")).upper()
             allowed = V01_TYPES | V02_TYPES if enable_v02 else V01_TYPES
             if kind not in allowed:
                 continue
@@ -120,7 +127,7 @@ def extract_preview(
                 continue
             if not model and not include_paper:
                 continue
-            layer = item.get("layer") or "0"
+            layer = _as_text(item.get("layer"), "0")
             if not _layer_allowed(
                 doc,
                 layer,
@@ -184,9 +191,9 @@ def translate_rows(
     skipped = 0
     for item in items:
         row = dict(item)
-        source = row.get("source") or ""
-        layer = row.get("layer") or ""
-        kind = (row.get("type") or "").upper()
+        source = _as_text(row.get("source"))
+        layer = _as_text(row.get("layer"))
+        kind = _as_text(row.get("type")).upper()
         raw = row.get("raw") or row.get("raw_source") or ""
         if row.get("via") == "edit" and (row.get("target") or "").strip():
             out.append(row)

@@ -385,9 +385,10 @@ class CADChineseTranslator:
         return self.language_configs[lang_config_key]['glossary'].get(text.strip().casefold())
 
     def get_layer_glossary_translation(self, text, lang_config_key, layer):
+        text = str(text or "")
         if lang_config_key != 'fr_to_zh' or text.strip().casefold() != 'alimentation':
             return None
-        layer = (layer or '').casefold()
+        layer = str(layer if layer is not None else "").casefold()
         if any(term in layer for term in ('eau', 'plomb', 'sanit', 'hydrau', 'aep')):
             return '供水'
         if any(term in layer for term in ('elec', 'élec', 'cfo', 'cfa', 'power', 'courant')):
@@ -427,7 +428,7 @@ class CADChineseTranslator:
         if not text or not lang_config_key:
             return text
 
-        cache_key = (text, lang_config_key, (layer or '').casefold())
+        cache_key = (text, lang_config_key, str(layer if layer is not None else "").casefold())
 
         # Step 1: 预清洗
         cleaned = self.cleaner.full_clean(text)
@@ -755,7 +756,7 @@ class CADChineseTranslator:
             'field': field,
             'original_text': cleaned,
             'raw_source': str(coded).strip(),
-            'layer': getattr(entity.dxf, 'layer', 'DEFAULT'),
+            'layer': str(getattr(entity.dxf, 'layer', 'DEFAULT') or "0"),
             'location': layout.name if hasattr(layout, 'name') else 'Unknown',
             'type': entity.dxftype(),
             'handle': handle,

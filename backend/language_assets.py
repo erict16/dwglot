@@ -17,8 +17,14 @@ DATABASE_PATH = ASSETS_PATH
 AZURE_F0_MONTHLY_CHARACTER_LIMIT = 2_000_000
 
 
+def _as_text(value) -> str:
+    if value is None:
+        return ""
+    return str(value)
+
+
 def _normalise(text: str) -> str:
-    return " ".join((text or "").strip().casefold().split())
+    return " ".join(_as_text(text).strip().casefold().split())
 
 
 class LanguageAssets:
@@ -178,7 +184,7 @@ class LanguageAssets:
             connection.execute("DELETE FROM terms WHERE id=?", (term_id,))
 
     def lookup_term(self, source: str, mode: str, layer: str = "", project_path: str = "") -> str | None:
-        source_norm, layer_norm = _normalise(source), (layer or "").casefold()
+        source_norm, layer_norm = _normalise(source), _as_text(layer).casefold()
         candidates = []
         for term in self._project_terms(project_path):
             if term.get("mode") == mode and _normalise(term.get("source", "")) == source_norm:
@@ -193,7 +199,7 @@ class LanguageAssets:
         return None
 
     def lookup_memory(self, source: str, mode: str, layer: str = "") -> str | None:
-        source_norm, layer_key = _normalise(source), (layer or "").casefold()
+        source_norm, layer_key = _normalise(source), _as_text(layer).casefold()
         with self._lock, self._connect() as connection:
             row = connection.execute("SELECT id, target FROM translation_memory WHERE mode=? AND source_norm=? AND layer_key IN (?, '') ORDER BY CASE WHEN layer_key='' THEN 1 ELSE 0 END LIMIT 1", (mode, source_norm, layer_key)).fetchone()
             if not row:
@@ -209,7 +215,7 @@ class LanguageAssets:
             connection.execute(
                 "INSERT INTO translation_memory(mode, source, source_norm, layer_key, target, provider, origin, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?) "
                 "ON CONFLICT(mode, source_norm, layer_key) DO UPDATE SET target=excluded.target, provider=excluded.provider, origin=excluded.origin, updated_at=excluded.updated_at WHERE translation_memory.origin != 'manual'",
-                (mode, source.strip(), _normalise(source), (layer or "").casefold(), target.strip(), provider, origin, now, now),
+                (mode, source.strip(), _normalise(source), _as_text(layer).casefold(), target.strip(), provider, origin, now, now),
             )
 
     def list_memory(self) -> list[dict]:
