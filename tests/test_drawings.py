@@ -653,6 +653,36 @@ class DrawingsLoopTests(unittest.TestCase):
         )
         self.assertEqual(len(full["items"]), 4)
 
+    def test_writeback_skip_dupes_leaves_paperspace_copy(self):
+        committed = FIXTURES / "floor_plan.dxf"
+        dxf = committed if committed.is_file() else _floor_plan_dxf(self.root / "floor_plan.dxf")
+        preview = extract_preview(
+            str(dxf),
+            include_attribs=True,
+            include_paper=True,
+            skip_dupes=True,
+            skip_numbers=False,
+            skip_nonsource=False,
+        )
+        sources = [item["source"] for item in preview["items"] if item["source"] == "平面布置图"]
+        self.assertEqual(len(sources), 1)
+        translated = translate_rows(preview["items"], mode="zh_to_en", provider="deepl", engine={})
+        output = writeback_rows(
+            str(dxf),
+            translated["items"],
+            output_dir=str(self.root),
+            output_name="skip_dupes_paper",
+            mode="zh_to_en",
+        )
+        doc = ezdxf.readfile(output["path"])
+        paper = [entity.dxf.text for entity in doc.layouts.get("A1") if entity.dxftype() == "TEXT"]
+        model = [entity.dxf.text for entity in doc.modelspace() if entity.dxftype() == "TEXT"]
+        self.assertIn("平面布置图", paper)
+        self.assertNotIn("floor plan", paper)
+        self.assertIn("grounding", paper)
+        self.assertIn("floor plan", model)
+        self.assertIn("reflected ceiling plan", model)
+
     def test_frontend_dims_label_is_honest(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
         text = source.read_text(encoding="utf-8")
@@ -670,6 +700,7 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("skip_numbers: filters.numbers", text)
         self.assertIn("skip_dupes: filters.dupes", text)
         self.assertIn("skip_nonsource: filters.nonsource", text)
+        self.assertIn("items: visibleRows", text)
 
 
 class DrawingsApiTests(unittest.TestCase):

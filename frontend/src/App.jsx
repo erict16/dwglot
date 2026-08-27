@@ -345,7 +345,7 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({
           input_file: current,
-          items: rows,
+          items: visibleRows,
           output_dir: config.output_dir,
           output_name: named.name,
           translation_mode: modeKey(sourceLang, targetLang),

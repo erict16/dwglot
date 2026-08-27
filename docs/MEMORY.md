@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: 常规 写回 posts `visibleRows`, not the full extract `rows`. Toggling 过滤 after extract no longer writes hidden rows that already have a target. skip_dupes write-back of floor_plan leaves paperspace `平面布置图`, still writes unique `接地` and model `floor plan`. `python -m unittest discover -s tests` 108 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: 纯数字 / 重复 / 非源语言 skip is in `item_passes_text_filters` (drawings extract + batch `extract_text_entities`). Defaults on for `/api/drawings/extract` and `/api/batch/start`. 开始导出 sends `skip_numbers/dupes/nonsource` from the checkboxes. Duplicate paperspace copies stay source when 重复 is on. `python -m unittest discover -s tests` 107 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/start` on an all-succeeded queue re-runs those rows (same task id, new output). Skip already-running (200 `没有待处理的图纸`). Empty queue still 400 `请选择 CAD 文件`. 常规 DWG-without-ODA still 400. `python -m unittest discover -s tests` 105 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/add` does not enqueue a second row for the same path (abspath/normcase). 开始导出 add+start reuses the existing task id. New paths still append. 常规 DWG-without-ODA still 400. `python -m unittest discover -s tests` 103 ok. Do not edit landing/, README*, docs/icons/.
