@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>图译 Dwglot — DWG DXF CAD translator</title>
+  <meta name="description" content="图译 Dwglot is an open-source desktop CAD translator for DWG and DXF drawing translation (图纸翻译). No AutoCAD. macOS and Windows." />
+  <meta name="keywords" content="DWG, DXF, CAD translator, drawing translation, 图纸翻译, converter, ezdxf, OpenDWG" />
+  <meta property="og:title" content="图译 Dwglot — DWG DXF CAD translator" />
+  <meta property="og:description" content="Open-source desktop CAD translator. Translate text inside DWG and DXF drawings." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="shots/regular.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="shots/mark.svg" type="image/svg+xml" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            accent: "#007aff",
+            ink: "#1d1d1f",
+            mist: "#e8e8ed",
+            navy: "#0b1120",
+          },
+          fontFamily: {
+            sans: ["-apple-system", "SF Pro Text", "system-ui", "sans-serif"],
+          },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="bg-white text-ink antialiased">
+  <header class="sticky top-0 z-20 border-b border-black/5 bg-white/80 backdrop-blur">
+    <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
+      <a href="/" class="flex items-center gap-2 font-semibold">
+        <img src="shots/mark.svg" alt="" width="28" height="28" class="rounded-md" />
+        图译
+      </a>
+      <nav class="hidden items-center gap-8 text-sm text-slate-600 sm:flex">
+        <a href="#features" class="hover:text-ink">功能</a>
+        <a href="#install" class="hover:text-ink">安装</a>
+        <a href="#faq" class="hover:text-ink">FAQ</a>
+        <a href="https://github.com/erict16/dwglot" class="hover:text-ink">GitHub</a>
+      </nav>
+      <a href="https://github.com/erict16/dwglot/releases" class="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white hover:brightness-110">下载</a>
+    </div>
+  </header>
+
+  <section class="bg-mist">
+    <div class="mx-auto max-w-4xl px-4 pb-0 pt-16 text-center sm:pt-20">
+      <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">DWG / DXF CAD translator</h1>
+      <p class="mx-auto mt-4 max-w-xl text-lg text-slate-600">图译 Dwglot 做图纸翻译。打开图纸，译文字，写回。不装 AutoCAD。</p>
+      <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <a href="https://github.com/erict16/dwglot/releases" class="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white">GitHub Releases</a>
+        <a href="https://github.com/erict16/dwglot" class="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-ink ring-1 ring-black/10">源码 MIT</a>
+      </div>
+      <div class="mx-auto mt-12 max-w-5xl">
+        <img src="shots/regular.png" alt="图译常规处理：原文和译文表" width="1280" height="800" class="rounded-2xl shadow-xl ring-1 ring-black/10" />
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="bg-navy py-20 text-white">
+    <div class="mx-auto max-w-6xl px-4">
+      <h2 class="text-center text-3xl font-semibold tracking-tight">译图纸里的字，不是整张图当图片扫</h2>
+      <p class="mx-auto mt-3 max-w-2xl text-center text-slate-300">TEXT / MTEXT / 属性。术语表先匹配，再走云、本地或自定义引擎。</p>
+      <div class="mt-10 flex flex-wrap justify-center gap-2" role="tablist">
+        <button type="button" data-tab="regular" class="tab on rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-navy">常规处理</button>
+        <button type="button" data-tab="export" class="tab rounded-full px-4 py-1.5 text-sm font-semibold text-slate-300">批量导出</button>
+        <button type="button" data-tab="params" class="tab rounded-full px-4 py-1.5 text-sm font-semibold text-slate-300">参数</button>
+      </div>
+      <img id="feature-shot" src="shots/regular.png" alt="图译界面" width="1280" height="800" class="mt-8 rounded-2xl ring-1 ring-white/10" />
+    </div>
+  </section>
+
+  <section class="bg-white py-20">
+    <div class="mx-auto grid max-w-6xl gap-12 px-4 lg:grid-cols-2 lg:items-center">
+      <div>
+        <h2 class="text-3xl font-semibold tracking-tight">批量导出和参数，都在同一扇 Mac 窗里</h2>
+        <p class="mt-4 max-w-prose text-slate-600">左侧已打开图纸。中间原文 | 译文 | 图层。云 / 本地 / 自定义是分段控件，不是商店。ODA 你自己装；没装也能译 DXF。</p>
+        <ul class="mt-6 space-y-2 text-slate-700">
+          <li>默认中 → 英，可换方向</li>
+          <li>过滤纯数字、重复、非源语言</li>
+          <li>检查更新走 GitHub Releases</li>
+        </ul>
+      </div>
+      <img src="shots/export.png" alt="批量导出" width="1280" height="800" class="rounded-2xl shadow-lg ring-1 ring-black/10" />
+    </div>
+  </section>
+
+  <section id="install" class="bg-accent py-16 text-white">
+    <div class="mx-auto max-w-3xl px-4 text-center">
+      <h2 class="text-3xl font-semibold tracking-tight">v0.1 未签名，先从 Releases 装</h2>
+      <p class="mt-3 text-white/90">Mac：Control-点图标 → 打开，或系统设置 → 隐私与安全性 → 仍要打开。Windows：更多信息 → 仍要运行。证书以后会消掉这层。</p>
+      <a href="https://github.com/erict16/dwglot/releases" class="mt-8 inline-block rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-accent">打开 Releases</a>
+    </div>
+  </section>
+
+  <section id="faq" class="bg-mist py-20">
+    <div class="mx-auto max-w-3xl px-4">
+      <h2 class="text-3xl font-semibold tracking-tight">FAQ</h2>
+      <dl class="mt-10 divide-y divide-black/10">
+        <div class="py-5">
+          <dt class="font-semibold">要装 AutoCAD 吗？</dt>
+          <dd class="mt-2 text-slate-600">不要。图译是独立桌面程序。DXF 直接读；DWG 用你本机的 ODA File Converter。</dd>
+        </div>
+        <div class="py-5">
+          <dt class="font-semibold">ODA 打进安装包了吗？</dt>
+          <dd class="mt-2 text-slate-600">没有，也不会。Community 协议不允许随应用分发。设 <code>CAD_ODA_EXEC</code> 或按系统路径检测。</dd>
+        </div>
+        <div class="py-5">
+          <dt class="font-semibold">为什么 Gatekeeper / SmartScreen 拦我？</dt>
+          <dd class="mt-2 text-slate-600">v0.1 未签名。Mac 用右键打开；Windows 点仍要运行。这是预期行为，写在 README 安装里。</dd>
+        </div>
+        <div class="py-5">
+          <dt class="font-semibold">收费吗？有授权码吗？</dt>
+          <dd class="mt-2 text-slate-600">没有。MIT，无试用、无收款码。引擎密钥是你自己的 Azure / DeepL / Ollama / 自定义 API。</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <footer class="border-t border-black/5 py-10 text-sm text-slate-500">
+    <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4">
+      <span>图译 Dwglot · MIT · 基于 Honsen CAD_translator</span>
+      <a href="https://github.com/erict16/dwglot" class="hover:text-ink">github.com/erict16/dwglot</a>
+    </div>
+  </footer>
+
+  <script>
+    const shot = { regular: "shots/regular.png", export: "shots/export.png", params: "shots/params.png" };
+    const img = document.getElementById("feature-shot");
+    document.querySelectorAll(".tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach((b) => {
+          b.classList.remove("on", "bg-white", "text-navy");
+          b.classList.add("text-slate-300");
+        });
+        btn.classList.add("on", "bg-white", "text-navy");
+        btn.classList.remove("text-slate-300");
+        img.src = shot[btn.dataset.tab];
+      });
+    });
+    document.querySelector('.tab[data-tab="regular"]').classList.add("bg-white", "text-navy");
+  </script>
+</body>
+</html>
