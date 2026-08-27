@@ -216,7 +216,7 @@ def translate_rows(
             used["mt"] = True
             return translator.translate_text(text, mode, layer)
 
-        if kind == "MTEXT" and raw:
+        if kind in {"MTEXT", "MULTILEADER"} and raw:
             translated_raw = map_translatable(raw, translate_run)
             row["target_raw"] = translated_raw
             row["target"] = translator.cleaner.full_clean(_plain_mtext(translated_raw))
@@ -306,8 +306,15 @@ def writeback_rows(
             kind = entity.dxftype()
             target = item.get("target") or ""
             target_raw = item.get("target_raw") or ""
-            if kind == "MTEXT" and target_raw and ("\\" in target_raw or "{" in target_raw) and item.get("via") != "edit":
+            formatted = (
+                bool(target_raw)
+                and ("\\" in target_raw or "{" in target_raw)
+                and item.get("via") != "edit"
+            )
+            if kind == "MTEXT" and formatted:
                 translator._write_mtext_entity(entity, target_raw)
+            elif kind == "MULTILEADER" and formatted:
+                translator.write_back_translation(entity, target_raw, field)
             else:
                 translator.write_back_translation(entity, target, field)
             if field == "tag":

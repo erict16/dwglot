@@ -10,6 +10,7 @@ from pathlib import Path
 import ezdxf
 from ezdxf.entities import factory
 from ezdxf.entities.acad_table import AcadTableBlockContent
+from ezdxf.math import Vec2
 from fastapi.testclient import TestClient
 
 from backend.api import app
@@ -128,6 +129,17 @@ def _dims_tables_dxf(path: Path) -> Path:
     return path
 
 
+def _multileader_dxf(path: Path) -> Path:
+    doc = ezdxf.new("R2013")
+    msp = doc.modelspace()
+    builder = msp.add_multileader_mtext("Standard")
+    builder.quick_leader(r"{\C1;天花图}", target=Vec2(0, 0), segment1=Vec2(30, 10))
+    paper = doc.layouts.new("A1")
+    paper.add_text("接地", dxfattribs={"insert": (10, 10)})
+    doc.saveas(path)
+    return path
+
+
 class DrawingsLoopTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -192,6 +204,42 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("distribution board", texts)
         mtext = next(entity for entity in doc.modelspace() if entity.dxftype() == "MTEXT")
         self.assertIn("\\C1;", mtext.dxf.text)
+        attdef = next(entity for entity in doc.blocks.get("TITLE") if entity.dxftype() == "ATTDEF")
+        self.assertEqual(attdef.dxf.text, "distribution board")
+
+    def test_multileader_glossary_writeback_keeps_mtext_codes(self):
+        dxf = _multileader_dxf(self.root / "mleader.dxf")
+        preview = extract_preview(str(dxf), include_attribs=True, include_paper=True)
+        kinds = {item["type"] for item in preview["items"]}
+        self.assertIn("MULTILEADER", kinds)
+        self.assertIn("TEXT", kinds)
+        leader = next(item for item in preview["items"] if item["type"] == "MULTILEADER")
+        self.assertEqual(leader["source"], "天花图")
+        self.assertEqual(leader["field"], "mtext")
+        self.assertIn("\\C1;", leader["raw"])
+        paper = next(item for item in preview["items"] if item["source"] == "接地")
+        self.assertEqual(paper["location"], "A1")
+
+        translated = translate_rows(preview["items"], mode="zh_to_en", provider="deepl", engine={})
+        by_source = {item["source"]: item for item in translated["items"]}
+        self.assertEqual(by_source["天花图"]["target"], "reflected ceiling plan")
+        self.assertIn("\\C1;", by_source["天花图"]["target_raw"])
+        self.assertEqual(by_source["接地"]["target"], "grounding")
+
+        output = writeback_rows(
+            str(dxf),
+            translated["items"],
+            output_dir=str(self.root),
+            output_name="en_mleader",
+            mode="zh_to_en",
+        )
+        self.assertGreaterEqual(output["written"], 2)
+        reread = extract_preview(output["path"], include_paper=True)
+        sources = {item["source"] for item in reread["items"]}
+        self.assertIn("reflected ceiling plan", sources)
+        self.assertIn("grounding", sources)
+        leader_out = next(item for item in reread["items"] if item["type"] == "MULTILEADER")
+        self.assertIn("\\C1;", leader_out["raw"])
 
     def test_export_pdf_is_real_pdf(self):
         dest = self.root / "sample.pdf"

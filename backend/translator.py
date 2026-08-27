@@ -1019,13 +1019,14 @@ class CADChineseTranslator:
                 self._write_mtext_entity(entity, cleaned_text)
 
             elif field == 'mtext' and dxftype == "MULTILEADER":
+                payload = new_text if ("\\" in str(new_text or "") or "{" in str(new_text or "")) else cleaned_text
                 if hasattr(entity, 'set_mtext_content'):
-                    entity.set_mtext_content(cleaned_text)
+                    entity.set_mtext_content(payload)
                 else:
                     context = getattr(entity, 'context', None)
                     mtext = getattr(context, 'mtext', None) if context else None
                     if mtext is not None:
-                        mtext.default_content = cleaned_text
+                        mtext.default_content = payload
                     else:
                         raise Exception("无法写入 MULTILEADER 文字内容")
 
