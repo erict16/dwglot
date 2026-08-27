@@ -1461,6 +1461,36 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertIn("ODA", printed.json()["detail"])
         self.assertNotIn("Traceback", printed.text)
 
+    def test_output_dir_that_is_a_file_is_400(self):
+        as_file = Path(self.tmp.name) / "not_a_dir"
+        as_file.write_text("x", encoding="utf-8")
+        blocked = str(as_file)
+        for url, payload in (
+            (
+                "/api/drawings/writeback",
+                {
+                    "input_file": str(self.dxf),
+                    "items": [{"source": "天花", "target": "ceiling", "selected": True, "handle": "20"}],
+                    "output_dir": blocked,
+                    "output_name": "x",
+                },
+            ),
+            (
+                "/api/drawings/export-pdf",
+                {"path": str(self.dxf), "output_dir": blocked, "output_name": "x.pdf"},
+            ),
+            (
+                "/api/drawings/print",
+                {"path": str(self.dxf), "output_dir": blocked, "output_name": "x.pdf"},
+            ),
+        ):
+            response = self.client.post(url, json=payload)
+            self.assertEqual(response.status_code, 400, f"{url} {response.text}")
+            self.assertIn("输出目录", response.json()["detail"])
+            self.assertNotIn("Traceback", response.text)
+            self.assertNotIn("FileExistsError", response.text)
+            self.assertNotIn("Errno", response.text)
+
     def test_extract_digits_only_drawing_is_200(self):
         path = Path(self.tmp.name) / "digits.dxf"
         doc = ezdxf.new("R2010")
