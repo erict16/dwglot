@@ -1009,6 +1009,57 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertFalse(printed_body["print"]["ok"])
         _assert_cjk_pdf(self, Path(printed_body["path"]), min_ink=800)
 
+    def test_export_pdf_and_print_a1_bilingual_style(self):
+        dxf = FIXTURES / "floor_plan.dxf"
+        self.assertTrue(dxf.is_file(), "tests/fixtures/floor_plan.dxf")
+        preview = extract_preview(str(dxf), include_paper=True, skip_dupes=False, skip_nonsource=False)
+        items = translate_rows(preview["items"], mode="zh_to_en", provider="deepl", engine={})["items"]
+        self.assertTrue(any(item["location"] == "A1" and item["target"] for item in items))
+        payload = {
+            "path": str(dxf),
+            "output_dir": self.tmp.name,
+            "layout": "A1",
+            "style": "原译对照",
+            "items": items,
+        }
+        pdf = self.client.post(
+            "/api/drawings/export-pdf",
+            json={**payload, "output_name": "a1_dui.pdf"},
+        )
+        self.assertEqual(pdf.status_code, 200, pdf.text)
+        self.assertNotIn("Traceback", pdf.text)
+        body = pdf.json()
+        self.assertEqual(body["pages"], 1)
+        self.assertEqual(body["style"], "原译对照")
+        self.assertGreater(body["bytes"], 800)
+        _assert_cjk_pdf(self, Path(body["path"]), min_ink=800)
+        plain = self.client.post(
+            "/api/drawings/export-pdf",
+            json={
+                "path": str(dxf),
+                "output_dir": self.tmp.name,
+                "output_name": "a1_plain.pdf",
+                "layout": "A1",
+                "style": "纯译文",
+                "items": items,
+            },
+        )
+        self.assertEqual(plain.status_code, 200, plain.text)
+        self.assertNotEqual(body["bytes"], plain.json()["bytes"])
+        with patch("backend.drawings.shutil.which", return_value=None):
+            printed = self.client.post(
+                "/api/drawings/print",
+                json={**payload, "output_name": "a1_dui_print.pdf"},
+            )
+        self.assertEqual(printed.status_code, 200, printed.text)
+        self.assertNotIn("Traceback", printed.text)
+        printed_body = printed.json()
+        self.assertEqual(printed_body["pages"], 1)
+        self.assertEqual(printed_body["style"], "原译对照")
+        self.assertFalse(printed_body["print"]["ok"])
+        self.assertIn("打印命令", printed_body["print"]["message"])
+        _assert_cjk_pdf(self, Path(printed_body["path"]), min_ink=800)
+
     def test_export_pdf_and_print_model_layout(self):
         dxf = FIXTURES / "floor_plan.dxf"
         self.assertTrue(dxf.is_file(), "tests/fixtures/floor_plan.dxf")
