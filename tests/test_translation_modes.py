@@ -220,9 +220,14 @@ class TranslationModeTests(unittest.TestCase):
             def dxftype(self):
                 return "LINE"
 
-        translator = CADChineseTranslator(log_callback=lambda *args, **kwargs: None)
+        logs = []
+        translator = CADChineseTranslator(log_callback=lambda message, level="INFO": logs.append(message))
         with self.assertRaises(ValueError):
             translator.write_back_translation(UnsupportedEntity(), "translated")
+        joined = "\n".join(str(line) for line in logs)
+        self.assertTrue(any("写回失败" in str(line) for line in logs), logs)
+        self.assertNotIn("Traceback", joined)
+        self.assertNotIn('File "', joined)
 
     def test_local_api_has_no_permissive_cors_middleware(self):
         self.assertFalse(any(middleware.cls.__name__ == "CORSMiddleware" for middleware in app.user_middleware))

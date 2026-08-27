@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: batch `write_back_translation` logged `traceback.format_exc()` (English File/line). Now `写回失败` only; batch wrapper is `写回 CAD 实体失败` without `{e}`. 常规 写回 never dumped a traceback. `python -m unittest discover -s tests` 133 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: 写回 / export-pdf / print with `output_dir` as a file is 400 `输出目录无法创建` (no FileExistsError). Batch start already locked. `python -m unittest discover -s tests` 133 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: stub DWG print without ODA is 400 `未检测到 ODA`. Open/extract/pdf/writeback of DWG without ODA already locked. `python -m unittest discover -s tests` 132 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/batch/start` with `output_dir` that is a file was an uncaught `FileExistsError` (500). Now 400 `输出目录无法创建`. Same helper on 写回 and export-pdf. `python -m unittest discover -s tests` 131 ok. Do not edit landing/, README*, docs/icons/.

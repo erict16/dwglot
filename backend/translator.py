@@ -1108,9 +1108,8 @@ class CADChineseTranslator:
             else:
                 raise ValueError(f"未知写入目标: {dxftype}/{field}")
 
-        except Exception as e:
-            import traceback
-            self.safe_log(f"写回失败: {e}\n{traceback.format_exc()}")
+        except Exception:
+            self.safe_log("写回失败")
             raise
 
     def translate_cad_file(self, input_file, output_file, lang_config, include_blocks=False, output_format="source", output_version="", resume_event=None, cancel_event=None, style="纯译文", enable_v02=True, include_attribs=True, include_model=True, include_paper=True, include_frozen=False, include_locked=False, include_off=False, skip_numbers=True, skip_dupes=True, skip_nonsource=True):
@@ -1238,8 +1237,8 @@ class CADChineseTranslator:
                                 )
                             successful_translations += 1
                         except Exception as e:
-                            self.safe_log(f" ❌ 写回实体失败: {e}", level="error")
-                            raise RuntimeError(f"写回 CAD 实体失败: {e}") from e
+                            self.safe_log("写回 CAD 实体失败", level="error")
+                            raise RuntimeError("写回 CAD 实体失败") from e
                     else:
                         successful_translations += 1
                 
