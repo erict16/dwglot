@@ -22,7 +22,7 @@ from backend.cad import (
 )
 from backend.languages import split_mode
 from backend.mtext_runs import map_translatable
-from backend.styles import rewrite_shx_styles
+from backend.styles import register_cjk_font, rewrite_shx_styles
 from backend.translator import CADChineseTranslator, output_prefix
 from backend.storage import atomic_output_path
 
@@ -335,8 +335,10 @@ def export_pdf(path: str, output_path: str = "", layout_name: str = "") -> dict:
     """DWG → ODA → DXF → PDF via ezdxf drawing (matplotlib). Not AutoCAD plot quality."""
     dest = Path(output_path) if output_path else Path(default_output_dir()) / f"{Path(path).stem}.pdf"
     dest.parent.mkdir(parents=True, exist_ok=True)
+    register_cjk_font()
     with open_work_dxf(path) as work_dxf:
         doc = ezdxf.readfile(work_dxf)
+        rewrite_shx_styles(doc)
         pages = _layout_pages(doc, layout_name)
         _render_pdf(pages, dest)
     if not dest.is_file() or dest.stat().st_size < 8:
@@ -348,6 +350,7 @@ def _render_pdf(layouts, dest: Path) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
+    register_cjk_font()
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
     from ezdxf.addons.drawing import Frontend

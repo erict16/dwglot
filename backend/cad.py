@@ -190,7 +190,32 @@ def odafc_candidate_paths() -> list[Path]:
         command = shutil.which(ODA_UNIX_EXECUTABLE)
         if command:
             paths.append(Path(command))
-    return paths
+    seen: set[str] = set()
+    resolved: list[Path] = []
+    for path in paths:
+        item = _resolve_candidate(path)
+        key = str(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        resolved.append(item)
+    return resolved
+
+
+def _resolve_candidate(path: Path) -> Path:
+    item = path.expanduser()
+    text = str(item)
+    windows_abs = len(text) >= 3 and text[1] == ":" and text[2] in "\\/"
+    if windows_abs:
+        if os.name != "nt":
+            return Path(text)
+        return item.resolve()
+    if text.startswith("/"):
+        try:
+            return item.resolve()
+        except OSError:
+            return Path(os.path.abspath(text))
+    return item
 
 
 def resolve_odafc_path() -> Optional[str]:

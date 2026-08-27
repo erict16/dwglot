@@ -42,7 +42,12 @@ class PlatformCompatibilityTests(unittest.TestCase):
 
     def test_frozen_macos_app_finds_adjacent_oda_app(self):
         executable = "/tmp/cad-dist/Honsen CAD Translator.app/Contents/MacOS/Honsen_CAD_Translator_v1.8.8"
-        expected = Path("/tmp/cad-dist/ODAFileConverter.app/Contents/MacOS/ODAFileConverter").resolve()
+        exe = Path(executable).resolve()
+        app_root = next(parent for parent in exe.parents if parent.suffix == ".app")
+        adjacent = (app_root.parent / "ODAFileConverter.app" / "Contents" / "MacOS" / "ODAFileConverter").resolve()
+        helpers = (
+            app_root / "Contents" / "Helpers" / "ODAFileConverter.app" / "Contents" / "MacOS" / "ODAFileConverter"
+        ).resolve()
         with (
             patch("backend.cad.sys.platform", "darwin"),
             patch("backend.cad.sys.executable", executable),
@@ -50,12 +55,9 @@ class PlatformCompatibilityTests(unittest.TestCase):
             patch("backend.cad.shutil.which", return_value=None),
             patch.dict(os.environ, {}, clear=True),
         ):
-            candidates = cad.odafc_candidate_paths()
-            self.assertIn(expected, candidates)
-            self.assertIn(
-                Path("/private/tmp/cad-dist/Honsen CAD Translator.app/Contents/Helpers/ODAFileConverter.app/Contents/MacOS/ODAFileConverter"),
-                candidates,
-            )
+            candidates = [path.resolve() for path in cad.odafc_candidate_paths()]
+            self.assertIn(adjacent, candidates)
+            self.assertIn(helpers, candidates)
 
     def test_embedded_read_only_dmg_has_highest_local_priority(self):
         mounted = Path("/private/tmp/oda-volume/ODAFileConverter.app/Contents/MacOS/ODAFileConverter")

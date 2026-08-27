@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,8 +12,28 @@ from fastapi.testclient import TestClient
 
 from backend.api import app
 from backend.drawings import extract_preview, export_pdf, translate_rows, writeback_rows
-from backend.styles import looks_like_shx, rewrite_shx_styles
+from backend.styles import bundled_font_path, looks_like_shx, register_cjk_font, rewrite_shx_styles
 from backend.updates import check_github_release
+
+
+def _pdf_text(path: Path) -> str:
+    try:
+        return subprocess.check_output(["pdftotext", "-layout", str(path), "-"], text=True, errors="ignore")
+    except (OSError, subprocess.CalledProcessError):
+        return ""
+
+
+def _pdf_dark_pixels(path: Path) -> int:
+    from PIL import Image
+
+    with tempfile.TemporaryDirectory() as tmp:
+        prefix = Path(tmp) / "page"
+        subprocess.run(["pdftoppm", "-png", "-r", "120", str(path), str(prefix)], check=True)
+        pngs = sorted(Path(tmp).glob("*.png"))
+        if not pngs:
+            return 0
+        image = Image.open(pngs[0]).convert("L")
+        return sum(1 for pixel in image.tobytes() if pixel < 210)
 
 
 def _sample_dxf(path: Path) -> Path:
@@ -185,6 +206,33 @@ class DrawingsLoopTests(unittest.TestCase):
         dwg.write_bytes(b"AC1032" + b"\x00" * 32)
         with self.assertRaisesRegex(RuntimeError, "ODA"):
             extract_preview(str(dwg))
+
+    def test_pdf_cjk_uses_bundled_noto_and_is_not_tofu(self):
+        font_path = bundled_font_path()
+        self.assertIsNotNone(font_path, "bundle fonts/NotoSansSC-Regular.otf")
+        from fontTools.ttLib import TTFont
+
+        cmap = TTFont(str(font_path)).getBestCmap()
+        for char in "平面布置图":
+            self.assertIn(ord(char), cmap)
+        register_cjk_font()
+        from ezdxf.fonts.fonts import make_font
+
+        glyph = make_font(font_path.name, 10.0)
+        path = glyph.text_path("平面布置图")
+        self.assertGreater(len(path.vertices()), 40, "CJK glyphs should be real outlines, not .notdef boxes")
+
+        dxf = self.root / "cjk_only.dxf"
+        doc = ezdxf.new("R2010")
+        doc.modelspace().add_text("平面布置图", dxfattribs={"insert": (0, 0), "height": 50})
+        doc.saveas(dxf)
+        pdf = export_pdf(str(dxf), str(self.root / "cjk_only.pdf"))
+        pdf_path = Path(pdf["path"])
+        self.assertEqual(pdf_path.read_bytes()[:5], b"%PDF-")
+        extracted = _pdf_text(pdf_path)
+        if "平面" not in extracted and "布置" not in extracted:
+            ink = _pdf_dark_pixels(pdf_path)
+            self.assertGreater(ink, 800, f"rasterized PDF has too little ink ({ink}); CJK is probably tofu")
 
     def test_rewrite_shx_does_not_clobber_ttf(self):
         doc = ezdxf.new("R2010", setup=True)

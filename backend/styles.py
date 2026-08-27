@@ -46,6 +46,9 @@ def looks_like_unicode_font(name: str) -> bool:
     return Path(n).suffix.lower() in TTF_SUFFIXES
 
 
+_ezdxf_registered = False
+
+
 def bundled_font_path() -> Path | None:
     from backend.app_meta import resource_base
 
@@ -55,6 +58,25 @@ def bundled_font_path() -> Path | None:
         if path.is_file():
             return path
     return None
+
+
+def register_cjk_font() -> Path | None:
+    """Make the bundled Noto SC face visible to ezdxf drawing (PDF)."""
+    global _ezdxf_registered
+    path = bundled_font_path()
+    if path is None:
+        return None
+    if not _ezdxf_registered:
+        import platform as py_platform
+        from ezdxf.fonts import fonts as ez_fonts
+        from ezdxf.fonts.font_manager import FONT_DIRECTORIES, LINUX_FONT_DIRS
+
+        dirs = [str(path.parent), *FONT_DIRECTORIES.get(py_platform.system(), LINUX_FONT_DIRS)]
+        ez_fonts.font_manager.build(dirs, support_dirs=True)
+        ez_fonts.font_manager.add_synonyms({path.name: "txt.shx"})
+        ez_fonts.font_manager.add_synonyms({path.name: "txt"})
+        _ezdxf_registered = True
+    return path
 
 
 def _user_fonts_dir() -> Path | None:
@@ -99,6 +121,7 @@ def unicode_font_filename() -> str:
 
 def rewrite_shx_styles(doc, log=None) -> int:
     """Point SHX / Big Font styles at a Unicode font. Returns how many styles changed."""
+    register_cjk_font()
     font = unicode_font_filename()
     changed = 0
     for style in doc.styles:
