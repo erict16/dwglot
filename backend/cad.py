@@ -266,7 +266,7 @@ def odafc_available() -> bool:
 def require_odafc(log: LogFn = None) -> None:
     path = configure_odafc()
     if not path or not odafc_available():
-        raise RuntimeError(dwg_unavailable_message())
+        raise RuntimeError(dwg_unavailable_short())
     _log(log, f"ODA File Converter 已就绪 ({path})")
 
 

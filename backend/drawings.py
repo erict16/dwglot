@@ -16,6 +16,7 @@ from backend.cad import (
     CadConversionSession,
     analyze_source,
     dwg_to_work_dxf,
+    dwg_unavailable_short,
     odafc_available,
     output_path_for,
 )
@@ -40,7 +41,7 @@ def open_work_dxf(path: str):
     work = path
     if suffix == ".dwg":
         if not odafc_available():
-            raise RuntimeError("未检测到 ODA，无法打开 DWG。请安装 ODA 或另存为 DXF。")
+            raise RuntimeError(dwg_unavailable_short())
         handle, tmp = tempfile.mkstemp(suffix=".dxf")
         os.close(handle)
         dwg_to_work_dxf(path, tmp)

@@ -275,6 +275,60 @@ class DrawingsApiTests(unittest.TestCase):
             opened = self.client.post("/api/drawings/open", files={"files": ("x.dwg", handle, "application/acad")})
         self.assertEqual(opened.status_code, 400, opened.text)
         self.assertIn("ODA", opened.json()["detail"])
+        self.assertNotIn("Traceback", opened.text)
+
+
+REAL_DWG_DIR = Path("/workspace/dwglot-drawings")
+
+
+class RealDwgWithoutOdaTests(unittest.TestCase):
+    """Huaming DWG fixtures. Skip if the folder is not mounted."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dwgs = sorted(REAL_DWG_DIR.glob("*.dwg")) if REAL_DWG_DIR.is_dir() else []
+
+    def test_every_real_dwg_fails_cleanly_without_oda(self):
+        if not self.dwgs:
+            self.skipTest("no /workspace/dwglot-drawings")
+        client = TestClient(app)
+        self.assertGreaterEqual(len(self.dwgs), 2)
+        for dwg in self.dwgs:
+            with self.subTest(name=dwg.name):
+                with self.assertRaisesRegex(RuntimeError, "ODA"):
+                    extract_preview(str(dwg))
+                extracted = client.post(
+                    "/api/drawings/extract",
+                    json={"path": str(dwg), "translation_mode": "zh_to_en"},
+                )
+                self.assertEqual(extracted.status_code, 400, extracted.text)
+                self.assertIn("ODA", extracted.json()["detail"])
+                self.assertNotIn("Traceback", extracted.text)
+                written = client.post(
+                    "/api/drawings/writeback",
+                    json={
+                        "input_file": str(dwg),
+                        "items": [{"source": "天花", "target": "ceiling", "selected": True}],
+                        "output_dir": "/tmp",
+                        "output_name": "skip",
+                        "translation_mode": "zh_to_en",
+                    },
+                )
+                self.assertEqual(written.status_code, 400, written.text)
+                self.assertIn("ODA", written.json()["detail"])
+                pdf = client.post(
+                    "/api/drawings/export-pdf",
+                    json={"path": str(dwg), "output_dir": "/tmp", "output_name": "skip.pdf"},
+                )
+                self.assertEqual(pdf.status_code, 400, pdf.text)
+                self.assertIn("ODA", pdf.json()["detail"])
+                with dwg.open("rb") as handle:
+                    opened = client.post(
+                        "/api/drawings/open",
+                        files={"files": (dwg.name, handle, "application/acad")},
+                    )
+                self.assertEqual(opened.status_code, 400, opened.text)
+                self.assertIn("ODA", opened.json()["detail"])
 
     def test_updates_helper_survives_404(self):
         payload = check_github_release()
