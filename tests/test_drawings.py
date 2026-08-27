@@ -18,6 +18,7 @@ from unittest.mock import patch
 
 from backend.drawings import (
     PRINT_TIMEOUT,
+    _layout_has_entities,
     apply_pdf_style,
     extract_preview,
     export_pdf,
@@ -427,6 +428,17 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertEqual(Path(empty["path"]).read_bytes()[:5], b"%PDF-")
         self.assertGreater(empty["bytes"], 200)
         self.assertNotIn("Traceback", str(empty))
+
+    def test_export_pdf_empty_drawing_uses_modelspace(self):
+        dxf = self.root / "empty.dxf"
+        ezdxf.new("R2010").saveas(dxf)
+        reread = ezdxf.readfile(dxf)
+        self.assertFalse(any(_layout_has_entities(layout) for layout in reread.layouts))
+        result = export_pdf(str(dxf), str(self.root / "empty.pdf"))
+        self.assertEqual(result["pages"], 1, result)
+        self.assertEqual(Path(result["path"]).read_bytes()[:5], b"%PDF-")
+        self.assertGreater(result["bytes"], 200)
+        self.assertNotIn("Traceback", str(result))
 
     def test_floor_plan_glossary_writeback_pdf_and_paperspace(self):
         committed = FIXTURES / "floor_plan.dxf"
@@ -1043,6 +1055,42 @@ class DrawingsApiTests(unittest.TestCase):
                     "output_dir": self.tmp.name,
                     "output_name": "layout1_print.pdf",
                     "layout": "Layout1",
+                },
+            )
+        self.assertEqual(printed.status_code, 200, printed.text)
+        self.assertNotIn("Traceback", printed.text)
+        printed_body = printed.json()
+        self.assertEqual(printed_body["pages"], 1)
+        self.assertEqual(Path(printed_body["path"]).read_bytes()[:5], b"%PDF-")
+        self.assertFalse(printed_body["print"]["ok"])
+        self.assertIn("打印命令", printed_body["print"]["message"])
+        self.assertNotIn("Traceback", printed_body["print"]["message"])
+
+    def test_export_pdf_and_print_empty_drawing(self):
+        dxf = Path(self.tmp.name) / "empty.dxf"
+        ezdxf.new("R2010").saveas(dxf)
+        self.assertFalse(any(_layout_has_entities(layout) for layout in ezdxf.readfile(dxf).layouts))
+        pdf = self.client.post(
+            "/api/drawings/export-pdf",
+            json={
+                "path": str(dxf),
+                "output_dir": self.tmp.name,
+                "output_name": "empty.pdf",
+            },
+        )
+        self.assertEqual(pdf.status_code, 200, pdf.text)
+        self.assertNotIn("Traceback", pdf.text)
+        body = pdf.json()
+        self.assertEqual(body["pages"], 1)
+        self.assertGreater(body["bytes"], 200)
+        self.assertEqual(Path(body["path"]).read_bytes()[:5], b"%PDF-")
+        with patch("backend.drawings.shutil.which", return_value=None):
+            printed = self.client.post(
+                "/api/drawings/print",
+                json={
+                    "path": str(dxf),
+                    "output_dir": self.tmp.name,
+                    "output_name": "empty_print.pdf",
                 },
             )
         self.assertEqual(printed.status_code, 200, printed.text)

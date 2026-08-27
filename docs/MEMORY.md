@@ -1,5 +1,6 @@
 # Project memory
 
+- 2026-08-27: DXF with no entities (empty Model + empty Layout1) still export-pdf/print: `_layout_pages` falls back to modelspace, 200, 1-page `%PDF-`, no traceback. Missing `lp` leaves the PDF. Batch has no PDF layout. `python -m unittest discover -s tests` 123 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: `/api/drawings/export-pdf` `print_after` is 200. Missing `lp` leaves the CJK PDF (`print.ok` false, 系统没有打印命令). Mocked `lp` exit 0 is `print.ok` true. UI still uses `/print`. Batch has no PDF layout. `python -m unittest discover -s tests` 121 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: floor_plan `layout=Model` is named modelspace (not paperspace). export-pdf and print are 200, 1 CJK page, fewer pages than all layouts. Missing `lp` still leaves the PDF. Batch has no PDF layout. `python -m unittest discover -s tests` 120 ok. Do not edit landing/, README*, docs/icons/.
 - 2026-08-27: floor_plan `Layout1` is empty paperspace. export-pdf and print with `layout=Layout1` is 200, 1-page `%PDF-` (no CJK ink required), no traceback. Missing `lp` still leaves the PDF. Batch has no PDF layout. `python -m unittest discover -s tests` 118 ok. Do not edit landing/, README*, docs/icons/.
