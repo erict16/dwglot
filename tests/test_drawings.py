@@ -889,6 +889,19 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertEqual(ja.status_code, 200, ja.text)
         self.assertTrue(ja.json()["name"].startswith("ja_平面图_"), ja.text)
 
+    def test_odafc_status_http(self):
+        response = self.client.get("/api/odafc-status")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertNotIn("Traceback", response.text)
+        body = response.json()
+        self.assertIsInstance(body["installed"], bool)
+        if body["installed"]:
+            self.assertTrue(body["path"])
+            self.assertIn(body.get("source"), ("env", "bundled", "system"))
+        else:
+            self.assertEqual(body["path"], "")
+            self.assertIn("未检测到 ODA", body["message"])
+
     def test_open_extract_translate_writeback_update_pdf(self):
         with self.dxf.open("rb") as handle:
             opened = self.client.post("/api/drawings/open", files={"files": ("api.dxf", handle, "application/dxf")})
