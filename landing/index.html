@@ -15,8 +15,10 @@
   <link rel="icon" href="shots/mark.png" type="image/png" />
   <script>
     // Fill these when a GitHub Release has the installer files. Empty = button stays, click says 安装包还没放上来.
-    const DL = { mac: "", win: "https://github.com/erict16/tuyi/releases/download/v0.1.2/Dwglot_v0.1.2_Setup.exe" };
-    // mac filled after the Apple Silicon DMG lands on the v0.1.2 release.
+    const DL = {
+      mac: "https://github.com/erict16/tuyi/releases/download/v0.1.2/Tuyi_v0.1.2_macOS_arm64.dmg",
+      win: "https://github.com/erict16/tuyi/releases/download/v0.1.2/Dwglot_v0.1.2_Setup.exe",
+    };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -195,7 +197,7 @@
       btn.addEventListener("click", () => {
         const url = (DL[btn.dataset.dl] || "").trim();
         if (!url) {
-          msg.textContent = btn.dataset.dl === "mac" ? "Mac 安装包还在打，Apple 芯片版好了会挂到 Releases" : "安装包还没放上来";
+          msg.textContent = "安装包还没放上来";
           msg.classList.remove("hidden");
           return;
         }
