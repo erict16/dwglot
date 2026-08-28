@@ -1,18 +1,18 @@
 # 图译 / Dwglot icon directions
 
-Six independent squares from Grok imagine (`image_gen`). Copied jpg→png with no redraw. No `generate_icons.py`, no polygons. Pure white `#FFFFFF`. Flat graphic / paper / print is allowed. `#007AFF` not used. No duck / owl / turtle / tapir / hippo / badger. No winner — Eric picks.
+Eight independent squares from Grok imagine (`image_gen`). Copied jpg→png with no redraw. No `generate_icons.py`, no polygons, no mascots. Not the README blue 图 tile. No winner — Eric picks.
 
-- **A 折纸鹤** — origami crane; one kraft plate is the drawing sheet.
-- **B 墨鱼** — cuttlefish; ink body, one blunt plate as the pen-nib.
-- **C 角尺狐** — fox; ear or face is one set-square plate.
+| File | Style | Inks | Imagine |
+|---|---|---|---|
+| `01.png` | 朱文印 | cinnabar `#C41A1A` on warm paper-white | `images/5.jpg` |
+| `02.png` | 蓝图 | Prussian blue ground, white line | `images/6.jpg` |
+| `03.png` | 西文无衬线 | ink `#111` on pure white | `images/4.jpg` |
+| `04.png` | 源译格 | dark ink on pale gray paper | `images/2.jpg` |
+| `05.png` | 角尺负形 | charcoal `#1A1A1A` plate, white ground | `images/15.jpg` |
+| `06.png` | 描图纸 | graphite on warm white vellum | `images/3.jpg` |
+| `07.png` | Mac符号 | charcoal `#1C1C1E` on white | `images/13.jpg` |
+| `08.png` | 墨压格子 | wet black ink, light graphite grid | `images/8.jpg` |
 
-| File | Direction | Inks | Variant | Imagine |
-|---|---|---|---|---|
-| `a1.png` | 折纸鹤 | `#1B1B1B` + `#C9A45C` | side crane, kraft diamond is the near wing / sheet | `images/2.jpg` |
-| `a2.png` | 折纸鹤 | `#1B1B1B` + `#C9A45C` | flying crane, kraft diamond is the body-sheet | `images/3.jpg` |
-| `b1.png` | 墨鱼 | `#141414` + `#C4451A` | horizontal ink body, brick nib pointing | `images/4.jpg` |
-| `b2.png` | 墨鱼 | `#141414` + `#C4451A` | upright ink body, brick nib off the bottom | `images/1.jpg` |
-| `c1.png` | 角尺狐 | `#C24E22` + `#1A1A1A` | rust head, charcoal set-square is the left ear | `images/6.jpg` |
-| `c2.png` | 角尺狐 | `#C24E22` + `#1A1A1A` | charcoal head, rust set-square is the face | `images/5.jpg` |
+Native 1024×1024. One visual language each.
 
-Native 1024×1024 (service output, not resampled to 1536). Opaque white in all four corners. Remaining drift: A has origami fold lines (more than 6–10 plates); B2 reads more capsule than cuttlefish; C is a closer crop than a 32×32 tool mark. Kept as imagine output.
+Remaining drift: 01 reads as 譯 with an extra right component, not a single 译; 03 图 is internally off; 06 is more photographic than a flat graphic; 08 English leaked as INK MEETS DRAWING. Kept as imagine output.
