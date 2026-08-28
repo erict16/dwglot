@@ -14,8 +14,8 @@
 
 <p align="center">
   <a href="https://github.com/erict16/tuyi/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/erict16/tuyi?style=flat-square"></a>
-  <img alt="Windows 10+" src="https://img.shields.io/badge/Windows-10%2B-blue?style=flat-square">
-  <img alt="macOS 11+" src="https://img.shields.io/badge/macOS-11%2B-orange?style=flat-square">
+  <img alt="Windows 10/11 x64" src="https://img.shields.io/badge/Windows-10%2F11%20x64-blue?style=flat-square">
+  <img alt="macOS Apple Silicon" src="https://img.shields.io/badge/macOS-Apple%20Silicon-orange?style=flat-square">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
 </p>
 
@@ -33,8 +33,8 @@ AutoCAD は不要です。
 
 [Releases](https://github.com/erict16/tuyi/releases) からファイルを取ってください。
 
-- **Windows:** Setup の exe を実行。
-- **Mac（Apple シリコン）:** DMG を開く。Intel Mac はこの版ではまだ出せません。
+- **Windows:** 10 または 11、64 ビット。Setup の exe を実行。32 ビットは不可。
+- **Mac:** Apple シリコン（M1 以降）が一つの DMG。Intel Mac は別ファイル。同じパッケージではない。Intel 版はまだない。
 
 今のインストーラはコード署名していません。初回は OS に止められます。想定どおりです。
 

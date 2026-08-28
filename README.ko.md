@@ -14,8 +14,8 @@
 
 <p align="center">
   <a href="https://github.com/erict16/tuyi/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/erict16/tuyi?style=flat-square"></a>
-  <img alt="Windows 10+" src="https://img.shields.io/badge/Windows-10%2B-blue?style=flat-square">
-  <img alt="macOS 11+" src="https://img.shields.io/badge/macOS-11%2B-orange?style=flat-square">
+  <img alt="Windows 10/11 x64" src="https://img.shields.io/badge/Windows-10%2F11%20x64-blue?style=flat-square">
+  <img alt="macOS Apple Silicon" src="https://img.shields.io/badge/macOS-Apple%20Silicon-orange?style=flat-square">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
 </p>
 
@@ -33,8 +33,8 @@ AutoCAD는 필요 없습니다.
 
 [Releases](https://github.com/erict16/tuyi/releases)에서 받습니다.
 
-- **Windows:** Setup exe를 실행합니다.
-- **Mac (Apple 실리콘):** DMG를 엽니다. Intel Mac은 이번 빌드에 없습니다.
+- **Windows:** 10 또는 11, 64비트. Setup exe를 실행합니다. 32비트는 안 됩니다.
+- **Mac:** Apple 실리콘(M1 이후)이 하나의 DMG입니다. Intel Mac은 다른 파일입니다. 같은 설치 파일이 아닙니다. Intel 빌드는 아직 없습니다.
 
 지금 설치 파일은 코드 서명이 없습니다. 처음 열면 운영체제가 막습니다. 정상입니다.
 

@@ -14,8 +14,8 @@
 
 <p align="center">
   <a href="https://github.com/erict16/tuyi/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/erict16/tuyi?style=flat-square"></a>
-  <img alt="Windows 10+" src="https://img.shields.io/badge/Windows-10%2B-blue?style=flat-square">
-  <img alt="macOS 11+" src="https://img.shields.io/badge/macOS-11%2B-orange?style=flat-square">
+  <img alt="Windows 10/11 x64" src="https://img.shields.io/badge/Windows-10%2F11%20x64-blue?style=flat-square">
+  <img alt="macOS Apple Silicon" src="https://img.shields.io/badge/macOS-Apple%20Silicon-orange?style=flat-square">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
 </p>
 
@@ -33,8 +33,8 @@ It is for people who send drawings overseas (or the other way): title blocks, no
 
 Get the file from [Releases](https://github.com/erict16/tuyi/releases).
 
-- **Windows:** run the Setup exe.
-- **Mac (Apple Silicon):** open the DMG. Intel Macs are not in this build yet.
+- **Windows:** 10 or 11, 64-bit. Run the Setup exe. 32-bit Windows is not supported.
+- **Mac:** Apple Silicon (M1 and later) is one DMG. Intel Macs need a different DMG. They are not the same file. The Intel build is not up yet.
 
 The current build is not code-signed, so the OS will warn you the first time. That is expected.
 

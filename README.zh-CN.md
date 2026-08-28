@@ -14,8 +14,8 @@
 
 <p align="center">
   <a href="https://github.com/erict16/tuyi/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/erict16/tuyi?style=flat-square"></a>
-  <img alt="Windows 10+" src="https://img.shields.io/badge/Windows-10%2B-blue?style=flat-square">
-  <img alt="macOS 11+" src="https://img.shields.io/badge/macOS-11%2B-orange?style=flat-square">
+  <img alt="Windows 10/11 x64" src="https://img.shields.io/badge/Windows-10%2F11%20x64-blue?style=flat-square">
+  <img alt="macOS Apple Silicon" src="https://img.shields.io/badge/macOS-Apple%20Silicon-orange?style=flat-square">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
 </p>
 
@@ -33,8 +33,8 @@
 
 去 [Releases](https://github.com/erict16/tuyi/releases) 下载。
 
-- **Windows：** 跑 Setup 安装包。
-- **Mac（苹果芯片）：** 打开 DMG。Intel 的 Mac 这版还没有。
+- **Windows：** 10 或 11，64 位。跑 Setup 安装包。32 位不行。
+- **Mac：** Apple 芯片（M1 及以后）一份 DMG。Intel Mac 要另打一份，不是同一个文件。Intel 那份现在还没有。
 
 安装包还没买代码签名，第一次打开系统会拦，这是正常的。
 

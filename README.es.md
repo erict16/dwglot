@@ -14,8 +14,8 @@
 
 <p align="center">
   <a href="https://github.com/erict16/tuyi/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/erict16/tuyi?style=flat-square"></a>
-  <img alt="Windows 10+" src="https://img.shields.io/badge/Windows-10%2B-blue?style=flat-square">
-  <img alt="macOS 11+" src="https://img.shields.io/badge/macOS-11%2B-orange?style=flat-square">
+  <img alt="Windows 10/11 x64" src="https://img.shields.io/badge/Windows-10%2F11%20x64-blue?style=flat-square">
+  <img alt="macOS Apple Silicon" src="https://img.shields.io/badge/macOS-Apple%20Silicon-orange?style=flat-square">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
 </p>
 
@@ -33,8 +33,8 @@ Sirve para mandar planos al extranjero, o al revés. Títulos, notas, atributos,
 
 El archivo está en [Releases](https://github.com/erict16/tuyi/releases).
 
-- **Windows:** ejecuta el Setup.
-- **Mac (Apple Silicon):** abre el DMG. Los Mac Intel aún no salen en esta versión.
+- **Windows:** 10 u 11, 64 bits. Ejecuta el Setup. No hay versión de 32 bits.
+- **Mac:** Apple Silicon (M1 en adelante) es un DMG. Los Mac Intel necesitan otro. No es el mismo archivo. El de Intel todavía no está.
 
 El instalador no está firmado. El sistema te va a parar la primera vez. Es normal.
 

@@ -16,6 +16,7 @@
   <script>
     // Fill these when a GitHub Release has the installer files. Empty = button stays, click says 安装包还没放上来.
     const DL = { mac: "", win: "https://github.com/erict16/tuyi/releases/download/v0.1.2/Dwglot_v0.1.2_Setup.exe" };
+    // mac filled after the Apple Silicon DMG lands on the v0.1.2 release.
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -98,13 +99,13 @@
   <section id="download" class="scroll-mt-20 bg-accent py-16 text-white">
     <div class="mx-auto max-w-3xl px-4 text-center">
       <h2 class="text-3xl font-semibold tracking-tight">下载图译</h2>
-      <p class="mt-3 text-white/90">点一下就开始下。Mac 和 Windows 各一个安装包。</p>
+      <p class="mt-3 text-white/90">Windows 10 / 11，64 位。Mac 目前只有 Apple 芯片（M1 及以后）。Intel Mac 要另打一份，现在还没有。</p>
       <div class="mt-8 flex flex-col items-stretch justify-center gap-4 sm:flex-row sm:items-center">
         <button type="button" data-dl="mac" class="dl-btn min-h-14 min-w-[15rem] rounded-2xl bg-white px-8 py-4 text-lg font-semibold text-accent hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-          下载 macOS 版
+          下载 macOS（Apple 芯片）
         </button>
         <button type="button" data-dl="win" class="dl-btn min-h-14 min-w-[15rem] rounded-2xl bg-white px-8 py-4 text-lg font-semibold text-accent hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-          下载 Windows 版
+          下载 Windows 10/11（64 位）
         </button>
       </div>
       <p class="mt-8 text-left text-sm leading-7 text-white/90 sm:text-center">
@@ -130,7 +131,7 @@
         </div>
         <div class="py-5">
           <dt class="font-semibold">第一次打不开？</dt>
-          <dd class="mt-2 text-slate-600">正常。Mac 右键图标，选打开。Windows 点更多信息，再点仍要运行。</dd>
+          <dd class="mt-2 text-slate-600">正常。Mac 右键图标，选打开。Windows 点更多信息，再点仍要运行。Windows 要 10 或 11 的 64 位。Mac 现在只有 Apple 芯片（M1 及以后）；Intel 要另打一份，还没上。</dd>
         </div>
         <div class="py-5">
           <dt class="font-semibold">收费吗？有授权码吗？</dt>
@@ -194,7 +195,7 @@
       btn.addEventListener("click", () => {
         const url = (DL[btn.dataset.dl] || "").trim();
         if (!url) {
-          msg.textContent = "安装包还没放上来";
+          msg.textContent = btn.dataset.dl === "mac" ? "Mac 安装包还在打，Apple 芯片版好了会挂到 Releases" : "安装包还没放上来";
           msg.classList.remove("hidden");
           return;
         }
