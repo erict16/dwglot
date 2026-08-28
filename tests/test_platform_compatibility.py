@@ -15,6 +15,18 @@ from backend.api import TranslationService
 
 
 class PlatformCompatibilityTests(unittest.TestCase):
+    def test_windows_pack_is_dwglot_without_oda(self):
+        root = Path(__file__).resolve().parents[1]
+        spec = (root / "Dwglot.spec").read_text(encoding="utf-8")
+        iss = (root / "installer" / "Dwglot_Setup.iss").read_text(encoding="utf-8")
+        self.assertIn('name="Dwglot"', spec)
+        self.assertIn("Dwglot.exe", iss)
+        self.assertIn("Dwglot_v{#MyAppVersion}_Setup", iss)
+        self.assertNotIn("backend.licensing", spec)
+        self.assertNotIn("ODAFileConverter", iss)
+        self.assertNotIn("Honsen_CAD_Translator", spec)
+        self.assertNotIn("Honsen_CAD_Translator", iss)
+
     def test_development_app_dir_is_repository_root(self):
         self.assertEqual(cad.get_app_dir(), Path(__file__).resolve().parents[1])
 

@@ -899,12 +899,13 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertTrue(off.json()["name"].startswith(f"en_{stem}_"), off.text)
         self.assertNotIn("Traceback", off.text)
 
+        unknown = "无此词条甲乙丙10191W-CV2"
         no_term = self.client.get(
             "/api/default-output-name",
-            params={"mode": "zh_to_en", "base": stem, "translate_filename": True},
+            params={"mode": "zh_to_en", "base": unknown, "translate_filename": True},
         )
         self.assertEqual(no_term.status_code, 200, no_term.text)
-        self.assertIn("工作位置表", no_term.json()["name"])
+        self.assertIn("无此词条甲乙丙", no_term.json()["name"])
         self.assertIn("10191W-CV2", no_term.json()["name"])
 
         on = self.client.get(

@@ -21,8 +21,8 @@ WORK_DXF_VERSION = "ACAD2010"
 ODA_OUTPUT_VERSIONS = ("ACAD9", "ACAD10", "ACAD12", "ACAD13", "ACAD14", "ACAD2000", "ACAD2004", "ACAD2007", "ACAD2010", "ACAD2013", "ACAD2018")
 
 # Windows 安装包推荐目录结构（与主程序 exe 同级）：
-#   Honsen_CAD_Translator_v2.2.exe
-#   ODAFileConverter/
+#   Dwglot.exe
+#   ODAFileConverter/   (user-installed sidecar, never in the installer)
 #     ODAFileConverter.exe
 #     *.dll ...
 ODA_BUNDLE_DIR = "ODAFileConverter"

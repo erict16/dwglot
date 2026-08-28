@@ -1,6 +1,16 @@
 {
   "changelog": [
     {
+      "version": "0.1.0",
+      "date": "2026年8月",
+      "title": "图译 Dwglot 首发",
+      "content": [
+        "[新增] 常规处理：提取、术语表优先翻译、写回、导出 PDF",
+        "[新增] 同时翻译文件名（默认关）",
+        "[说明] Windows 安装包不含 ODA；DWG 需本机自装 ODA File Converter"
+      ]
+    },
+    {
       "version": "1.8.8",
       "date": "2026年8月",
       "title": "macOS 果冻主题与 ODA 兼容版",
