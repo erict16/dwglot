@@ -105,6 +105,17 @@ class CliTranslateTests(unittest.TestCase):
         self.assertNotIn("天花", written.name)
         self.assertIn("10191W-CV2", written.name)
 
+    def test_no_glossary_hit_without_engine_is_chinese_nonzero(self):
+        src = self.root / "novel.dxf"
+        doc = ezdxf.new()
+        doc.modelspace().add_text("这是不会在术语表里的句子XYZ", dxfattribs={"height": 2.5})
+        doc.saveas(src)
+        result = _run(["translate", str(src), "-o", str(self.root / "out.dxf")])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("没有可写回的译文", result.stderr)
+        self.assertNotIn("勾选", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
     def test_unreadable_dxf_is_chinese_nonzero(self):
         junk = self.root / "junk.dxf"
         junk.write_bytes(b"not a dxf")
@@ -131,6 +142,12 @@ class CliTranslateTests(unittest.TestCase):
         self.assertIn("未检测到 ODA", stderr.getvalue())
         self.assertNotIn("Traceback", stderr.getvalue())
         self.assertEqual(stdout.getvalue().strip(), "")
+
+    def test_version_flag(self):
+        result = _run(["--version"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertRegex(result.stdout, r"dwglot\s+0\.\d+")
+        self.assertNotIn("Traceback", result.stderr)
 
     def test_two_inputs_reject_dash_o(self):
         other = self.root / "b.dxf"

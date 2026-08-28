@@ -107,6 +107,16 @@ class PlatformCompatibilityTests(unittest.TestCase):
         self.assertTrue(any(path.name == "ODAFileConverter.exe" for path in candidates))
         self.assertIn(Path(cad.ODA_SYSTEM_EXE), candidates)
 
+    def test_windows_finds_oda_on_path(self):
+        found = r"C:\Apps\ODAFileConverter\ODAFileConverter.exe"
+        with (
+            patch("backend.cad.sys.platform", "win32"),
+            patch("backend.cad.shutil.which", return_value=found),
+            patch.dict(os.environ, {}, clear=True),
+        ):
+            candidates = cad.odafc_candidate_paths()
+        self.assertIn(Path(found), candidates)
+
     def test_macos_uses_native_webview_and_unix_oda_candidates(self):
         with patch("desktop.launcher.sys.platform", "darwin"):
             self.assertIsNone(_webview_gui())

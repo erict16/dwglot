@@ -601,6 +601,10 @@ def translate_drawing(
             translate_filename=translate_filename,
             translator=translator,
         )
+    if not any((item.get("target") or "").strip() for item in translated["items"]):
+        if translated.get("has_engine"):
+            raise ValueError("没有可写回的译文")
+        raise ValueError("没有可写回的译文。术语表没命中，也没有翻译引擎")
     written = writeback_rows(
         path,
         translated["items"],

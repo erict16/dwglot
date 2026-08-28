@@ -133,6 +133,9 @@ def odafc_candidate_paths() -> list[Path]:
                 Path(ODA_SYSTEM_EXE),
             ]
         )
+        command = shutil.which(ODA_BUNDLE_EXE) or shutil.which("ODAFileConverter")
+        if command:
+            paths.append(Path(command))
     else:
         paths.extend([app_dir / ODA_BUNDLE_DIR / ODA_UNIX_EXECUTABLE, app_dir / ODA_UNIX_EXECUTABLE])
         if sys.platform == "darwin":

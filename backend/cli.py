@@ -41,14 +41,15 @@ def translate_one(
     output_name: str,
     translate_filename: bool,
     glossary: str,
+    provider: str = "",
 ) -> dict:
     from backend.api import service
     from backend.drawings import translate_drawing
     from backend.language_assets import LanguageAssets
 
     config = service.load_config()
-    provider = config.get("provider") or "deepl"
-    engine = service._engine_from(config, {})
+    provider = (provider or "").strip() or config.get("provider") or "deepl"
+    engine = service._engine_from({**config, "provider": provider}, {})
     project = glossary.strip() if glossary else config.get("project_package_path", "")
     if glossary.strip():
         LanguageAssets().project_info(glossary.strip())
@@ -72,12 +73,20 @@ def translate_one(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="dwglot", add_help=True)
+    from backend.app_meta import APP_VERSION
+
+    parser = argparse.ArgumentParser(
+        prog="dwglot",
+        add_help=True,
+        epilog="DWG needs ODA File Converter on PATH or CAD_ODA_EXEC. DXF does not.",
+    )
+    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {APP_VERSION}")
     sub = parser.add_subparsers(dest="command")
     translate = sub.add_parser("translate", help="open → extract → glossary-first translate → write-back")
     translate.add_argument("inputs", nargs="+", help="DWG / DXF path")
     translate.add_argument("-o", "--output", default="", help="output file (single input only)")
     translate.add_argument("--mode", default="zh_to_en")
+    translate.add_argument("--provider", default="", help="deepl, azure, ollama, or openai (default: saved config)")
     translate.add_argument("--translate-filename", action="store_true", default=False)
     translate.add_argument("--output-dir", default="")
     translate.add_argument("--glossary", default="", help="optional project terminology JSON")
@@ -114,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
                 output_name=output_name,
                 translate_filename=args.translate_filename,
                 glossary=args.glossary,
+                provider=args.provider,
             )
         except FileNotFoundError as exc:
             print(_chinese_error(exc, "图纸不存在"), file=sys.stderr)
