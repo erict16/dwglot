@@ -34,6 +34,7 @@ hiddenimports = [
     "backend.api",
     "backend.app_meta",
     "backend.cad",
+    "backend.cli",
     "backend.drawings",
     "backend.language_assets",
     "backend.languages",
@@ -55,6 +56,8 @@ hiddenimports = [
     "ezdxf.addons.odafc",
 ] + collect_submodules("uvicorn") + collect_submodules("starlette")
 
+icon = [os.path.join(spec_dir, "ico.ico")]
+
 a = Analysis(["run.py"], pathex=[spec_dir], binaries=[], datas=datas, hiddenimports=hiddenimports)
 pyz = PYZ(a.pure)
 exe = EXE(
@@ -65,5 +68,20 @@ exe = EXE(
     [],
     name="Dwglot",
     console=False,
-    icon=[os.path.join(spec_dir, "ico.ico")],
+    icon=icon,
+)
+
+# Console CLI next to the GUI. Named dwglot-cli so Windows NTFS does not
+# collide with Dwglot.exe. Same payload; ODA is still not bundled.
+cli_a = Analysis(["backend/cli.py"], pathex=[spec_dir], binaries=[], datas=datas, hiddenimports=hiddenimports)
+cli_pyz = PYZ(cli_a.pure)
+cli_exe = EXE(
+    cli_pyz,
+    cli_a.scripts,
+    cli_a.binaries,
+    cli_a.datas,
+    [],
+    name="dwglot-cli",
+    console=True,
+    icon=icon,
 )

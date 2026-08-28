@@ -37,7 +37,11 @@ jobs:
           pip install -r requirements.txt pyinstaller
 
       - name: PyInstaller
-        run: pyinstaller --clean --noconfirm Dwglot.spec
+        shell: pwsh
+        run: |
+          pyinstaller --clean --noconfirm Dwglot.spec
+          if (-not (Test-Path "dist\Dwglot.exe")) { throw "Dwglot.exe missing" }
+          if (-not (Test-Path "dist\dwglot-cli.exe")) { throw "dwglot-cli.exe missing" }
 
       - name: Inno Setup 6
         run: choco install innosetup --no-progress

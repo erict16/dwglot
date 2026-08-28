@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 
 import ezdxf
@@ -33,6 +34,30 @@ V01_TYPES = {"TEXT", "MTEXT", "ATTDEF", "ATTRIB", "MULTILEADER"}
 V02_TYPES = {"DIMENSION", "ACAD_TABLE"}
 _CJK_RUN = re.compile(r"[\u4e00-\u9fff]+")
 _UNSAFE_FILENAME = re.compile(r'[/\\:*?"<>|]+')
+ENGINE_KEYS = (
+    "deepl_key",
+    "azure_key",
+    "azure_region",
+    "openai_key",
+    "openai_base",
+    "openai_model",
+    "ollama_host",
+    "ollama_model",
+)
+# 常规处理 defaults (App.jsx params + filters).
+REGULAR_EXTRACT = {
+    "include_blocks": False,
+    "include_model": True,
+    "include_paper": True,
+    "include_attribs": True,
+    "include_frozen": False,
+    "include_locked": False,
+    "include_off": False,
+    "enable_v02": True,
+    "skip_numbers": True,
+    "skip_dupes": True,
+    "skip_nonsource": True,
+}
 
 
 def sanitize_filename_stem(name: str) -> str:
@@ -97,6 +122,31 @@ def translate_cjk_filename_stem(stem: str, *, mode: str, translator: CADChineseT
         return _translate_cjk_chunk(chunk, mode, translator) or chunk
 
     return sanitize_filename_stem(_CJK_RUN.sub(replace, stem))
+
+
+def strip_cad_suffix(name: str) -> str:
+    text = str(name or "").strip()
+    lower = text.lower()
+    if lower.endswith(".dxf") or lower.endswith(".dwg"):
+        return text[: text.rfind(".")]
+    return text
+
+
+def build_output_name(
+    mode: str,
+    base: str = "",
+    *,
+    translate_filename: bool = False,
+    translator: CADChineseTranslator | None = None,
+) -> str:
+    prefix = output_prefix(mode)
+    ts = datetime.now().strftime("%Hh%M_%d-%m-%y")
+    stem = strip_cad_suffix(base)
+    if translate_filename and stem:
+        if translator is None:
+            translator = CADChineseTranslator()
+        stem = translate_cjk_filename_stem(stem, mode=mode, translator=translator)
+    return f"{prefix}_{stem}_{ts}" if stem else f"translated_cad_{ts}"
 
 
 def _as_text(value, default: str = "") -> str:
@@ -354,10 +404,7 @@ def translate_rows(
     translator = CADChineseTranslator()
     translator.configure_language_assets(project_package_path)
     engine = engine or {}
-    translator.configure_engine(provider, **{k: engine.get(k, "") for k in (
-        "deepl_key", "azure_key", "azure_region", "openai_key", "openai_base",
-        "openai_model", "ollama_host", "ollama_model",
-    )})
+    translator.configure_engine(provider, **{k: engine.get(k, "") for k in ENGINE_KEYS})
     has_mt = translator.has_mt()
     out = []
     glossary = 0
@@ -514,6 +561,62 @@ def writeback_rows(
         "missing": missing,
         "skipped": len(items) - len(writable),
         "style": style,
+    }
+
+
+def translate_drawing(
+    path: str,
+    *,
+    mode: str = "zh_to_en",
+    output_dir: str = "",
+    output_name: str = "",
+    translate_filename: bool = False,
+    project_package_path: str = "",
+    provider: str = "deepl",
+    engine: dict | None = None,
+    style: str = "纯译文",
+) -> dict:
+    """Open → extract → glossary-first translate → write-back. Same as 常规 写回."""
+    split_mode(mode)
+    engine = engine or {}
+    preview = extract_preview(path, mode=mode, **REGULAR_EXTRACT)
+    translated = translate_rows(
+        preview["items"],
+        mode=mode,
+        provider=provider,
+        project_package_path=project_package_path,
+        engine=engine,
+        skip_numbers=REGULAR_EXTRACT["skip_numbers"],
+        skip_dupes=REGULAR_EXTRACT["skip_dupes"],
+        skip_nonsource=REGULAR_EXTRACT["skip_nonsource"],
+    )
+    named = strip_cad_suffix(output_name)
+    if not named:
+        translator = CADChineseTranslator(log_callback=lambda *args, **kwargs: None)
+        translator.configure_language_assets(project_package_path)
+        translator.configure_engine(provider, **{k: engine.get(k, "") for k in ENGINE_KEYS})
+        named = build_output_name(
+            mode,
+            Path(path).stem,
+            translate_filename=translate_filename,
+            translator=translator,
+        )
+    written = writeback_rows(
+        path,
+        translated["items"],
+        output_dir=output_dir,
+        output_name=named,
+        mode=mode,
+        include_blocks=REGULAR_EXTRACT["include_blocks"],
+        style=style,
+    )
+    return {
+        "path": written["path"],
+        "extracted": preview["count"],
+        "translated": written["written"],
+        "glossary": translated["glossary"],
+        "mt": translated["mt"],
+        "skipped": translated["skipped"],
     }
 
 

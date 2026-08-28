@@ -16,6 +16,10 @@ $exe = Join-Path $Root "dist\Dwglot.exe"
 if (-not (Test-Path $exe)) {
     throw "Missing $exe"
 }
+$cli = Join-Path $Root "dist\dwglot-cli.exe"
+if (-not (Test-Path $cli)) {
+    throw "Missing $cli"
+}
 
 $isccCandidates = @(
     "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",

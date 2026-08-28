@@ -11,7 +11,6 @@ import threading
 import time
 import urllib.request
 from uuid import uuid4
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -29,7 +28,7 @@ from backend.translator import CADChineseTranslator, CONFIG_PATH, load_yaml_data
 from backend.language_assets import LanguageAssets
 from backend.storage import atomic_write_json, quarantine_corrupt_file
 from backend.updates import check_github_release, unavailable_payload
-from backend.drawings import ensure_output_dir, extract_preview, export_pdf, print_pdf, translate_cjk_filename_stem, translate_rows, writeback_rows
+from backend.drawings import build_output_name, ensure_output_dir, extract_preview, export_pdf, print_pdf, translate_cjk_filename_stem, translate_rows, writeback_rows
 from backend.languages import split_mode
 
 ENGINE_PROVIDERS = {"deepl", "azure", "openai", "ollama"}
@@ -1150,18 +1149,14 @@ async def stream_logs():
 
 @app.get("/api/default-output-name")
 def default_output_name(mode: str = "zh_to_en", base: str = "", translate_filename: bool = False):
-    prefix = output_prefix(mode)
-    ts = datetime.now().strftime("%Hh%M_%d-%m-%y")
-    stem = base
+    translator = None
     if translate_filename and base:
         config = service.load_config()
         translator = CADChineseTranslator()
         translator.configure_language_assets(config.get("project_package_path", ""))
         engine = service._engine_from(config, {})
         translator.configure_engine(config.get("provider") or "deepl", **engine)
-        stem = translate_cjk_filename_stem(base, mode=mode, translator=translator)
-    name = f"{prefix}_{stem}_{ts}" if stem else f"translated_cad_{ts}"
-    return {"name": name}
+    return {"name": build_output_name(mode, base, translate_filename=translate_filename, translator=translator)}
 
 
 if FRONTEND_DIST.exists():
