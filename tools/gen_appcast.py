@@ -2,7 +2,7 @@
 """Build Sparkle appcast.xml and WinSparkle latest.yml from a release tag.
 
 Usage:
-  APP_VERSION=0.1.1 DMG=dist/Dwglot.dmg EXE=dist/Dwglot.exe python tools/gen_appcast.py
+  APP_VERSION=0.1.2 DMG=dist/Dwglot.dmg EXE=dist/Dwglot.exe python tools/gen_appcast.py
 
 Unsigned first. Sign the Sparkle EdDSA key / Authenticode later.
 """

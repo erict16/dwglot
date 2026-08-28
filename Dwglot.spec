@@ -1,8 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""Windows one-file desktop build. ODA File Converter is NOT in this payload."""
+"""Windows onedir pack. GUI and CLI share _internal. ODA is NOT in this payload."""
 import os
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files
+
+# Agg-only: the matplotlib hook otherwise collects Qt/Tk/web backends.
+os.environ["MPLBACKEND"] = "Agg"
 
 spec_dir = os.path.dirname(os.path.abspath(SPEC))
 glossary_files = [
@@ -27,8 +30,21 @@ for folder, _, names in os.walk(os.path.join(spec_dir, "frontend", "dist")):
             os.path.relpath(folder, os.path.join(spec_dir, "frontend", "dist")),
         )
         datas.append((source, dest))
-datas += collect_data_files("ezdxf")
-datas += collect_data_files("matplotlib")
+
+# ezdxf binaries (.pyd/.so) come from Analysis. Do not ship Cython sources
+# or the drawing-browser PNG icons.
+def _keep_ezdxf_data(src):
+    path = src.replace("\\", "/")
+    if path.endswith((".c", ".h", ".pyx", ".pxd")):
+        return False
+    if "/resources/" in path:
+        return False
+    return True
+
+
+datas += [pair for pair in collect_data_files("ezdxf") if _keep_ezdxf_data(pair[0])]
+# matplotlib mpl-data comes from PyInstaller's matplotlib hook. A second
+# matplotlib data collect duplicated the tree; hook + filter below is enough.
 
 hiddenimports = [
     "backend.api",
@@ -54,34 +70,113 @@ hiddenimports = [
     "desktop.native_bridge",
     "python_multipart",
     "ezdxf.addons.odafc",
-] + collect_submodules("uvicorn") + collect_submodules("starlette")
+    "ezdxf.addons.drawing",
+    "ezdxf.addons.drawing.matplotlib",
+    "matplotlib.backends.backend_agg",
+    "matplotlib.backends.backend_pdf",
+    "uvicorn.logging",
+    "uvicorn.loops.auto",
+    "uvicorn.loops.asyncio",
+    "uvicorn.protocols.http.auto",
+    "uvicorn.protocols.http.h11_impl",
+    "uvicorn.protocols.http.httptools_impl",
+    "uvicorn.lifespan.on",
+    "uvicorn.lifespan.off",
+]
+
+# GUI matplotlib backends, reload supervisors, and test trees the app never imports.
+excludes = [
+    "IPython",
+    "PyQt5",
+    "PyQt6",
+    "PySide2",
+    "PySide6",
+    "tkinter",
+    "matplotlib.backends.backend_gtk3agg",
+    "matplotlib.backends.backend_gtk4agg",
+    "matplotlib.backends.backend_macosx",
+    "matplotlib.backends.backend_nbagg",
+    "matplotlib.backends.backend_qt5agg",
+    "matplotlib.backends.backend_qt6agg",
+    "matplotlib.backends.backend_qtagg",
+    "matplotlib.backends.backend_tkagg",
+    "matplotlib.backends.backend_webagg",
+    "matplotlib.backends.backend_wxagg",
+    "matplotlib.tests",
+    "matplotlib.testing",
+    "numpy.tests",
+    "ezdxf.addons.drawing.pyqt",
+    "ezdxf.addons.hpgl2",
+    "uvicorn.workers",
+    "uvicorn.supervisors.watchfilesreload",
+    "uvicorn.supervisors.statreload",
+    "watchfiles",
+]
 
 icon = [os.path.join(spec_dir, "ico.ico")]
 
-a = Analysis(["run.py"], pathex=[spec_dir], binaries=[], datas=datas, hiddenimports=hiddenimports)
+a = Analysis(
+    ["run.py"],
+    pathex=[spec_dir],
+    binaries=[],
+    datas=datas,
+    hiddenimports=hiddenimports,
+    excludes=excludes,
+)
+
+
+def _keep_bundle_entry(entry):
+    dest = str(entry[0]) if isinstance(entry, (tuple, list)) else str(entry)
+    src = str(entry[1]) if isinstance(entry, (tuple, list)) and len(entry) > 1 else dest
+    blob = (src + "|" + dest).replace("\\", "/")
+    if "mpl-data/sample_data" in blob:
+        return False
+    if "mpl-data/plot_directive" in blob:
+        return False
+    if "mpl-data/images" in blob:
+        return False
+    if blob.endswith((".c", ".h", ".pyx", ".pxd")):
+        return False
+    name = dest.lower()
+    if any(token in name for token in ("_tkagg", "backend_qt", "backend_gtk", "_macosx")):
+        return False
+    return True
+
+
+a.datas = [entry for entry in a.datas if _keep_bundle_entry(entry)]
+a.binaries = [entry for entry in a.binaries if _keep_bundle_entry(entry)]
+
 pyz = PYZ(a.pure)
-exe = EXE(
+
+gui = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name="Dwglot",
     console=False,
     icon=icon,
+    upx=False,
+    contents_directory="_internal",
 )
-
-# Console CLI next to the GUI. Named dwglot-cli so Windows NTFS does not
-# collide with Dwglot.exe. Same payload; ODA is still not bundled.
-cli_a = Analysis(["backend/cli.py"], pathex=[spec_dir], binaries=[], datas=datas, hiddenimports=hiddenimports)
-cli_pyz = PYZ(cli_a.pure)
-cli_exe = EXE(
-    cli_pyz,
-    cli_a.scripts,
-    cli_a.binaries,
-    cli_a.datas,
+cli = EXE(
+    pyz,
+    a.scripts,
     [],
+    exclude_binaries=True,
     name="dwglot-cli",
     console=True,
     icon=icon,
+    upx=False,
+    contents_directory="_internal",
+)
+coll = COLLECT(
+    gui,
+    cli,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=False,
+    name="Dwglot",
 )

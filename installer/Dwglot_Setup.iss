@@ -1,7 +1,7 @@
 ; 图译 Dwglot — Inno Setup 6. ODA is not in this payload.
 
 #define MyAppName "图译 Dwglot"
-#define MyAppVersion "0.1.1"
+#define MyAppVersion "0.1.2"
 #define MyAppPublisher "Eric Tan"
 #define MyAppExeName "Dwglot.exe"
 #define MyAppURL "https://github.com/erict16/dwglot"
@@ -29,7 +29,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
 DisableProgramGroupPage=yes
-VersionInfoVersion=0.1.1.0
+VersionInfoVersion=0.1.2.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}
@@ -44,8 +44,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: checkedonce
 
 [Files]
-Source: "..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\dist\dwglot-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
+; onedir: Dwglot.exe + dwglot-cli.exe share {app}\_internal
+Source: "..\dist\Dwglot\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\Dwglot\dwglot-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\Dwglot\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

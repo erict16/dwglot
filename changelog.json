@@ -1,6 +1,16 @@
 {
   "changelog": [
     {
+      "version": "0.1.2",
+      "date": "2026年8月",
+      "title": "Windows 安装包瘦身",
+      "content": [
+        "[优化] Dwglot.exe 和 dwglot-cli.exe 共用 _internal，不再打两份 one-file Python",
+        "[优化] 去掉第二份 matplotlib / Noto，PDF 和 CJK 字体仍在",
+        "[说明] 命令行仍叫 dwglot-cli.exe"
+      ]
+    },
+    {
       "version": "0.1.1",
       "date": "2026年8月",
       "title": "Windows 安装包含命令行",

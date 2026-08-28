@@ -19,19 +19,45 @@ class PlatformCompatibilityTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         spec = (root / "Dwglot.spec").read_text(encoding="utf-8")
         iss = (root / "installer" / "Dwglot_Setup.iss").read_text(encoding="utf-8")
+        run_py = (root / "run.py").read_text(encoding="utf-8")
         self.assertIn('name="Dwglot"', spec)
         self.assertIn("console=False", spec)
         self.assertIn("backend.cli", spec)
         self.assertIn('name="dwglot-cli"', spec)
         self.assertIn("console=True", spec)
-        self.assertIn("backend/cli.py", spec)
+        self.assertEqual(spec.count("Analysis("), 1)
+        self.assertIn("COLLECT", spec)
+        self.assertIn("exclude_binaries=True", spec)
+        self.assertIn("_internal", spec)
+        self.assertNotIn("collect_submodules", spec)
+        self.assertNotRegex(spec, r'(?m)^\s*datas \+= collect_data_files\("matplotlib"\)')
+        self.assertIn("dwglot-cli.exe", run_py)
         self.assertIn("Dwglot.exe", iss)
         self.assertIn("dwglot-cli.exe", iss)
+        self.assertIn("_internal", iss)
         self.assertIn("Dwglot_v{#MyAppVersion}_Setup", iss)
         self.assertNotIn("backend.licensing", spec)
         self.assertNotIn("ODAFileConverter", iss)
         self.assertNotIn("Honsen_CAD_Translator", spec)
         self.assertNotIn("Honsen_CAD_Translator", iss)
+
+    def test_frozen_cli_exe_dispatches_to_cli(self):
+        import run
+
+        with (
+            patch.object(run.sys, "frozen", True, create=True),
+            patch.object(run.sys, "argv", [r"C:\Program Files\Dwglot\dwglot-cli.exe", "translate", "a.dxf"]),
+            patch("backend.cli.main", return_value=0) as cli_main,
+        ):
+            with self.assertRaises(SystemExit) as caught:
+                run.main()
+        self.assertEqual(caught.exception.code, 0)
+        cli_main.assert_called_once()
+
+    def test_unfrozen_run_is_not_cli(self):
+        import run
+
+        self.assertFalse(run._frozen_cli())
 
     def test_development_app_dir_is_repository_root(self):
         self.assertEqual(cad.get_app_dir(), Path(__file__).resolve().parents[1])

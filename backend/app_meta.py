@@ -8,7 +8,7 @@ from pathlib import Path
 APP_NAME_ZH = "图译"
 APP_NAME_EN = "Dwglot"
 APP_TITLE = "图译 Dwglot"
-APP_VERSION = "0.1.1"
+APP_VERSION = "0.1.2"
 APP_PUBLISHER = "Eric Tan"
 GITHUB_URL = "https://github.com/erict16/dwglot"
 

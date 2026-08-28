@@ -40,8 +40,9 @@ jobs:
         shell: pwsh
         run: |
           pyinstaller --clean --noconfirm Dwglot.spec
-          if (-not (Test-Path "dist\Dwglot.exe")) { throw "Dwglot.exe missing" }
-          if (-not (Test-Path "dist\dwglot-cli.exe")) { throw "dwglot-cli.exe missing" }
+          if (-not (Test-Path "dist\Dwglot\Dwglot.exe")) { throw "Dwglot.exe missing" }
+          if (-not (Test-Path "dist\Dwglot\dwglot-cli.exe")) { throw "dwglot-cli.exe missing" }
+          if (-not (Test-Path "dist\Dwglot\_internal")) { throw "_internal runtime missing" }
 
       - name: Inno Setup 6
         run: choco install innosetup --no-progress
@@ -56,16 +57,16 @@ jobs:
           if (-not $iscc) { throw "ISCC.exe not found" }
           & $iscc "installer\Dwglot_Setup.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
-          if (-not (Test-Path "installer\Output\Dwglot_v0.1.1_Setup.exe")) {
-            throw "Dwglot_v0.1.1_Setup.exe missing"
+          if (-not (Test-Path "installer\Output\Dwglot_v0.1.2_Setup.exe")) {
+            throw "Dwglot_v0.1.2_Setup.exe missing"
           }
 
       - name: GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.1' }}
-          name: 图译 Dwglot v0.1.1
-          files: installer/Output/Dwglot_v0.1.1_Setup.exe
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.2' }}
+          name: 图译 Dwglot v0.1.2
+          files: installer/Output/Dwglot_v0.1.2_Setup.exe
           fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false
