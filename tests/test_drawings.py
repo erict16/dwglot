@@ -1476,6 +1476,10 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertNotIn("人工 Excel 回填", text)
 
     def test_open_dwg_without_oda_rejected(self):
+        from backend.cad import odafc_available
+
+        if odafc_available():
+            self.skipTest("ODA is installed")
         dwg = Path(self.tmp.name) / "x.dwg"
         dwg.write_bytes(b"AC1032" + b"\x00" * 16)
         with dwg.open("rb") as handle:
@@ -1847,6 +1851,10 @@ class RealDwgWithoutOdaTests(unittest.TestCase):
         cls.dwgs = sorted(REAL_DWG_DIR.glob("*.dwg")) if REAL_DWG_DIR.is_dir() else []
 
     def test_every_real_dwg_fails_cleanly_without_oda(self):
+        from backend.cad import odafc_available
+
+        if odafc_available():
+            self.skipTest("ODA is installed")
         if not self.dwgs:
             self.skipTest("no /workspace/dwglot-drawings")
         client = TestClient(app)

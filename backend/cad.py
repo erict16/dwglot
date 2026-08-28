@@ -378,6 +378,93 @@ def _convert_with_hidden_macos_odafc(source: str, destination: str, *, version: 
     return True
 
 
+def _linux_odafc_env(executable: str) -> dict[str, str]:
+    env = os.environ.copy()
+    binary = Path(executable).resolve()
+    usr = binary.parent.parent
+    lib_dir = usr / "lib"
+    bin_dir = binary.parent
+    plugins = usr / "plugins"
+    paths = []
+    if lib_dir.is_dir():
+        paths.append(str(lib_dir))
+    paths.append(str(bin_dir))
+    existing = env.get("LD_LIBRARY_PATH", "")
+    env["LD_LIBRARY_PATH"] = ":".join(paths + ([existing] if existing else []))
+    if plugins.is_dir():
+        env["QT_PLUGIN_PATH"] = str(plugins)
+        env["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(plugins / "platforms")
+    runtime = Path(env.get("XDG_RUNTIME_DIR") or f"/tmp/runtime-{os.getuid()}")
+    try:
+        runtime.mkdir(mode=0o700, exist_ok=True)
+    except OSError:
+        pass
+    env["XDG_RUNTIME_DIR"] = str(runtime)
+    return env
+
+
+def _convert_with_linux_odafc(source: str, destination: str, *, version: str, audit: bool, replace: bool) -> bool:
+    """Run ODA File Converter on Linux via CLI + xvfb.
+
+    ezdxf's Linux helper treats any stderr as failure. ODA 27.1 always prints a
+    Qt ``XDG_RUNTIME_DIR`` line even when the DXF was written, so 链路 never
+    completed. Succeed when the output file exists; ignore that Qt noise.
+    """
+    executable = resolve_odafc_path()
+    if not executable:
+        return False
+    source_path = Path(source).resolve()
+    destination_path = Path(destination)
+    if destination_path.exists():
+        if not replace:
+            raise FileExistsError(f"Target file already exists: '{destination_path}'")
+        destination_path.unlink()
+    if not destination_path.parent.is_dir():
+        raise FileNotFoundError(f"Destination folder does not exist: '{destination_path.parent}'")
+    output_format = destination_path.suffix.upper().lstrip(".")
+    if output_format not in {"DXF", "DWG"}:
+        raise ValueError(f"Unsupported output file format: '{destination_path.suffix}'")
+    env = _linux_odafc_env(executable)
+    with tempfile.TemporaryDirectory(prefix="honsen_oda_output_") as output_dir:
+        arguments = [
+            str(source_path.parent),
+            output_dir,
+            version,
+            output_format,
+            "0",
+            "1" if audit else "0",
+            source_path.name,
+        ]
+        command = [executable, *arguments]
+        xvfb = shutil.which("xvfb-run")
+        if xvfb:
+            command = [xvfb, "-a", "-s", "-screen 0 800x600x24", *command]
+        try:
+            subprocess.run(
+                command,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=180,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("ODA File Converter 转换超时") from exc
+        converted = next(
+            (
+                path
+                for path in Path(output_dir).iterdir()
+                if path.is_file() and path.suffix.lower() == destination_path.suffix.lower()
+            ),
+            None,
+        )
+        if not converted:
+            raise RuntimeError("ODA File Converter 未生成目标文件")
+        shutil.move(str(converted), str(destination_path))
+    return True
+
+
 def convert_with_odafc(source: str, destination: str, *, version: str, audit: bool = True, replace: bool = False) -> None:
     """Convert a CAD file through ODA, handling a macOS ODA Unicode bug.
 
@@ -388,6 +475,10 @@ def convert_with_odafc(source: str, destination: str, *, version: str, audit: bo
     macOS so ODA always receives a stable filter, while preserving the original
     file and the requested destination path.
     """
+    if sys.platform.startswith("linux"):
+        if _convert_with_linux_odafc(source, destination, version=version, audit=audit, replace=replace):
+            return
+
     if sys.platform != "darwin":
         from ezdxf.addons import odafc
 
