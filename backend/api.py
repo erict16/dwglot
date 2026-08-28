@@ -29,7 +29,7 @@ from backend.translator import CADChineseTranslator, CONFIG_PATH, load_yaml_data
 from backend.language_assets import LanguageAssets
 from backend.storage import atomic_write_json, quarantine_corrupt_file
 from backend.updates import check_github_release, unavailable_payload
-from backend.drawings import ensure_output_dir, extract_preview, export_pdf, print_pdf, translate_rows, writeback_rows
+from backend.drawings import ensure_output_dir, extract_preview, export_pdf, print_pdf, translate_cjk_filename_stem, translate_rows, writeback_rows
 from backend.languages import split_mode
 
 ENGINE_PROVIDERS = {"deepl", "azure", "openai", "ollama"}
@@ -149,6 +149,7 @@ class BatchStartBody(BaseModel):
     skip_numbers: bool = True
     skip_dupes: bool = True
     skip_nonsource: bool = True
+    translate_filename: bool = False
 
 
 class ExtractBody(BaseModel):
@@ -193,6 +194,7 @@ class WritebackBody(BaseModel):
     translation_mode: str = "zh_to_en"
     include_blocks: bool = False
     style: str = "纯译文"
+    translate_filename: bool = False
 
 
 class PdfBody(BaseModel):
@@ -292,11 +294,14 @@ class TranslationService:
         engine = self._engine_from(config, task)
         fmt = task.get("output_format", "source")
         ext = os.path.splitext(path)[1] if fmt == "source" else f".{fmt}"
-        name = f"{output_prefix(task['translation_mode'])}_{Path(path).stem}"
-        output = self.reserve_output(task, name, ext)
         translator = CADChineseTranslator(log_callback=log)
         translator.configure_language_assets(task.get("project_package_path") or config.get("project_package_path", ""))
         translator.configure_engine(provider, **engine)
+        stem = Path(path).stem
+        if task.get("translate_filename"):
+            stem = translate_cjk_filename_stem(stem, mode=task["translation_mode"], translator=translator)
+        name = f"{output_prefix(task['translation_mode'])}_{stem}"
+        output = self.reserve_output(task, name, ext)
         try:
             translator.translate_cad_file(
                 path,
@@ -722,7 +727,11 @@ def drawings_writeback(body: WritebackBody):
         output_dir = body.output_dir or service.load_config().get("output_dir") or service.default_output_dir()
         ensure_output_dir(output_dir)
         named = body.output_name.strip()
-        if not named:
+        if body.translate_filename:
+            named = default_output_name(
+                body.translation_mode, Path(body.input_file).stem, translate_filename=True
+            )["name"]
+        elif not named:
             named = default_output_name(body.translation_mode, Path(body.input_file).stem)["name"]
         return writeback_rows(
             body.input_file,
@@ -1140,10 +1149,18 @@ async def stream_logs():
 
 
 @app.get("/api/default-output-name")
-def default_output_name(mode: str = "zh_to_en", base: str = ""):
+def default_output_name(mode: str = "zh_to_en", base: str = "", translate_filename: bool = False):
     prefix = output_prefix(mode)
     ts = datetime.now().strftime("%Hh%M_%d-%m-%y")
-    name = f"{prefix}_{base}_{ts}" if base else f"translated_cad_{ts}"
+    stem = base
+    if translate_filename and base:
+        config = service.load_config()
+        translator = CADChineseTranslator()
+        translator.configure_language_assets(config.get("project_package_path", ""))
+        engine = service._engine_from(config, {})
+        translator.configure_engine(config.get("provider") or "deepl", **engine)
+        stem = translate_cjk_filename_stem(base, mode=mode, translator=translator)
+    name = f"{prefix}_{stem}_{ts}" if stem else f"translated_cad_{ts}"
     return {"name": name}
 
 

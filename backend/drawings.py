@@ -31,6 +31,72 @@ from backend.storage import atomic_output_path
 
 V01_TYPES = {"TEXT", "MTEXT", "ATTDEF", "ATTRIB", "MULTILEADER"}
 V02_TYPES = {"DIMENSION", "ACAD_TABLE"}
+_CJK_RUN = re.compile(r"[\u4e00-\u9fff]+")
+_UNSAFE_FILENAME = re.compile(r'[/\\:*?"<>|]+')
+
+
+def sanitize_filename_stem(name: str) -> str:
+    cleaned = _UNSAFE_FILENAME.sub("", name or "")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
+    return cleaned or "drawing"
+
+
+def _translate_cjk_chunk(chunk: str, mode: str, translator: CADChineseTranslator) -> str:
+    hit = translator.glossary_hit(chunk, mode)
+    if hit and str(hit).strip():
+        return str(hit).strip()
+    n = len(chunk)
+    i = 0
+    parts: list[str] = []
+    unmatched: list[str] = []
+
+    def flush_unmatched() -> None:
+        if not unmatched:
+            return
+        rest = "".join(unmatched)
+        unmatched.clear()
+        if translator.has_mt():
+            try:
+                text = str(translator.translate_text(rest, mode, "")).strip()
+            except Exception:
+                text = rest
+            parts.append(text or rest)
+        else:
+            parts.append(rest)
+
+    while i < n:
+        found = None
+        end = None
+        for j in range(n, i, -1):
+            piece = chunk[i:j]
+            hit = translator.glossary_hit(piece, mode)
+            if hit and str(hit).strip():
+                found = str(hit).strip()
+                end = j
+                break
+        if found:
+            flush_unmatched()
+            parts.append(found)
+            i = end
+        else:
+            unmatched.append(chunk[i])
+            i += 1
+    flush_unmatched()
+    return "".join(parts) or chunk
+
+
+def translate_cjk_filename_stem(stem: str, *, mode: str, translator: CADChineseTranslator) -> str:
+    stem = Path(str(stem or "")).name
+    if "." in stem and stem.rsplit(".", 1)[-1].lower() in {"dwg", "dxf"}:
+        stem = stem.rsplit(".", 1)[0]
+    if not stem:
+        return "drawing"
+
+    def replace(match: re.Match[str]) -> str:
+        chunk = match.group(0)
+        return _translate_cjk_chunk(chunk, mode, translator) or chunk
+
+    return sanitize_filename_stem(_CJK_RUN.sub(replace, stem))
 
 
 def _as_text(value, default: str = "") -> str:

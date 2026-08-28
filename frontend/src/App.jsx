@@ -102,6 +102,7 @@ export default function App() {
     frozen: false,
     locked: false,
     off: false,
+    filename: false,
   });
   const [oda, setOda] = useState({ installed: false, path: "" });
   const [glossary, setGlossary] = useState(0);
@@ -354,7 +355,7 @@ export default function App() {
     setStatus("正在写回图纸…");
     try {
       const named = await api(
-        `/api/default-output-name?mode=${encodeURIComponent(modeKey(sourceLang, targetLang))}&base=${encodeURIComponent(selected?.name?.replace(/\.[^.]+$/, "") || "drawing")}`
+        `/api/default-output-name?mode=${encodeURIComponent(modeKey(sourceLang, targetLang))}&base=${encodeURIComponent(selected?.name?.replace(/\.[^.]+$/, "") || "drawing")}&translate_filename=${params.filename ? "true" : "false"}`
       );
       const data = await api("/api/drawings/writeback", {
         method: "POST",
@@ -365,6 +366,7 @@ export default function App() {
           output_name: named.name,
           translation_mode: modeKey(sourceLang, targetLang),
           style: layout,
+          translate_filename: params.filename,
         }),
       });
       setWrittenPath(data.path || "");
@@ -455,6 +457,7 @@ export default function App() {
           skip_numbers: filters.numbers,
           skip_dupes: filters.dupes,
           skip_nonsource: filters.nonsource,
+          translate_filename: params.filename,
           output_format: "source",
           style: layout,
           ...enginePayload(engine, config),
@@ -778,6 +781,7 @@ export default function App() {
                   <label><input type="checkbox" checked={params.attribs} onChange={(event) => setParams((prev) => ({ ...prev, attribs: event.target.checked }))} /> 块属性</label>
                   <label><input type="checkbox" checked={params.dims} onChange={(event) => setParams((prev) => ({ ...prev, dims: event.target.checked }))} /> 标注、表格</label>
                   <label><input type="checkbox" checked={params.model} onChange={(event) => setParams((prev) => ({ ...prev, model: event.target.checked }))} /> 模型空间</label>
+                  <label><input type="checkbox" checked={params.filename} onChange={(event) => setParams((prev) => ({ ...prev, filename: event.target.checked }))} /> 同时翻译文件名</label>
                   <label><input type="checkbox" checked={params.paper} onChange={(event) => setParams((prev) => ({ ...prev, paper: event.target.checked }))} /> 图纸空间</label>
                 </div>
                 <div className="group">

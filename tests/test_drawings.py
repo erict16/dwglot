@@ -855,6 +855,9 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("include_attribs: params.attribs", text)
         self.assertIn("include_model: params.model", text)
         self.assertIn("include_paper: params.paper", text)
+        self.assertIn("同时翻译文件名", text)
+        self.assertIn("filename: false", text)
+        self.assertIn("translate_filename: params.filename", text)
         self.assertIn("include_frozen: params.frozen", text)
         self.assertIn("include_locked: params.locked", text)
         self.assertIn("include_off: params.off", text)
@@ -888,6 +891,32 @@ class DrawingsApiTests(unittest.TestCase):
         ja = self.client.get("/api/default-output-name", params={"mode": "zh-Hans_to_ja", "base": "平面图"})
         self.assertEqual(ja.status_code, 200, ja.text)
         self.assertTrue(ja.json()["name"].startswith("ja_平面图_"), ja.text)
+
+    def test_default_output_name_translate_filename(self):
+        stem = "工作位置表及接线原理图10191W-CV2"
+        off = self.client.get("/api/default-output-name", params={"mode": "zh_to_en", "base": stem})
+        self.assertEqual(off.status_code, 200, off.text)
+        self.assertTrue(off.json()["name"].startswith(f"en_{stem}_"), off.text)
+        self.assertNotIn("Traceback", off.text)
+
+        no_term = self.client.get(
+            "/api/default-output-name",
+            params={"mode": "zh_to_en", "base": stem, "translate_filename": True},
+        )
+        self.assertEqual(no_term.status_code, 200, no_term.text)
+        self.assertIn("工作位置表", no_term.json()["name"])
+        self.assertIn("10191W-CV2", no_term.json()["name"])
+
+        on = self.client.get(
+            "/api/default-output-name",
+            params={"mode": "zh_to_en", "base": "天花10191W-CV2", "translate_filename": True},
+        )
+        self.assertEqual(on.status_code, 200, on.text)
+        name = on.json()["name"]
+        self.assertTrue(name.startswith("en_ceiling10191W-CV2_"), name)
+        self.assertNotIn("天花", name)
+        self.assertNotIn("/", name)
+        self.assertNotIn("Traceback", on.text)
 
     def test_odafc_status_http(self):
         response = self.client.get("/api/odafc-status")
