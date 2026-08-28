@@ -13,7 +13,7 @@ from backend.updates import check_github_release, is_newer, unavailable_payload
 
 def _http_error(code: int, reason: str = "Error") -> urllib.error.HTTPError:
     return urllib.error.HTTPError(
-        "https://api.github.com/repos/erict16/dwglot/releases/latest",
+        "https://api.github.com/repos/erict16/tuyi/releases/latest",
         code,
         reason,
         hdrs={},
@@ -32,7 +32,7 @@ class UpdateCheckTests(unittest.TestCase):
             payload = check_github_release()
         self.assertFalse(payload["available"])
         self.assertTrue(payload["current"])
-        self.assertIn("erict16/dwglot", payload["html_url"])
+        self.assertIn("erict16/tuyi", payload["html_url"])
         self.assertTrue(payload["appcast_url"].endswith("appcast.xml"))
         self.assertEqual(payload["message"], "还没有 GitHub Release")
 
@@ -41,7 +41,7 @@ class UpdateCheckTests(unittest.TestCase):
             payload = check_github_release()
         self.assertFalse(payload["available"])
         self.assertEqual(payload["message"], "GitHub API 暂不可用，打开 Releases 页查看")
-        self.assertIn("erict16/dwglot", payload["html_url"])
+        self.assertIn("erict16/tuyi", payload["html_url"])
         self.assertNotIn("Traceback", payload["message"])
 
     def test_check_handles_malformed_json_calmly(self):

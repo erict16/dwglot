@@ -15,15 +15,15 @@ Pop-Location
 Write-Host "==> PyInstaller..." -ForegroundColor Cyan
 pyinstaller --clean --noconfirm Dwglot.spec
 
-$exe = Join-Path $Root "dist\Dwglot\Dwglot.exe"
+$exe = Join-Path $Root "dist\Tuyi\Tuyi.exe"
 if (-not (Test-Path $exe)) {
     throw "Missing $exe"
 }
-$cli = Join-Path $Root "dist\Dwglot\dwglot-cli.exe"
+$cli = Join-Path $Root "dist\Tuyi\tuyi-cli.exe"
 if (-not (Test-Path $cli)) {
     throw "Missing $cli"
 }
-$runtime = Join-Path $Root "dist\Dwglot\_internal"
+$runtime = Join-Path $Root "dist\Tuyi\_internal"
 if (-not (Test-Path $runtime)) {
     throw "Missing $runtime"
 }
@@ -41,7 +41,7 @@ Write-Host "==> Inno Setup v$version..." -ForegroundColor Cyan
 & $iscc "/DMyAppVersion=$version" (Join-Path $Root "installer\Dwglot_Setup.iss")
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
 
-$setup = Join-Path $Root "installer\Output\Dwglot_v${version}_Setup.exe"
+$setup = Join-Path $Root "installer\Output\Tuyi_v${version}_Setup.exe"
 if (Test-Path $setup) {
     Write-Host "Done: $setup" -ForegroundColor Green
 } else {

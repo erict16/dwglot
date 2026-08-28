@@ -81,7 +81,7 @@ class NativeBridge:
 
     def export_logs(self) -> dict:
         path = self._save_dialog(
-            f"Dwglot_log_{datetime.now():%Y%m%d_%H%M%S}.txt",
+            f"Tuyi_log_{datetime.now():%Y%m%d_%H%M%S}.txt",
             ("Text files (*.txt)",),
         )
         if not path:

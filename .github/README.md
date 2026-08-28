@@ -1,1 +1,0 @@
-GitHub metadata for Dwglot.

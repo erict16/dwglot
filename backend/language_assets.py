@@ -9,10 +9,10 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from backend.app_meta import ASSETS_PATH, LEGACY_ASSETS_PATH, migrate_legacy_file
+from backend.app_meta import ASSETS_PATH, migrate_user_data
 from backend.storage import atomic_write_json
 
-migrate_legacy_file(LEGACY_ASSETS_PATH, ASSETS_PATH)
+migrate_user_data()
 DATABASE_PATH = ASSETS_PATH
 AZURE_F0_MONTHLY_CHARACTER_LIMIT = 2_000_000
 

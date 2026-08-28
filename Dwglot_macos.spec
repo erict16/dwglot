@@ -150,7 +150,7 @@ gui = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="Dwglot",
+    name="Tuyi",
     console=False,
     target_arch=None,
     codesign_identity=codesign_identity,
@@ -162,7 +162,7 @@ cli = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="dwglot-cli",
+    name="tuyi-cli",
     console=True,
     target_arch=None,
     codesign_identity=codesign_identity,
@@ -177,13 +177,13 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=False,
-    name="Dwglot",
+    name="Tuyi",
 )
-icns = os.path.join(spec_dir, "build", "Dwglot.icns")
+icns = os.path.join(spec_dir, "build", "Tuyi.icns")
 app = BUNDLE(
     coll,
-    name="Dwglot.app",
-    bundle_identifier="com.erict16.dwglot",
+    name="Tuyi.app",
+    bundle_identifier="com.erict16.tuyi",
     icon=icns if os.path.isfile(icns) else None,
     codesign_identity=codesign_identity,
     info_plist={

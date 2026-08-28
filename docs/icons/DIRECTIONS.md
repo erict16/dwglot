@@ -2,7 +2,7 @@
 
 Eight independent squares from Grok imagine (`image_gen`). Copied jpg→png with no redraw. No `generate_icons.py`, no polygons, no mascots. Not the README blue 图 tile. No winner — Eric picks.
 
-Eric picked the navy+steel fox as the temporary official app icon (`app.png`; same 角尺狐 silhouette as the rust original, navy body / steel set-square / white ground). `01.png`–`08.png` stay as rejected candidates.
+Official app icon is the cream cat with the play-triangle hat (`app.png`, from Eric's paste 2026-08-28). `ico.ico` / `icon.ico` / landing `shots/mark.png` are generated from that PNG. The navy+steel fox and `01.png`–`08.png` stay as rejected candidates.
 
 | File | Style | Inks | Imagine |
 |---|---|---|---|

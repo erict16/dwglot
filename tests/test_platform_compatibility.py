@@ -15,15 +15,15 @@ from backend.api import TranslationService
 
 
 class PlatformCompatibilityTests(unittest.TestCase):
-    def test_windows_pack_is_dwglot_without_oda(self):
+    def test_windows_pack_is_tuyi_without_oda(self):
         root = Path(__file__).resolve().parents[1]
         spec = (root / "Dwglot.spec").read_text(encoding="utf-8")
         iss = (root / "installer" / "Dwglot_Setup.iss").read_text(encoding="utf-8")
         run_py = (root / "run.py").read_text(encoding="utf-8")
-        self.assertIn('name="Dwglot"', spec)
+        self.assertIn('name="Tuyi"', spec)
         self.assertIn("console=False", spec)
         self.assertIn("backend.cli", spec)
-        self.assertIn('name="dwglot-cli"', spec)
+        self.assertIn('name="tuyi-cli"', spec)
         self.assertIn("console=True", spec)
         self.assertEqual(spec.count("Analysis("), 1)
         self.assertIn("COLLECT", spec)
@@ -31,11 +31,11 @@ class PlatformCompatibilityTests(unittest.TestCase):
         self.assertIn("_internal", spec)
         self.assertNotIn("collect_submodules", spec)
         self.assertNotRegex(spec, r'(?m)^\s*datas \+= collect_data_files\("matplotlib"\)')
-        self.assertIn("dwglot-cli.exe", run_py)
-        self.assertIn("Dwglot.exe", iss)
-        self.assertIn("dwglot-cli.exe", iss)
+        self.assertIn("tuyi-cli.exe", run_py)
+        self.assertIn("Tuyi.exe", iss)
+        self.assertIn("tuyi-cli.exe", iss)
         self.assertIn("_internal", iss)
-        self.assertIn("Dwglot_v{#MyAppVersion}_Setup", iss)
+        self.assertIn("Tuyi_v{#MyAppVersion}_Setup", iss)
         self.assertIn('#define MyAppName "图译"', iss)
         self.assertNotIn("[UninstallDelete]", iss)
         self.assertNotIn("backend.licensing", spec)
@@ -43,14 +43,14 @@ class PlatformCompatibilityTests(unittest.TestCase):
         self.assertNotIn("Honsen_CAD_Translator", spec)
         self.assertNotIn("Honsen_CAD_Translator", iss)
 
-    def test_macos_pack_is_dwglot_without_oda(self):
+    def test_macos_pack_is_tuyi_without_oda(self):
         root = Path(__file__).resolve().parents[1]
         spec = (root / "Dwglot_macos.spec").read_text(encoding="utf-8")
         script = (root / "installer" / "build_macos.py").read_text(encoding="utf-8")
-        self.assertIn('name="Dwglot.app"', spec)
-        self.assertIn('name="Dwglot"', spec)
-        self.assertIn('name="dwglot-cli"', spec)
-        self.assertIn('bundle_identifier="com.erict16.dwglot"', spec)
+        self.assertIn('name="Tuyi.app"', spec)
+        self.assertIn('name="Tuyi"', spec)
+        self.assertIn('name="tuyi-cli"', spec)
+        self.assertIn('bundle_identifier="com.erict16.tuyi"', spec)
         self.assertIn('"CFBundleDisplayName": "图译"', spec)
         self.assertIn("fonts", spec)
         self.assertIn("backend.cli", spec)
@@ -83,7 +83,7 @@ class PlatformCompatibilityTests(unittest.TestCase):
 
         with (
             patch.object(run.sys, "frozen", True, create=True),
-            patch.object(run.sys, "argv", [r"C:\Program Files\Dwglot\dwglot-cli.exe", "translate", "a.dxf"]),
+            patch.object(run.sys, "argv", [r"C:\Program Files\Tuyi\tuyi-cli.exe", "translate", "a.dxf"]),
             patch("backend.cli.main", return_value=0) as cli_main,
         ):
             with self.assertRaises(SystemExit) as caught:
@@ -132,7 +132,7 @@ class PlatformCompatibilityTests(unittest.TestCase):
         self.assertTrue(any(path.name == "ODAFileConverter" for path in candidates))
 
     def test_frozen_macos_app_finds_adjacent_oda_app(self):
-        executable = "/tmp/cad-dist/Dwglot.app/Contents/MacOS/Dwglot"
+        executable = "/tmp/cad-dist/Tuyi.app/Contents/MacOS/Tuyi"
         exe = Path(executable).resolve()
         app_root = next(parent for parent in exe.parents if parent.suffix == ".app")
         adjacent = (app_root.parent / "ODAFileConverter.app" / "Contents" / "MacOS" / "ODAFileConverter").resolve()
@@ -162,9 +162,9 @@ class PlatformCompatibilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as home, patch("backend.api.sys.platform", "darwin"), patch("backend.api.Path.home", return_value=Path(home)), patch("backend.app_meta.Path.home", return_value=Path(home)):
             self.assertEqual(
                 TranslationService.default_output_dir(),
-                str(Path(home) / "Documents" / "Dwglot output"),
+                str(Path(home) / "Documents" / "Tuyi output"),
             )
-            self.assertTrue((Path(home) / "Documents" / "Dwglot output").is_dir())
+            self.assertTrue((Path(home) / "Documents" / "Tuyi output").is_dir())
 
     def test_macos_system_theme_uses_control_accent_colour(self):
         color = SimpleNamespace(

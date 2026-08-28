@@ -6,8 +6,8 @@
 #define MyAppVersion "0.1.2"
 #endif
 #define MyAppPublisher "Eric Tan"
-#define MyAppExeName "Dwglot.exe"
-#define MyAppURL "https://github.com/erict16/dwglot"
+#define MyAppExeName "Tuyi.exe"
+#define MyAppURL "https://github.com/erict16/tuyi"
 
 [Setup]
 AppId={{B3F91C4A-2D7E-4A18-9C55-8E1D0A7B6F32}
@@ -18,11 +18,11 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}/releases
-DefaultDirName={autopf}\Dwglot
+DefaultDirName={autopf}\Tuyi
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=Output
-OutputBaseFilename=Dwglot_v{#MyAppVersion}_Setup
+OutputBaseFilename=Tuyi_v{#MyAppVersion}_Setup
 SetupIconFile=..\ico.ico
 Compression=lzma2
 SolidCompression=yes
@@ -48,10 +48,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: checkedonce
 
 [Files]
-; onedir: Dwglot.exe + dwglot-cli.exe share {app}\_internal
-Source: "..\dist\Dwglot\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\dist\Dwglot\dwglot-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\dist\Dwglot\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
+; onedir: Tuyi.exe + tuyi-cli.exe share {app}\_internal
+Source: "..\dist\Tuyi\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\Tuyi\tuyi-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\Tuyi\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

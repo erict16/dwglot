@@ -30,7 +30,7 @@ def _run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO) + os.pathsep + env.get("PYTHONPATH", "")
     return subprocess.run(
-        [sys.executable, "-m", "dwglot", *args],
+        [sys.executable, "-m", "tuyi", *args],
         cwd=str(REPO),
         capture_output=True,
         text=True,
@@ -146,7 +146,7 @@ class CliTranslateTests(unittest.TestCase):
     def test_version_flag(self):
         result = _run(["--version"])
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertRegex(result.stdout, r"dwglot\s+0\.\d+")
+        self.assertRegex(result.stdout, r"tuyi\s+0\.\d+")
         self.assertNotIn("Traceback", result.stderr)
 
     def test_two_inputs_reject_dash_o(self):

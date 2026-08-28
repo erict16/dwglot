@@ -639,7 +639,7 @@ def health():
 def app_meta():
     return {
         "name_zh": "图译",
-        "name_en": "Dwglot",
+        "name_en": "Tuyi",
         "title": APP_TITLE,
         "version": APP_VERSION,
         "github": GITHUB_URL,

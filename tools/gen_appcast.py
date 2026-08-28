@@ -2,7 +2,7 @@
 """Build Sparkle appcast.xml and WinSparkle latest.yml from a release tag.
 
 Usage:
-  APP_VERSION=0.1.2 DMG=dist/Dwglot.dmg EXE=dist/Dwglot.exe python tools/gen_appcast.py
+  APP_VERSION=0.1.2 DMG=dist/Tuyi.dmg EXE=dist/Tuyi.exe python tools/gen_appcast.py
 
 Unsigned first. Sign the Sparkle EdDSA key / Authenticode later.
 """
@@ -55,7 +55,7 @@ def main() -> None:
     appcast = f"""<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
-    <title>图译 Dwglot</title>
+    <title>图译 Tuyi</title>
     <link>{GITHUB_URL}/releases</link>
     <description>GitHub Releases appcast</description>
 {chr(10).join(items)}

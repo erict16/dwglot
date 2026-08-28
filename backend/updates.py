@@ -6,11 +6,11 @@ import json
 import urllib.error
 import urllib.request
 
-from backend.app_meta import APP_VERSION, GITHUB_URL
+from backend.app_meta import APP_VERSION, GITHUB_OWNER, GITHUB_REPO, GITHUB_URL
 
-RELEASES_API = "https://api.github.com/repos/erict16/dwglot/releases/latest"
-APPCAST_URL = "https://github.com/erict16/dwglot/releases/latest/download/appcast.xml"
-LATEST_YML_URL = "https://github.com/erict16/dwglot/releases/latest/download/latest.yml"
+RELEASES_API = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
+APPCAST_URL = f"{GITHUB_URL}/releases/latest/download/appcast.xml"
+LATEST_YML_URL = f"{GITHUB_URL}/releases/latest/download/latest.yml"
 
 
 def _parse_version(value: str) -> tuple[int, ...]:
@@ -44,7 +44,7 @@ def check_github_release(timeout: float = 12.0) -> dict:
         RELEASES_API,
         headers={
             "Accept": "application/vnd.github+json",
-            "User-Agent": f"Dwglot/{APP_VERSION}",
+            "User-Agent": f"Tuyi/{APP_VERSION}",
         },
     )
     try:

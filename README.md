@@ -1,43 +1,84 @@
-<h4 align="right">English | <strong><a href="README_CN.md">简体中文</a></strong></h4>
+<p align="center">
+  <img src="docs/icons/app.png" width="128" alt="Tuyi">
+</p>
+
+<h1 align="center">图译 Tuyi</h1>
+
+<p align="center"><strong>DWG / DXF Translator</strong></p>
 
 <p align="center">
-  <img src="docs/icons/app.png" width="88" alt="图译" />
-  <h1 align="center">图译 Dwglot</h1>
-  <div align="center">
-    <a href="https://github.com/erict16/dwglot/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/erict16/dwglot?style=flat-square"></a>
-    <img alt="macOS 11+" src="https://img.shields.io/badge/macOS-11%2B-orange?style=flat-square">
-    <img alt="Windows 10+" src="https://img.shields.io/badge/Windows-10%2B-blue?style=flat-square">
-    <img alt="MIT" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
-  </div>
-  <div align="center">Dwglot is an open-source desktop CAD translator. Open a DWG or DXF and translate the text on the drawing (图纸翻译 / drawing translation). You don't need AutoCAD.</div>
+  Open a CAD drawing, translate the text on it, write a new file.<br>
+  Desktop app for Windows and macOS. You don't need AutoCAD.
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/regular.png" width="900" alt="图译 regular processing: original and translation table" />
+  <a href="https://github.com/erict16/tuyi/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/erict16/tuyi?style=flat-square"></a>
+  <img alt="Windows 10+" src="https://img.shields.io/badge/Windows-10%2B-blue?style=flat-square">
+  <img alt="macOS 11+" src="https://img.shields.io/badge/macOS-11%2B-orange?style=flat-square">
+  <img alt="MIT" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
 </p>
+
 <p align="center">
-  <img src="docs/screenshots/export.png" width="48%" alt="Batch export" />
-  <img src="docs/screenshots/params.png" width="48%" alt="Parameters sheet" />
+  <b>English</b> ·
+  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.es.md">Español</a>
 </p>
 
-## Features
+<p align="center">
+  <img src="docs/screenshots/regular.png" width="920" alt="Tuyi: source and translation side by side">
+</p>
 
-- **Glossary:** If the drawing text is in the glossary, we use that translation. Everything else can use Azure or DeepL, Ollama on your machine, or your own OpenAI-compatible API.
-- **Drawings:** Open a DWG or DXF, edit the original and the translation side by side, then batch-export and write back. v0.1 covers TEXT, MTEXT, and attributes.
-- **Keys:** No telemetry, no paid licence. API keys stay on your computer.
-- **ODA:** The installer does not include ODA File Converter. DXF translates without it. For DWG, install ODA yourself.
+## Install
 
-## Installation
+Download from [Releases](https://github.com/erict16/tuyi/releases).
 
-v0.1 is unsigned. The Windows installer is on [GitHub Releases](https://github.com/erict16/dwglot/releases). A macOS Apple Silicon DMG is built by CI on a version tag (Intel later). In-app **检查更新** uses the same Releases page. Sparkle / WinSparkle come later, after signing; for now it opens the new package.
+| | |
+| --- | --- |
+| Windows 10+ | Setup exe on the release page |
+| macOS 11+ (Apple Silicon) | DMG, built by CI on a version tag |
 
-**macOS first run (Gatekeeper):** Right-click the app, choose Open. Or System Settings → Privacy & Security → Open Anyway. A Developer ID later will stop this warning.
+v0.1 is unsigned.
 
-**Windows first run (SmartScreen):** More info → Run anyway. Authenticode later will stop this warning.
+**Windows:** More info → Run anyway.
 
-Do not pack with UPX. DXF works without ODA. For DWG, install [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter) yourself, or set `CAD_ODA_EXEC`. We never put ODA inside the app.
+**macOS:** Right-click the app → Open. Or System Settings → Privacy & Security → Open Anyway.
 
-From source:
+In-app **检查更新** opens the same Releases page.
+
+## What it does
+
+Tuyi translates text *inside* the drawing, not a screenshot of it.
+
+- Opens **DWG** and **DXF**
+- Fills a source / translation table you can edit
+- Writes a new drawing
+- Batch export for a folder of files
+- v0.1 covers TEXT, MTEXT, attributes, DIMENSION overrides, and ACAD_TABLE cells
+
+Glossary hits are used as-is. The rest can go through Azure Translator, DeepL, a local Ollama model, or your own OpenAI-compatible API.
+
+API keys stay on your computer. No telemetry, no paid licence.
+
+Default pair is Chinese → English. Output goes to `~/Documents/Tuyi output`.
+
+## DWG and DXF
+
+DXF opens with nothing extra.
+
+DWG needs [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter) on the same machine, or `CAD_ODA_EXEC` pointing at it. The installer does not ship ODA, and we will not put it in the package.
+
+## CLI
+
+```bash
+python -m tuyi translate drawing.dxf
+python -m tuyi translate drawing.dwg -o out.dwg --mode zh_to_en
+```
+
+Packed Windows build: `tuyi-cli.exe` next to `Tuyi.exe`. `python -m dwglot` still works as an alias.
+
+## Build from source
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
@@ -46,14 +87,10 @@ cd frontend && npm ci && npm run build && cd ..
 python run.py
 ```
 
-Default language pair is Chinese → English. Output goes to `~/Documents/Dwglot output`.
-
-## Notes
-
-- Fork of [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator) (MIT). Dwglot is the 图译 fork. It has a Mac UI, four translation engines, and auto-update.
-- DIMENSION / ACAD_TABLE write-back is v0.1. Dims and tables round-trip now.
-- The website is in `landing/` (for Vercel).
+Do not pack with UPX.
 
 ## License
 
-MIT. Copyright Eric Tan / Honsen CAD_translator contributors.
+MIT. Fork of [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator). Copyright Eric Tan and Honsen CAD_translator contributors.
+
+Site files live in `landing/` if you want to host the page on Vercel.

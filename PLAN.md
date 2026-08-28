@@ -15,7 +15,7 @@ Checked 2026-08-27 against Honsen GitHub and 轻语’s public pages.
 - Chinese name: **图译**
 - English / repo: **Dwglot**
 - Open-source desktop app in the 轻语 genre: translate text inside DWG/DXF, no AutoCAD.
-- Public MIT repo: `https://github.com/erict16/dwglot`. v0.1 unsigned. Gatekeeper / SmartScreen steps live in README 安装.
+- Public MIT repo: `https://github.com/erict16/tuyi`. v0.1 unsigned. Gatekeeper / SmartScreen steps live in README 安装.
 - Windows x64 + macOS Intel + Apple Silicon.
 - MIT (keep Honsen’s MIT notice; add Dwglot copyright).
 
@@ -39,7 +39,7 @@ What Honsen is not, and what the fork changes:
 - SHX handling is incomplete (ODA `\M+xxxx` GBK decode + wrap MTEXT in `{\fSimSun…}`). v0.1 must rewrite STYLE to a Unicode TTF.
 - MTEXT write currently rebuilds the string with a font group and drops inline codes. Fork should keep `\P` `\C` `\H` etc. when translating.
 - Dims and tables are already in `CADChineseTranslator` (`DIMENSION` override, `ACAD_TABLE` group 302). v0.1 ships them behind the 标注、表格 checkbox (`enable_v02`, on by default). AutoCAD table regen after 302 write is still unverified.
-- Auto-update in v0.1: GitHub Releases (`erict16/dwglot`) + Sparkle (Mac) / WinSparkle (Win), with a Python fallback that opens the new dmg/zip/exe until Sparkle is signed. Unsigned first; certs later quiet Gatekeeper/SmartScreen. No Authenticode/notarize in v0.1.
+- Auto-update in v0.1: GitHub Releases (`erict16/tuyi`) + Sparkle (Mac) / WinSparkle (Win), with a Python fallback that opens the new dmg/zip/exe until Sparkle is signed. Unsigned first; certs later quiet Gatekeeper/SmartScreen. No Authenticode/notarize in v0.1.
 
 No other GitHub app is a better fork. ezdxf is a library. bimwright/dwg-mcp needs AutoCAD. CAD Studio TRANS is closed and AutoCAD-bound.
 
@@ -200,7 +200,7 @@ Rules:
 
 ## Auto-update (v0.1)
 
-Repo: `https://github.com/erict16/dwglot`. Version lives in `backend/app_meta.py` (`APP_VERSION`).
+Repo: `https://github.com/erict16/tuyi`. Version lives in `backend/app_meta.py` (`APP_VERSION`).
 
 Check: `GET /api/updates/check` hits GitHub Releases `latest` (no telemetry). UI **检查更新** shows current vs latest and a download link.
 

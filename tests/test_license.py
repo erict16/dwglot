@@ -34,7 +34,7 @@ class LicensePathTests(unittest.TestCase):
         meta = app_meta()
         self.assertFalse(meta["licensing_enabled"])
         self.assertTrue(meta["version"])
-        self.assertIn("erict16/dwglot", meta["github"])
+        self.assertIn("erict16/tuyi", meta["github"])
 
 
 if __name__ == "__main__":

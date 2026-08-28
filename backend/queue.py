@@ -9,11 +9,11 @@ import uuid
 from pathlib import Path
 from typing import Callable
 
-from backend.app_meta import QUEUE_PATH, LEGACY_QUEUE_PATH, migrate_legacy_file
+from backend.app_meta import QUEUE_PATH, migrate_user_data
 from backend.cad import dwg_unavailable_short, odafc_available
 from backend.storage import atomic_write_json, quarantine_corrupt_file
 
-migrate_legacy_file(LEGACY_QUEUE_PATH, QUEUE_PATH)
+migrate_user_data()
 STATE_PATH = QUEUE_PATH
 ACTIVE = {"queued", "retrying", "running"}
 MAX_TASK_HISTORY = 100

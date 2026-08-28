@@ -51,9 +51,9 @@ jobs:
         shell: pwsh
         run: |
           pyinstaller --clean --noconfirm Dwglot.spec
-          if (-not (Test-Path "dist\Dwglot\Dwglot.exe")) { throw "Dwglot.exe missing" }
-          if (-not (Test-Path "dist\Dwglot\dwglot-cli.exe")) { throw "dwglot-cli.exe missing" }
-          if (-not (Test-Path "dist\Dwglot\_internal")) { throw "_internal runtime missing" }
+          if (-not (Test-Path "dist\Tuyi\Tuyi.exe")) { throw "Tuyi.exe missing" }
+          if (-not (Test-Path "dist\Tuyi\tuyi-cli.exe")) { throw "tuyi-cli.exe missing" }
+          if (-not (Test-Path "dist\Tuyi\_internal")) { throw "_internal runtime missing" }
 
       - name: Inno Setup 6
         run: choco install innosetup --no-progress
@@ -69,23 +69,23 @@ jobs:
           if (-not $iscc) { throw "ISCC.exe not found" }
           & $iscc "/DMyAppVersion=$version" "installer\Dwglot_Setup.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
-          if (-not (Test-Path "installer\Output\Dwglot_v${version}_Setup.exe")) {
-            throw "Dwglot_v${version}_Setup.exe missing"
+          if (-not (Test-Path "installer\Output\Tuyi_v${version}_Setup.exe")) {
+            throw "Tuyi_v${version}_Setup.exe missing"
           }
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: windows-setup
-          path: installer/Output/Dwglot_v${{ steps.ver.outputs.version }}_Setup.exe
+          path: installer/Output/Tuyi_v${{ steps.ver.outputs.version }}_Setup.exe
 
       - name: GitHub Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: 图译 v${{ steps.ver.outputs.version }}
-          files: installer/Output/Dwglot_v${{ steps.ver.outputs.version }}_Setup.exe
+          name: 图译 Tuyi v${{ steps.ver.outputs.version }}
+          files: installer/Output/Tuyi_v${{ steps.ver.outputs.version }}_Setup.exe
           fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false

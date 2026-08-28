@@ -76,7 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     from backend.app_meta import APP_VERSION
 
     parser = argparse.ArgumentParser(
-        prog="dwglot",
+        prog="tuyi",
         add_help=True,
         epilog="DWG needs ODA File Converter on PATH or CAD_ODA_EXEC. DXF does not.",
     )

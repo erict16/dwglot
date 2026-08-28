@@ -7,7 +7,7 @@ def _frozen_cli() -> bool:
     if not getattr(sys, "frozen", False):
         return False
     name = sys.argv[0].replace("\\", "/").rsplit("/", 1)[-1].lower()
-    return name in {"dwglot-cli.exe", "dwglot-cli"}
+    return name in {"tuyi-cli.exe", "tuyi-cli", "dwglot-cli.exe", "dwglot-cli"}
 
 
 def main() -> None:

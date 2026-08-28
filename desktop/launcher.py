@@ -33,7 +33,7 @@ def _acquire_single_instance() -> bool:
 
         global _INSTANCE_MUTEX
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        _INSTANCE_MUTEX = kernel32.CreateMutexW(None, False, "Local\\Dwglot")
+        _INSTANCE_MUTEX = kernel32.CreateMutexW(None, False, "Local\\Tuyi")
         return ctypes.get_last_error() != 183  # ERROR_ALREADY_EXISTS
     except Exception:
         return True

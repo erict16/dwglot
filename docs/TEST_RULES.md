@@ -37,7 +37,7 @@ Follow the automated and real-DWG acceptance cases in [BATCH_TRANSLATION_HARNESS
 
 Status (2026-08-07): completed. Python compilation, translation-mode/glossary tests, batch recovery/queue-operation tests, and React build passed. The specified real DWG completed Chinese → French → Chinese and Chinese → English → Chinese; all four output DWGs were readable and extracted text changed on every pass. API keys were neither logged nor persisted in queue state.
 
-Packaging status: Windows packages with `installer/build_installer.ps1` (`Dwglot.spec` + `installer/Dwglot_Setup.iss`) and verifies `dist/Dwglot/Dwglot.exe`, `dwglot-cli.exe`, `_internal`, and `installer/Output/Dwglot_v{APP_VERSION}_Setup.exe`. macOS packages with `python installer/build_macos.py --dmg` (`Dwglot_macos.spec`) and verifies `dist/Dwglot.app` plus `dist/Dwglot_v{APP_VERSION}_macOS_{arch}.dmg`. Neither payload contains ODA File Converter. Version comes from `backend/app_meta.py`. Before external distribution, perform a desktop launch smoke test and a real DWG round trip with a user-installed ODA File Converter.
+Packaging status: Windows packages with `installer/build_installer.ps1` (`Dwglot.spec` + `installer/Dwglot_Setup.iss`) and verifies `dist/Tuyi/Tuyi.exe`, `tuyi-cli.exe`, `_internal`, and `installer/Output/Tuyi_v{APP_VERSION}_Setup.exe`. macOS packages with `python installer/build_macos.py --dmg` (`Dwglot_macos.spec`) and verifies `dist/Tuyi.app` plus `dist/Tuyi_v{APP_VERSION}_macOS_{arch}.dmg`. Neither payload contains ODA File Converter. Version comes from `backend/app_meta.py`. Before external distribution, perform a desktop launch smoke test and a real DWG round trip with a user-installed ODA File Converter.
 
 macOS ODA layout rule: do not embed `ODAFileConverter.dmg`. Detect a user-installed ODA (`CAD_ODA_EXEC`, `/Applications/ODAFileConverter.app`, PATH). `_mount_embedded_macos_odafc` must return None.
 
@@ -49,7 +49,7 @@ Pause rule (2026-08-07): verify each task shows an independent progress bar and 
 
 Close rule (2026-08-07): closing the desktop window must cancel batch work, persist running tasks as `queued`, and leave no non-daemon queue worker able to keep the process alive.
 
-Shutdown enforcement: after state persistence and cancellation, the close control must force the application process to exit; verify no `Dwglot.exe` / `Dwglot` process remains after closing the window.
+Shutdown enforcement: after state persistence and cancellation, the close control must force the application process to exit; verify no `Tuyi.exe` / `Tuyi` process remains after closing the window.
 
 Recovery and stop rule (2026-08-07): after restart, recovered tasks must remain idle until **继续** is clicked. **停止** must cancel the batch and restore **开始翻译**; **清空列表** is available only after the batch is stopped/completed, never while it is running or paused.
 

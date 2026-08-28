@@ -4,18 +4,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>图译 Dwglot — DWG DXF CAD translator</title>
-  <meta name="description" content="图译 Dwglot is an open-source desktop CAD translator for DWG and DXF drawing translation (图纸翻译). No AutoCAD. macOS and Windows." />
-  <meta name="keywords" content="DWG, DXF, CAD translator, drawing translation, 图纸翻译, converter, ezdxf, OpenDWG" />
-  <meta property="og:title" content="图译 Dwglot — DWG DXF CAD translator" />
-  <meta property="og:description" content="Open-source desktop CAD translator. Translate text inside DWG and DXF drawings." />
+  <title>图译 Tuyi — DWG / DXF Translator</title>
+  <meta name="description" content="图译 Tuyi translates text inside DWG and DXF drawings. Open-source desktop app. No AutoCAD. Windows and macOS." />
+  <meta name="keywords" content="DWG, DXF, CAD translator, drawing translation, 图纸翻译, Tuyi, 图译, ezdxf" />
+  <meta property="og:title" content="图译 Tuyi — DWG / DXF Translator" />
+  <meta property="og:description" content="Open a DWG or DXF, translate the text on the drawing, write it back. No AutoCAD." />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="shots/regular.png" />
   <meta name="twitter:card" content="summary_large_image" />
-  <link rel="icon" href="shots/mark.svg" type="image/svg+xml" />
+  <link rel="icon" href="shots/mark.png" type="image/png" />
   <script>
     // Fill these when a GitHub Release has the installer files. Empty = button stays, click says 安装包还没放上来.
-    const DL = { mac: "", win: "https://github.com/erict16/dwglot/releases/download/v0.1.2/Dwglot_v0.1.2_Setup.exe" };
+    const DL = { mac: "", win: "https://github.com/erict16/tuyi/releases/download/v0.1.2/Dwglot_v0.1.2_Setup.exe" };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -40,8 +40,8 @@
   <header class="sticky top-0 z-20 border-b border-black/5 bg-white/80 backdrop-blur">
     <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
       <a href="./" class="flex items-center gap-2 font-semibold">
-        <img src="shots/mark.svg" alt="" width="28" height="28" class="rounded-md" />
-        图译
+        <img src="shots/mark.png" alt="" width="28" height="28" class="rounded-md" />
+        图译 Tuyi
       </a>
       <nav class="hidden items-center gap-8 text-sm text-slate-600 sm:flex">
         <a href="#features" class="hover:text-ink">功能</a>
@@ -54,8 +54,9 @@
 
   <section class="bg-mist">
     <div class="mx-auto max-w-4xl px-4 pb-16 pt-16 text-center sm:pb-20 sm:pt-20">
-      <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">DWG / DXF CAD translator</h1>
-      <p class="mx-auto mt-4 max-w-xl text-lg text-slate-600">图译 Dwglot 做图纸翻译。打开图纸，译文字，写回。不装 AutoCAD。</p>
+      <p class="text-sm font-medium tracking-wide text-slate-500">图译 Tuyi</p>
+      <h1 class="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">DWG / DXF Translator</h1>
+      <p class="mx-auto mt-4 max-w-xl text-lg text-slate-600">打开 DWG 或 DXF，译图纸里的字，写出一份新文件。不装 AutoCAD。</p>
       <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
         <a href="#download" class="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110">下载图译</a>
         <a href="#features" class="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-ink ring-1 ring-black/10 hover:bg-mist">看看功能</a>
@@ -83,7 +84,7 @@
     <div class="mx-auto grid max-w-6xl gap-12 px-4 lg:grid-cols-2 lg:items-center">
       <div>
         <h2 class="text-3xl font-semibold tracking-tight">批量导出和参数，都在同一扇 Mac 窗里</h2>
-        <p class="mt-4 max-w-prose text-slate-600">左侧已打开图纸。中间原文 | 译文 | 图层。云 / 本地 / 自定义是分段控件，不是商店。ODA 你自己装；没装也能译 DXF。</p>
+        <p class="mt-4 max-w-prose text-slate-600">左侧已打开图纸。中间原文 | 译文 | 图层。云 / 本地 / 自定义是分段控件，不是商店。DXF 直接译；DWG 要你本机自己装 ODA。</p>
         <ul class="mt-6 space-y-2 text-slate-700">
           <li>默认中 → 英，可换方向</li>
           <li>过滤纯数字、重复、非源语言</li>
@@ -141,12 +142,12 @@
 
   <footer class="border-t border-black/5 py-5">
     <div class="mx-auto flex max-w-6xl items-center justify-between px-4 text-sm text-slate-500">
-      <span>图译 Dwglot · MIT</span>
+      <span>图译 Tuyi · MIT</span>
       <div class="flex items-center gap-4">
-        <a href="https://github.com/erict16/dwglot" class="text-slate-500 hover:text-ink" aria-label="GitHub">
+        <a href="https://github.com/erict16/tuyi" class="text-slate-500 hover:text-ink" aria-label="GitHub">
           <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/></svg>
         </a>
-        <a href="https://github.com/erict16/dwglot/releases" class="hover:text-ink">Releases</a>
+        <a href="https://github.com/erict16/tuyi/releases" class="hover:text-ink">Releases</a>
       </div>
     </div>
   </footer>

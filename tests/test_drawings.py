@@ -1011,7 +1011,7 @@ class DrawingsApiTests(unittest.TestCase):
         body = updates.json()
         self.assertIn("current", body)
         self.assertIn("available", body)
-        self.assertIn("erict16/dwglot", body.get("html_url", ""))
+        self.assertIn("erict16/tuyi", body.get("html_url", ""))
 
         imported = self.client.post(
             "/api/language-assets/import",

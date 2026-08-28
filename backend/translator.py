@@ -29,7 +29,9 @@ try:
 except ImportError:
     winreg = None
 
-from backend.app_meta import APP_VERSION, CONFIG_PATH as DWGLOT_CONFIG_PATH
+from backend.app_meta import APP_VERSION, CONFIG_PATH as DWGLOT_CONFIG_PATH, migrate_user_data
+
+migrate_user_data()
 from backend.languages import mode_key, split_mode, language_name
 from backend.mtext_runs import map_translatable
 from backend.providers.azure import AzureFreeQuotaExceededError, AzureTranslator

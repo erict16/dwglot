@@ -12,10 +12,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pack_version import ROOT, app_version
 
-OUTPUT_APP = ROOT / "dist" / "Dwglot.app"
-APP_EXECUTABLE = OUTPUT_APP / "Contents" / "MacOS" / "Dwglot"
-CLI_EXECUTABLE = OUTPUT_APP / "Contents" / "MacOS" / "dwglot-cli"
-ICNS_PATH = ROOT / "build" / "Dwglot.icns"
+OUTPUT_APP = ROOT / "dist" / "Tuyi.app"
+APP_EXECUTABLE = OUTPUT_APP / "Contents" / "MacOS" / "Tuyi"
+CLI_EXECUTABLE = OUTPUT_APP / "Contents" / "MacOS" / "tuyi-cli"
+ICNS_PATH = ROOT / "build" / "Tuyi.icns"
 PNG_ICON = ROOT / "docs" / "icons" / "app.png"
 
 
@@ -31,7 +31,7 @@ def architectures(binary: Path) -> set[str]:
 def write_icns() -> None:
     if sys.platform != "darwin" or not PNG_ICON.is_file():
         return
-    iconset = ROOT / "build" / "Dwglot.iconset"
+    iconset = ROOT / "build" / "Tuyi.iconset"
     if iconset.exists():
         shutil.rmtree(iconset)
     iconset.mkdir(parents=True, exist_ok=True)
@@ -116,7 +116,7 @@ def main() -> None:
         raise SystemExit("--dmg-output requires --dmg")
     if args.dmg:
         arch = next(iter(sorted(app_arches)))
-        dmg_output = (args.dmg_output or ROOT / "dist" / f"Dwglot_v{version}_macOS_{arch}.dmg")
+        dmg_output = (args.dmg_output or ROOT / "dist" / f"Tuyi_v{version}_macOS_{arch}.dmg")
         dmg_output = dmg_output.expanduser().resolve()
         if dmg_output.suffix.lower() != ".dmg":
             raise SystemExit(f"DMG output must end in .dmg: {dmg_output}")
