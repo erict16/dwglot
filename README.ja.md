@@ -2,7 +2,7 @@
   <img src="docs/icons/app.png" width="128" alt="Tuyi">
 </p>
 
-<h1 align="center">Tuyi 图译 - DWG / DXF 図面翻訳</h1>
+<h1 align="center">图译 Tuyi - DWG / DXF 図面翻訳</h1>
 
 <p align="center">
   <a href="README.md">English</a> ·
