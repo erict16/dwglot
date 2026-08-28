@@ -1,0 +1,50 @@
+name: Bug
+description: Something does not work
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: DXF bugs can be reproduced without ODA. DWG bugs usually need ODA File Converter on the machine.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expect
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: File format
+      options:
+        - DXF
+        - DWG
+        - both
+        - not a drawing
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: Windows 11 / macOS 14
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Tuyi version
+      placeholder: 0.1.2
+  - type: checkboxes
+    id: oda
+    attributes:
+      label: ODA File Converter
+      options:
+        - label: Installed on this machine
+        - label: Not installed (DXF only)

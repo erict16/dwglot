@@ -89,6 +89,12 @@ python run.py
 
 UPX로 압축하지 마세요.
 
+## 기여
+
+PR을 환영합니다. `main`에 들어가기 전에 Eric이 봅니다. [CONTRIBUTING.md](CONTRIBUTING.md)를 보세요.
+
+ODA를 설치 파일에 넣지 마세요. 유료 라이선스도 넣지 마세요.
+
 ## 라이선스
 
 MIT. [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator)의 포크입니다. Copyright Eric Tan / Honsen CAD_translator 기여자.

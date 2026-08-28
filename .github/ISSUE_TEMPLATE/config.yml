@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Discussions
+    url: https://github.com/erict16/tuyi/discussions
+    about: Questions and ideas that are not a bug or a patch yet

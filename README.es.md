@@ -89,6 +89,12 @@ python run.py
 
 No empaquetes con UPX.
 
+## Contribuir
+
+Los PR son bienvenidos. Eric los revisa antes de entrar en `main`. Ver [CONTRIBUTING.md](CONTRIBUTING.md).
+
+No empaquetes ODA. No añadas una licencia de pago.
+
 ## Licencia
 
 MIT. Fork de [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator). Copyright Eric Tan y colaboradores de Honsen CAD_translator.

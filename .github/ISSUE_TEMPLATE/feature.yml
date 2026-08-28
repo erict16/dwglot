@@ -1,0 +1,25 @@
+name: Feature
+description: A change you want in Tuyi
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: What you want
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: A real drawing or workflow helps more than a feature list.
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Out of scope unless you say otherwise
+      options:
+        - label: I am not asking to bundle ODA
+        - label: I am not asking for a paid licence

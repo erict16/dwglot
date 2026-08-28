@@ -89,6 +89,12 @@ python run.py
 
 不要用 UPX 打包。
 
+## 贡献
+
+欢迎 PR。合进 `main` 前 Eric 会看。细节在 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+不要把 ODA 打进安装包，也不要加付费授权。
+
 ## 协议
 
 MIT。从 [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator) fork。Copyright Eric Tan / Honsen CAD_translator 贡献者。

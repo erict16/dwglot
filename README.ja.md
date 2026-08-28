@@ -89,6 +89,12 @@ python run.py
 
 UPX で固めないでください。
 
+## 貢献
+
+PR は歓迎します。`main` に入る前に Eric が確認します。[CONTRIBUTING.md](CONTRIBUTING.md) を見てください。
+
+ODA を同梱しないでください。有料ライセンスも追加しないでください。
+
 ## ライセンス
 
 MIT。[etianwang/CAD_translator](https://github.com/etianwang/CAD_translator) のフォークです。Copyright Eric Tan / Honsen CAD_translator の貢献者。

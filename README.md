@@ -89,6 +89,12 @@ python run.py
 
 Do not pack with UPX.
 
+## Contributing
+
+PRs welcome. Eric reviews before anything hits `main`. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Do not bundle ODA. Do not add a paid licence.
+
 ## License
 
 MIT. Fork of [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator). Copyright Eric Tan and Honsen CAD_translator contributors.
