@@ -2,6 +2,8 @@
 
 Eight independent squares from Grok imagine (`image_gen`). Copied jpg→png with no redraw. No `generate_icons.py`, no polygons, no mascots. Not the README blue 图 tile. No winner — Eric picks.
 
+Eric picked the navy+steel fox as the temporary official app icon (`app.png`; same 角尺狐 silhouette as the rust original, navy body / steel set-square / white ground). `01.png`–`08.png` stay as rejected candidates.
+
 | File | Style | Inks | Imagine |
 |---|---|---|---|
 | `01.png` | 朱文印 | cinnabar `#C41A1A` on warm paper-white | `images/5.jpg` |

@@ -1,7 +1,7 @@
 <h4 align="right"><strong><a href="README.md">English</a></strong> | 简体中文</h4>
 
 <p align="center">
-  <img src="docs/screenshots/mark.svg" width="88" alt="图译" />
+  <img src="docs/icons/app.png" width="88" alt="图译" />
   <h1 align="center">图译 Dwglot</h1>
   <div align="center">
     <a href="https://github.com/erict16/dwglot/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/erict16/dwglot?style=flat-square"></a>
