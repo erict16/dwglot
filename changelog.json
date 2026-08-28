@@ -1,6 +1,15 @@
 {
   "changelog": [
     {
+      "version": "0.1.1",
+      "date": "2026年8月",
+      "title": "Windows 安装包含命令行",
+      "content": [
+        "[新增] 安装目录里有 dwglot-cli.exe，和 Dwglot.exe 并排（Windows 不能叫 dwglot.exe）",
+        "[新增] python -m dwglot translate 走常规写回"
+      ]
+    },
+    {
       "version": "0.1.0",
       "date": "2026年8月",
       "title": "图译 Dwglot 首发",

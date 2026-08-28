@@ -1,7 +1,7 @@
 ; 图译 Dwglot — Inno Setup 6. ODA is not in this payload.
 
 #define MyAppName "图译 Dwglot"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.1.1"
 #define MyAppPublisher "Eric Tan"
 #define MyAppExeName "Dwglot.exe"
 #define MyAppURL "https://github.com/erict16/dwglot"
@@ -29,7 +29,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
 DisableProgramGroupPage=yes
-VersionInfoVersion=0.1.0.0
+VersionInfoVersion=0.1.1.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}

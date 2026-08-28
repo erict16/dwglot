@@ -34,7 +34,7 @@ Write-Host "==> Inno Setup..." -ForegroundColor Cyan
 & $iscc (Join-Path $Root "installer\Dwglot_Setup.iss")
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
 
-$setup = Join-Path $Root "installer\Output\Dwglot_v0.1.0_Setup.exe"
+$setup = Join-Path $Root "installer\Output\Dwglot_v0.1.1_Setup.exe"
 if (Test-Path $setup) {
     Write-Host "Done: $setup" -ForegroundColor Green
 } else {

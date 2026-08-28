@@ -56,16 +56,16 @@ jobs:
           if (-not $iscc) { throw "ISCC.exe not found" }
           & $iscc "installer\Dwglot_Setup.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
-          if (-not (Test-Path "installer\Output\Dwglot_v0.1.0_Setup.exe")) {
-            throw "Dwglot_v0.1.0_Setup.exe missing"
+          if (-not (Test-Path "installer\Output\Dwglot_v0.1.1_Setup.exe")) {
+            throw "Dwglot_v0.1.1_Setup.exe missing"
           }
 
       - name: GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.0' }}
-          name: 图译 Dwglot v0.1.0
-          files: installer/Output/Dwglot_v0.1.0_Setup.exe
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.1' }}
+          name: 图译 Dwglot v0.1.1
+          files: installer/Output/Dwglot_v0.1.1_Setup.exe
           fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false
