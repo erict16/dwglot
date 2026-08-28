@@ -3,6 +3,9 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
+$version = (& python (Join-Path $Root "installer\pack_version.py")).Trim()
+if (-not $version) { throw "APP_VERSION is empty" }
+
 Write-Host "==> React frontend..." -ForegroundColor Cyan
 Push-Location frontend
 if (-not (Test-Path node_modules)) { npm install }
@@ -34,13 +37,13 @@ if (-not $iscc) {
     throw "Inno Setup 6 not found. Install from https://jrsoftware.org/isinfo.php"
 }
 
-Write-Host "==> Inno Setup..." -ForegroundColor Cyan
-& $iscc (Join-Path $Root "installer\Dwglot_Setup.iss")
+Write-Host "==> Inno Setup v$version..." -ForegroundColor Cyan
+& $iscc "/DMyAppVersion=$version" (Join-Path $Root "installer\Dwglot_Setup.iss")
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
 
-$setup = Join-Path $Root "installer\Output\Dwglot_v0.1.2_Setup.exe"
+$setup = Join-Path $Root "installer\Output\Dwglot_v${version}_Setup.exe"
 if (Test-Path $setup) {
     Write-Host "Done: $setup" -ForegroundColor Green
 } else {
-    throw "Installer was not written"
+    throw "Installer was not written: $setup"
 }

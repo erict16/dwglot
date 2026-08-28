@@ -36,10 +36,47 @@ class PlatformCompatibilityTests(unittest.TestCase):
         self.assertIn("dwglot-cli.exe", iss)
         self.assertIn("_internal", iss)
         self.assertIn("Dwglot_v{#MyAppVersion}_Setup", iss)
+        self.assertIn('#define MyAppName "图译"', iss)
+        self.assertNotIn("[UninstallDelete]", iss)
         self.assertNotIn("backend.licensing", spec)
         self.assertNotIn("ODAFileConverter", iss)
         self.assertNotIn("Honsen_CAD_Translator", spec)
         self.assertNotIn("Honsen_CAD_Translator", iss)
+
+    def test_macos_pack_is_dwglot_without_oda(self):
+        root = Path(__file__).resolve().parents[1]
+        spec = (root / "Dwglot_macos.spec").read_text(encoding="utf-8")
+        script = (root / "installer" / "build_macos.py").read_text(encoding="utf-8")
+        self.assertIn('name="Dwglot.app"', spec)
+        self.assertIn('name="Dwglot"', spec)
+        self.assertIn('name="dwglot-cli"', spec)
+        self.assertIn('bundle_identifier="com.erict16.dwglot"', spec)
+        self.assertIn('"CFBundleDisplayName": "图译"', spec)
+        self.assertIn("fonts", spec)
+        self.assertIn("backend.cli", spec)
+        self.assertIn("backend.updates", spec)
+        self.assertNotIn("backend.licensing", spec)
+        self.assertNotIn("license_public_key.txt", spec)
+        self.assertNotIn("Honsen", spec)
+        self.assertNotIn("license_public_key", spec)
+        self.assertIn("ODA is not packed", script)
+        self.assertIn("ODA DMG must not be inside the app", script)
+        self.assertIn('if "--oda-dmg" in sys.argv', script)
+        self.assertNotIn('add_argument("--oda-dmg"', script)
+        self.assertIn("--deep", script)
+
+    def test_release_workflows_use_app_version_and_tag_only(self):
+        root = Path(__file__).resolve().parents[1]
+        win = (root / ".github" / "workflows" / "windows-release.yml").read_text(encoding="utf-8")
+        mac = (root / ".github" / "workflows" / "macos-release.yml").read_text(encoding="utf-8")
+        self.assertIn("pack_version.py", win)
+        self.assertIn("pack_version.py", mac)
+        self.assertIn("if: github.ref_type == 'tag'", win)
+        self.assertIn("if: github.ref_type == 'tag'", mac)
+        self.assertNotIn("v0.1.2", win)
+        self.assertNotIn("|| 'v0.1.2'", win)
+        self.assertIn("macos-latest", mac)
+        self.assertIn("build_macos.py", mac)
 
     def test_frozen_cli_exe_dispatches_to_cli(self):
         import run
@@ -81,11 +118,11 @@ class PlatformCompatibilityTests(unittest.TestCase):
             candidates = cad.odafc_candidate_paths()
         expected_local_app = cad.get_app_dir() / "ODAFileConverter.app" / "Contents" / "MacOS" / "ODAFileConverter"
         self.assertIn(expected_local_app, candidates)
-        self.assertTrue(any(str(path).endswith(".app/Contents/MacOS/ODAFileConverter") for path in candidates))
+        self.assertTrue(any(path.as_posix().endswith(".app/Contents/MacOS/ODAFileConverter") for path in candidates))
         self.assertTrue(any(path.name == "ODAFileConverter" for path in candidates))
 
     def test_frozen_macos_app_finds_adjacent_oda_app(self):
-        executable = "/tmp/cad-dist/Honsen CAD Translator.app/Contents/MacOS/Honsen_CAD_Translator_v1.8.8"
+        executable = "/tmp/cad-dist/Dwglot.app/Contents/MacOS/Dwglot"
         exe = Path(executable).resolve()
         app_root = next(parent for parent in exe.parents if parent.suffix == ".app")
         adjacent = (app_root.parent / "ODAFileConverter.app" / "Contents" / "MacOS" / "ODAFileConverter").resolve()
@@ -103,10 +140,8 @@ class PlatformCompatibilityTests(unittest.TestCase):
             self.assertIn(adjacent, candidates)
             self.assertIn(helpers, candidates)
 
-    def test_embedded_read_only_dmg_has_highest_local_priority(self):
-        mounted = Path("/private/tmp/oda-volume/ODAFileConverter.app/Contents/MacOS/ODAFileConverter")
-        with patch("backend.cad._mount_embedded_macos_odafc", return_value=mounted), patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(cad.odafc_candidate_paths()[0], mounted)
+    def test_embedded_oda_dmg_is_not_mounted(self):
+        self.assertIsNone(cad._mount_embedded_macos_odafc())
 
     def test_reveal_file_uses_finder_on_macos(self):
         with tempfile.NamedTemporaryFile() as output, patch("desktop.native_bridge.sys.platform", "darwin"), patch("desktop.native_bridge.subprocess.Popen") as popen:

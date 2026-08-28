@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import plistlib
 import shutil
 import subprocess
 import sys
@@ -30,7 +29,6 @@ ODA_BUNDLE_EXE = "ODAFileConverter.exe"
 ODA_SYSTEM_EXE = r"C:\Program Files\ODA\ODAFileConverter\ODAFileConverter.exe"
 ODA_UNIX_EXECUTABLE = "ODAFileConverter"
 ODA_MACOS_APP = "ODAFileConverter.app"
-ODA_MACOS_DMG = "ODAFileConverter.dmg"
 ODA_MACOS_SYSTEM_PATHS = (
     "/Applications/ODAFileConverter.app/Contents/MacOS/ODAFileConverter",
     "/Applications/ODA File Converter.app/Contents/MacOS/ODAFileConverter",
@@ -94,43 +92,8 @@ def _log(fn: LogFn, message: str) -> None:
 
 
 def _mount_embedded_macos_odafc() -> Optional[Path]:
-    """Dwglot does not ship ODA. Never mount a Resources DMG we might have inherited."""
+    """Dwglot does not ship ODA. Never mount a Resources DMG."""
     return None
-    global _oda_mount_dir
-    if sys.platform != "darwin":
-        return None
-    app_root = _macos_app_root()
-    if not app_root:
-        return None
-    dmg = app_root / "Contents" / "Resources" / ODA_MACOS_DMG
-    if not dmg.is_file():
-        return None
-    with _oda_mount_lock:
-        if _oda_mount_dir:
-            executable = _oda_mount_dir / ODA_MACOS_APP / "Contents" / "MacOS" / ODA_UNIX_EXECUTABLE
-            if executable.is_file():
-                return executable
-            _oda_mount_dir = None
-        mount = Path(tempfile.mkdtemp(prefix="honsen_oda_mount_"))
-        try:
-            result = subprocess.run(
-                ["hdiutil", "attach", "-readonly", "-nobrowse", "-plist", "-mountpoint", str(mount), str(dmg)],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            plistlib.loads(result.stdout)  # Reject unexpected/non-plist hdiutil output.
-            executable = mount / ODA_MACOS_APP / "Contents" / "MacOS" / ODA_UNIX_EXECUTABLE
-            if not executable.is_file():
-                raise RuntimeError("ODA DMG mounted without ODAFileConverter.app")
-            _oda_mount_dir = mount
-            return executable
-        except Exception:
-            try:
-                mount.rmdir()
-            except OSError:
-                pass
-            return None
 
 
 def unmount_embedded_odafc() -> None:

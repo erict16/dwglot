@@ -1,21 +1,22 @@
-"""Build one macOS app containing the matching official read-only ODA DMG."""
+"""Build the unsigned macOS app. ODA is not copied into the bundle."""
 
 from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pack_version import ROOT, app_version
 
-ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_APP = ROOT / "dist" / "Honsen CAD Translator.app"
-VERSION = "1.8.8"
-APP_EXECUTABLE = OUTPUT_APP / "Contents" / "MacOS" / f"Honsen_CAD_Translator_v{VERSION}"
-ODA_DMG_RESOURCE = OUTPUT_APP / "Contents" / "Resources" / "ODAFileConverter.dmg"
-ODA_EXECUTABLE = Path("Contents/MacOS/ODAFileConverter")
+OUTPUT_APP = ROOT / "dist" / "Dwglot.app"
+APP_EXECUTABLE = OUTPUT_APP / "Contents" / "MacOS" / "Dwglot"
+CLI_EXECUTABLE = OUTPUT_APP / "Contents" / "MacOS" / "dwglot-cli"
+ICNS_PATH = ROOT / "build" / "Dwglot.icns"
+PNG_ICON = ROOT / "docs" / "icons" / "app.png"
 
 
 def run(*command: str, cwd: Path = ROOT, env: dict[str, str] | None = None) -> None:
@@ -27,22 +28,60 @@ def architectures(binary: Path) -> set[str]:
     return set(output.strip().split())
 
 
+def write_icns() -> None:
+    if sys.platform != "darwin" or not PNG_ICON.is_file():
+        return
+    iconset = ROOT / "build" / "Dwglot.iconset"
+    if iconset.exists():
+        shutil.rmtree(iconset)
+    iconset.mkdir(parents=True, exist_ok=True)
+    for size, retina in (
+        (16, False),
+        (16, True),
+        (32, False),
+        (32, True),
+        (128, False),
+        (128, True),
+        (256, False),
+        (256, True),
+        (512, False),
+        (512, True),
+    ):
+        pixel = size * (2 if retina else 1)
+        name = f"icon_{size}x{size}{'@2x' if retina else ''}.png"
+        run("sips", "-z", str(pixel), str(pixel), str(PNG_ICON), "--out", str(iconset / name))
+    ICNS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    run("iconutil", "-c", "icns", "-o", str(ICNS_PATH), str(iconset))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--oda-dmg", required=True, type=Path, help="Official ODA macOS DMG matching the build architecture")
-    parser.add_argument("--identity", default="-", help="Developer ID Application identity; '-' creates a local ad-hoc signature")
+    parser.add_argument(
+        "--identity",
+        default="-",
+        help="Developer ID Application identity; '-' creates a local ad-hoc signature",
+    )
     parser.add_argument("--skip-frontend", action="store_true")
     parser.add_argument("--dmg", action="store_true", help="Create a compressed distributable DMG after building the app")
     parser.add_argument("--dmg-output", type=Path, help="DMG output path (requires --dmg)")
     args = parser.parse_args()
 
-    dmg = args.oda_dmg.expanduser().resolve()
-    if not dmg.is_file() or dmg.suffix.lower() != ".dmg":
-        raise SystemExit(f"ODA DMG does not exist: {dmg}")
+    if sys.platform != "darwin":
+        raise SystemExit("macOS pack must run on macOS")
+    if "--oda-dmg" in sys.argv:
+        raise SystemExit("ODA is not packed. Install ODA File Converter yourself.")
+
+    version = app_version()
 
     if not args.skip_frontend:
         run("npm", "ci", cwd=ROOT / "frontend")
         run("npm", "run", "build", cwd=ROOT / "frontend")
+
+    try:
+        write_icns()
+    except subprocess.CalledProcessError:
+        if ICNS_PATH.exists():
+            ICNS_PATH.unlink()
 
     build_env = os.environ.copy()
     if args.identity != "-":
@@ -55,63 +94,50 @@ def main() -> None:
         "PyInstaller",
         "--clean",
         "--noconfirm",
-        f"Honsen_CAD_Translator_v{VERSION}_macos.spec",
+        "Dwglot_macos.spec",
         env=build_env,
     )
     if not APP_EXECUTABLE.is_file():
         raise SystemExit(f"macOS build output is missing: {APP_EXECUTABLE}")
+    if not CLI_EXECUTABLE.is_file():
+        raise SystemExit(f"macOS CLI is missing: {CLI_EXECUTABLE}")
+    if (OUTPUT_APP / "Contents" / "Resources" / "ODAFileConverter.dmg").exists():
+        raise SystemExit("ODA DMG must not be inside the app")
 
-    with tempfile.TemporaryDirectory(prefix="honsen_oda_dmg_") as mount_dir:
-        mount = Path(mount_dir)
-        attached = False
-        try:
-            run("hdiutil", "attach", "-readonly", "-nobrowse", "-mountpoint", str(mount), str(dmg))
-            attached = True
-            source_app = mount / "ODAFileConverter.app"
-            source_executable = source_app / ODA_EXECUTABLE
-            if not source_executable.is_file():
-                raise SystemExit(f"ODAFileConverter.app is missing from DMG: {dmg}")
-            run("codesign", "--verify", "--deep", "--strict", "--verbose=2", str(source_app))
-            run("spctl", "--assess", "--type", "execute", "--verbose=2", str(source_app))
-
-            app_arches = architectures(APP_EXECUTABLE)
-            oda_arches = architectures(source_executable)
-            if not app_arches.issubset(oda_arches):
-                raise SystemExit(
-                    f"Architecture mismatch: app={sorted(app_arches)}, ODA={sorted(oda_arches)}. "
-                    "Use the DMG matching the Python/PyInstaller build host."
-                )
-        finally:
-            if attached:
-                run("hdiutil", "detach", str(mount))
-
-    if ODA_DMG_RESOURCE.exists():
-        raise SystemExit(f"Refusing to overwrite unexpected existing ODA resource: {ODA_DMG_RESOURCE}")
-    run("ditto", str(dmg), str(ODA_DMG_RESOURCE))
-    sign_command = ["codesign", "--force", "--sign", args.identity]
+    sign_command = ["codesign", "--force", "--deep", "--sign", args.identity]
     if args.identity != "-":
         sign_command.extend(["--options", "runtime", "--timestamp"])
     sign_command.append(str(OUTPUT_APP))
     run(*sign_command)
     run("codesign", "--verify", "--deep", "--strict", "--verbose=2", str(OUTPUT_APP))
 
+    app_arches = architectures(APP_EXECUTABLE)
     if args.dmg_output and not args.dmg:
         raise SystemExit("--dmg-output requires --dmg")
     if args.dmg:
-        dmg_output = (args.dmg_output or ROOT / "dist" / f"Honsen_CAD_Translator_v{VERSION}_macOS_{next(iter(app_arches))}.dmg")
+        arch = next(iter(sorted(app_arches)))
+        dmg_output = (args.dmg_output or ROOT / "dist" / f"Dwglot_v{version}_macOS_{arch}.dmg")
         dmg_output = dmg_output.expanduser().resolve()
         if dmg_output.suffix.lower() != ".dmg":
             raise SystemExit(f"DMG output must end in .dmg: {dmg_output}")
         dmg_output.parent.mkdir(parents=True, exist_ok=True)
         run(
-            "hdiutil", "create", "-volname", "Honsen CAD Translator", "-srcfolder", str(OUTPUT_APP),
-            "-ov", "-format", "UDZO", str(dmg_output),
+            "hdiutil",
+            "create",
+            "-volname",
+            "图译",
+            "-srcfolder",
+            str(OUTPUT_APP),
+            "-ov",
+            "-format",
+            "UDZO",
+            str(dmg_output),
         )
         print(f"DMG: {dmg_output}")
 
     print(f"Built: {OUTPUT_APP}")
-    print(f"App architectures: {', '.join(sorted(architectures(APP_EXECUTABLE)))}")
-    print(f"ODA architectures: {', '.join(sorted(oda_arches))}")
+    print(f"Version: {version}")
+    print(f"App architectures: {', '.join(sorted(app_arches))}")
 
 
 if __name__ == "__main__":

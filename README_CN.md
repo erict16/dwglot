@@ -29,7 +29,7 @@
 
 ## 安装
 
-v0.1 还没签名。到 [GitHub Releases](https://github.com/erict16/dwglot/releases) 下载 Mac 的 DMG 或 Windows 的 EXE。应用里的「检查更新」也看同一处。以后会用 Sparkle / WinSparkle，现在会直接打开新安装包。
+v0.1 还没签名。Windows 安装包在 [GitHub Releases](https://github.com/erict16/dwglot/releases)。macOS Apple Silicon 的 DMG 跟版本 tag 一起由 CI 打（Intel 以后再说）。应用里的「检查更新」也看同一处。以后会用 Sparkle / WinSparkle，现在会直接打开新安装包。
 
 **Mac 第一次打开（Gatekeeper）：** 右键图标，选「打开」。或到 系统设置 → 隐私与安全性 → 仍要打开。以后有开发者证书就不会再拦。
 

@@ -29,7 +29,7 @@
 
 ## Installation
 
-v0.1 is unsigned. Download the latest Mac DMG or Windows EXE from [GitHub Releases](https://github.com/erict16/dwglot/releases). In-app **检查更新** uses the same Releases page. Sparkle / WinSparkle come later, after signing; for now it opens the new package.
+v0.1 is unsigned. The Windows installer is on [GitHub Releases](https://github.com/erict16/dwglot/releases). A macOS Apple Silicon DMG is built by CI on a version tag (Intel later). In-app **检查更新** uses the same Releases page. Sparkle / WinSparkle come later, after signing; for now it opens the new package.
 
 **macOS first run (Gatekeeper):** Right-click the app, choose Open. Or System Settings → Privacy & Security → Open Anyway. A Developer ID later will stop this warning.
 

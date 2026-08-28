@@ -1,7 +1,10 @@
-; 图译 Dwglot — Inno Setup 6. ODA is not in this payload.
+﻿; 图译 — Inno Setup 6. ODA is not in this payload.
+; Compile via installer\build_installer.ps1 so MyAppVersion comes from backend\app_meta.py.
 
-#define MyAppName "图译 Dwglot"
+#define MyAppName "图译"
+#ifndef MyAppVersion
 #define MyAppVersion "0.1.2"
+#endif
 #define MyAppPublisher "Eric Tan"
 #define MyAppExeName "Dwglot.exe"
 #define MyAppURL "https://github.com/erict16/dwglot"
@@ -29,13 +32,14 @@ ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
 DisableProgramGroupPage=yes
-VersionInfoVersion=0.1.2.0
+VersionInfoVersion={#MyAppVersion}.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}
 DisableReadyPage=no
 DisableDirPage=no
-UsePreviousAppDir=no
+UsePreviousAppDir=yes
+CloseApplications=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -56,6 +60,3 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
-
-[UninstallDelete]
-Type: filesandordirs; Name: "{app}"

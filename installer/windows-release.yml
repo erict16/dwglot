@@ -25,6 +25,17 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Version
+        id: ver
+        shell: pwsh
+        run: |
+          $version = (python installer/pack_version.py).Trim()
+          if (-not $version) { throw "APP_VERSION is empty" }
+          if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag $($env:GITHUB_REF_NAME) does not match APP_VERSION $version"
+          }
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
       - name: Frontend
         working-directory: frontend
         run: |
@@ -50,23 +61,31 @@ jobs:
       - name: Compile installer
         shell: pwsh
         run: |
+          $version = "${{ steps.ver.outputs.version }}"
           $iscc = @(
             "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
             "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
           ) | Where-Object { Test-Path $_ } | Select-Object -First 1
           if (-not $iscc) { throw "ISCC.exe not found" }
-          & $iscc "installer\Dwglot_Setup.iss"
+          & $iscc "/DMyAppVersion=$version" "installer\Dwglot_Setup.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
-          if (-not (Test-Path "installer\Output\Dwglot_v0.1.2_Setup.exe")) {
-            throw "Dwglot_v0.1.2_Setup.exe missing"
+          if (-not (Test-Path "installer\Output\Dwglot_v${version}_Setup.exe")) {
+            throw "Dwglot_v${version}_Setup.exe missing"
           }
 
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-setup
+          path: installer/Output/Dwglot_v${{ steps.ver.outputs.version }}_Setup.exe
+
       - name: GitHub Release
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.2' }}
-          name: 图译 Dwglot v0.1.2
-          files: installer/Output/Dwglot_v0.1.2_Setup.exe
+          tag_name: ${{ github.ref_name }}
+          name: 图译 v${{ steps.ver.outputs.version }}
+          files: installer/Output/Dwglot_v${{ steps.ver.outputs.version }}_Setup.exe
           fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false
