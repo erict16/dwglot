@@ -4,11 +4,12 @@
 
 <h1 align="center">图译 Tuyi</h1>
 
-<p align="center"><strong>Traductor DWG / DXF</strong></p>
-
 <p align="center">
-  Abre un plano CAD, traduce el texto que lleva dentro y escribe un archivo nuevo.<br>
-  App de escritorio para Windows y macOS. No hace falta AutoCAD.
+  <a href="README.md">English</a> ·
+  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <b>Español</b>
 </p>
 
 <p align="center">
@@ -19,82 +20,69 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> ·
-  <a href="README.zh-CN.md">简体中文</a> ·
-  <a href="README.ja.md">日本語</a> ·
-  <a href="README.ko.md">한국어</a> ·
-  <b>Español</b>
+  <img src="docs/screenshots/regular.png" width="920" alt="Tuyi: original a la izquierda, traducción a la derecha">
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/regular.png" width="920" alt="Tuyi: tabla de original y traducción">
-</p>
+Tuyi es una app de escritorio para **Windows** y **macOS**. Abres un plano CAD, saca el texto a una tabla, lo traduces y escribe un plano **nuevo**. El archivo original no se toca.
+
+No hace falta AutoCAD.
+
+Sirve para mandar planos al extranjero, o al revés. Títulos, notas, atributos, cotas, celdas de tabla. Por defecto va de chino a inglés. Se puede cambiar el sentido.
 
 ## Instalación
 
-Descárgalo en [Releases](https://github.com/erict16/tuyi/releases).
+El archivo está en [Releases](https://github.com/erict16/tuyi/releases).
 
-| | |
-| --- | --- |
-| Windows 10+ | El instalador está en la página de la versión |
-| macOS 11+ (Apple Silicon) | DMG que CI genera con cada tag de versión |
+- **Windows:** ejecuta el Setup.
+- **Mac (Apple Silicon):** abre el DMG. Los Mac Intel aún no salen en esta versión.
 
-v0.1 no está firmado.
+El instalador no está firmado. El sistema te va a parar la primera vez. Es normal.
 
-**Windows:** Más información → Ejecutar de todas formas.
+- **Windows:** Más información → Ejecutar de todas formas.
+- **Mac:** clic derecho en la app → Abrir. O Ajustes del Sistema → Privacidad y seguridad → Abrir de todos modos.
 
-**macOS:** clic derecho en la app → Abrir. O Ajustes del Sistema → Privacidad y seguridad → Abrir de todos modos.
+## Cómo se usa
 
-La comprobación de actualizaciones de la app mira la misma página de Releases.
+1. Abre un `.dwg` o un `.dxf`.
+2. Pulsa traducir. Sale una tabla: original | traducción | capa.
+3. Si una fila está mal, la cambias ahí mismo.
+4. Escribe el plano. El archivo nuevo va a `Documentos/Tuyi output` (en inglés, `Documents/Tuyi output`).
 
-## Qué hace
+También puedes tirar una carpeta entera y exportarla de una vez.
 
-Tuyi traduce el texto *dentro* del plano, no una captura del dibujo.
+## DWG pide otro programa
 
-- Abre **DWG** y **DXF**
-- Tabla original / traducción, editable
-- Escribe un plano nuevo
-- Exportación por lotes
-- v0.1 cubre TEXT, MTEXT, atributos, DIMENSION y celdas de ACAD_TABLE
+**DXF:** lo abres y lo traduces. No hay que instalar nada más.
 
-Si el glosario tiene la palabra, usa esa traducción. El resto puede ir a Azure Translator, DeepL, Ollama en tu máquina o una API compatible con OpenAI que tú pongas.
+**DWG:** instala antes [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter) en el mismo ordenador. Tuyi lo busca en el PATH. También puedes poner `CAD_ODA_EXEC`. No podemos meter ODA dentro de Tuyi. Su licencia no lo permite.
 
-Las claves API se quedan en tu ordenador. No hay telemetría ni licencia de pago.
+## Quién traduce
 
-El par por defecto es chino → inglés. La salida va a `~/Documents/Tuyi output`.
+Tuyi no tiene cuenta en la nube. Eliges una de estas:
 
-## DWG y DXF
+- un glosario que ya tengas (si la palabra coincide, no pasa por la API)
+- [Azure Translator](https://azure.microsoft.com/products/ai-services/ai-translator)
+- [DeepL](https://www.deepl.com)
+- [Ollama](https://ollama.com) en este equipo
+- una API compatible con OpenAI que montes tú
 
-DXF se traduce sin software extra.
+La clave se queda en este ordenador. Tuyi no envía telemetría. Es gratis (MIT).
 
-DWG necesita [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter) en el mismo equipo, o `CAD_ODA_EXEC`. El instalador no incluye ODA.
+## Línea de comandos
 
-## CLI
+Es el mismo flujo que la ventana:
 
 ```bash
 python -m tuyi translate drawing.dxf
 python -m tuyi translate drawing.dwg -o out.dwg --mode zh_to_en
 ```
 
-En Windows, `tuyi-cli.exe` está junto a `Tuyi.exe`. `python -m dwglot` sigue como alias.
+En Windows, `tuyi-cli.exe` está al lado de `Tuyi.exe`. `python -m dwglot` sigue valiendo.
 
 ## Compilar desde el código
 
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cd frontend && npm ci && npm run build && cd ..
-python run.py
-```
-
-No empaquetes con UPX.
-
-## Contribuir
-
-Los PR son bienvenidos. Eric los revisa antes de entrar en `main`. Ver [CONTRIBUTING.md](CONTRIBUTING.md).
-
-No empaquetes ODA. No añadas una licencia de pago.
+El entorno de desarrollo y los tests están en [CONTRIBUTING.md](CONTRIBUTING.md). Los PR son bienvenidos. Eric los revisa antes de entrar en `main`.
 
 ## Licencia
 
-MIT. Fork de [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator). Copyright Eric Tan y colaboradores de Honsen CAD_translator.
+MIT. Fork de [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator).

@@ -4,11 +4,12 @@
 
 <h1 align="center">图译 Tuyi</h1>
 
-<p align="center"><strong>DWG / DXF 図面翻訳</strong></p>
-
 <p align="center">
-  図面を開き、中の文字を訳して、新しいファイルに書き出します。<br>
-  Windows と macOS のデスクトップアプリです。AutoCAD は不要です。
+  <a href="README.md">English</a> ·
+  <a href="README.zh-CN.md">简体中文</a> ·
+  <b>日本語</b> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.es.md">Español</a>
 </p>
 
 <p align="center">
@@ -19,82 +20,69 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> ·
-  <a href="README.zh-CN.md">简体中文</a> ·
-  <b>日本語</b> ·
-  <a href="README.ko.md">한국어</a> ·
-  <a href="README.es.md">Español</a>
+  <img src="docs/screenshots/regular.png" width="920" alt="Tuyi：左が原文、右が訳文">
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/regular.png" width="920" alt="Tuyi：原文と訳文の対照表">
-</p>
+Tuyi は **Windows** と **macOS** 用のデスクトップアプリです。CAD 図面を開くと、図面上の文字が表に並びます。訳してから「書き戻し」すると、**新しい**図面ができます。元のファイルはいじりません。
 
-## インストール
+AutoCAD は不要です。
 
-[Releases](https://github.com/erict16/tuyi/releases) から入手してください。
+海外の客先に図面を渡すとき、または英語図を中国語にするときに使います。図名、注記、属性、寸法、表の中の文字が対象です。初期設定は中国語→英語です。向きは変えられます。
 
-| | |
-| --- | --- |
-| Windows 10+ | リリースページのセットアップ exe |
-| macOS 11+（Apple Silicon） | バージョンタグで CI が打つ DMG |
+## 入れ方
 
-v0.1 は未署名です。
+[Releases](https://github.com/erict16/tuyi/releases) からファイルを取ってください。
 
-**Windows:** 「詳細情報」→「実行」。
+- **Windows:** Setup の exe を実行。
+- **Mac（Apple シリコン）:** DMG を開く。Intel Mac はこの版ではまだ出せません。
 
-**macOS:** アプリを右クリックして「開く」。または システム設定 → プライバシーとセキュリティ → このまま開く。
+今のインストーラはコード署名していません。初回は OS に止められます。想定どおりです。
 
-アプリ内の更新確認も同じ Releases を見ます。
+- **Windows:** 「詳細情報」→「実行」。
+- **Mac:** アプリを右クリックして「開く」。または システム設定 → プライバシーとセキュリティ → このまま開く。
 
-## できること
+## 使い方
 
-図面を画像として読み取るのではなく、図面の中の文字を訳します。
+1. `.dwg` か `.dxf` を開く。
+2. 翻訳を押す。原文 | 訳文 | 画層 の表が出る。
+3. おかしい行はその場で直す。
+4. 書き戻す。新しいファイルは `書類/Tuyi output`（英語環境では `Documents/Tuyi output`）に入ります。
 
-- **DWG** と **DXF** を開く
-- 原文 / 訳文テーブルを編集できる
-- 新しい図面として書き出す
-- フォルダ単位の一括書き出し
-- v0.1 は TEXT、MTEXT、属性、DIMENSION、ACAD_TABLE のセルに対応
+フォルダごとまとめて出すこともできます。
 
-用語集に載っている語はその訳を使います。それ以外は Azure Translator、DeepL、ローカルの Ollama、または自分の OpenAI 互換 API に回せます。
+## DWG はもう一つ入れる
 
-API キーはこのパソコンにだけ残ります。テレメトリも有料ライセンスもありません。
+**DXF:** 開いて訳すだけです。追加ソフトは不要です。
 
-既定は中国語 → 英語です。出力先は `~/Documents/Tuyi output` です。
+**DWG:** 同じパソコンに先に [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter) を入れてください。Tuyi は PATH を見ます。`CAD_ODA_EXEC` で場所を指定しても構いません。ODA を Tuyi の中に同梱することはできません。先方のライセンスが許しません。
 
-## DWG と DXF
+## 翻訳エンジン
 
-DXF はそのまま訳せます。
+Tuyi 自身のクラウド口座はありません。どれか一つを自分で用意します。
 
-DWG は同じマシンに [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter) を入れるか、`CAD_ODA_EXEC` を指定してください。インストーラに ODA は入っていません。
+- 手元の用語集（完全一致はその訳を使い、API に送りません）
+- [Azure Translator](https://azure.microsoft.com/products/ai-services/ai-translator)
+- [DeepL](https://www.deepl.com)
+- このマシンの [Ollama](https://ollama.com)
+- 自分で動かしている OpenAI 互換の API
 
-## CLI
+キーはこのパソコンにだけ残ります。Tuyi は外に通信ログを送りません。無料です（MIT）。
+
+## コマンドライン
+
+画面と同じ処理です。
 
 ```bash
 python -m tuyi translate drawing.dxf
 python -m tuyi translate drawing.dwg -o out.dwg --mode zh_to_en
 ```
 
-Windows の導入先には `Tuyi.exe` の隣に `tuyi-cli.exe` があります。`python -m dwglot` も別名として残しています。
+Windows では `Tuyi.exe` の隣に `tuyi-cli.exe` があります。`python -m dwglot` も使えます。
 
-## ソースから実行
+## ソースから動かす
 
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cd frontend && npm ci && npm run build && cd ..
-python run.py
-```
-
-UPX で固めないでください。
-
-## 貢献
-
-PR は歓迎します。`main` に入る前に Eric が確認します。[CONTRIBUTING.md](CONTRIBUTING.md) を見てください。
-
-ODA を同梱しないでください。有料ライセンスも追加しないでください。
+開発とテストは [CONTRIBUTING.md](CONTRIBUTING.md) に書いてあります。PR は歓迎します。`main` に入る前に Eric が確認します。
 
 ## ライセンス
 
-MIT。[etianwang/CAD_translator](https://github.com/etianwang/CAD_translator) のフォークです。Copyright Eric Tan / Honsen CAD_translator の貢献者。
+MIT。[etianwang/CAD_translator](https://github.com/etianwang/CAD_translator) のフォークです。

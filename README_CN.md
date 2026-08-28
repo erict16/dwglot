@@ -4,11 +4,12 @@
 
 <h1 align="center">图译 Tuyi</h1>
 
-<p align="center"><strong>DWG / DXF 图纸翻译</strong></p>
-
 <p align="center">
-  打开图纸，译里面的字，写出一份新文件。<br>
-  Windows / macOS 桌面程序。不需要 AutoCAD。
+  <a href="README.md">English</a> ·
+  <b>简体中文</b> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.es.md">Español</a>
 </p>
 
 <p align="center">
@@ -19,84 +20,69 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> ·
-  <b>简体中文</b> ·
-  <a href="README.ja.md">日本語</a> ·
-  <a href="README.ko.md">한국어</a> ·
-  <a href="README.es.md">Español</a>
+  <img src="docs/screenshots/regular.png" width="920" alt="图译：左边原文，右边译文">
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/regular.png" width="920" alt="图译：原文和译文对照表">
-</p>
+图译是装在电脑上的软件，**Windows** 和 **Mac** 都能用。打开一张 CAD 图纸，它把图上的字抽成一张表，你译完，它另存一份新图。原来那张不动。
 
-## 安装
+不用装 AutoCAD。
 
-去 [Releases](https://github.com/erict16/tuyi/releases) 下。
+谁用：要把图纸交给国外客户，或者要把英文图翻成中文。图名、注释、属性、尺寸、表格里的字都能动。默认中译英，方向可以换。
 
-| | |
-| --- | --- |
-| Windows 10+ | 安装包在发行页 |
-| macOS 11+（Apple Silicon） | DMG，跟版本 tag 一起由 CI 打 |
+## 怎么装
 
-v0.1 还没签名。
+去 [Releases](https://github.com/erict16/tuyi/releases) 下载。
 
-**Windows：** 「更多信息」→「仍要运行」。
+- **Windows：** 跑 Setup 安装包。
+- **Mac（苹果芯片）：** 打开 DMG。Intel 的 Mac 这版还没有。
 
-**Mac：** 右键图标，选「打开」。或到 系统设置 → 隐私与安全性 → 仍要打开。
+安装包还没买代码签名，第一次打开系统会拦，这是正常的。
 
-软件里的「检查更新」也看同一处 Releases。
+- **Windows：** 点「更多信息」，再点「仍要运行」。
+- **Mac：** 右键图标，选「打开」。或到 系统设置 → 隐私与安全性 → 仍要打开。
 
-## 它做什么
+## 怎么用
 
-图译译的是图纸里的文字，不是把整张图当图片扫。
+1. 打开 `.dwg` 或 `.dxf`。
+2. 点翻译。出来一张表：原文 | 译文 | 图层。
+3. 哪一行译得不对，直接改。
+4. 点写回。新文件在「文档 / Tuyi output」（Mac 访达里是「文稿 / Tuyi output」）。
 
-- 打开 **DWG** 和 **DXF**
-- 原文 / 译文表，能改
-- 写出一份新图纸
-- 可以批量导出
-- v0.1 覆盖 TEXT、MTEXT、块属性、DIMENSION 文字、ACAD_TABLE 单元格
+一夹图纸也可以一起导出。
 
-术语表对得上的词直接用。其余可以走 Azure、DeepL、本机 Ollama，或你自己的 OpenAI 兼容接口。
+## DWG 要多装一个东西
 
-密钥只存在你这台电脑上。没有遥测，也没有付费授权。
+**DXF：** 打开就能译，不用另装。
 
-默认中译英。输出在 `~/Documents/Tuyi output`（访达里是「文稿/Tuyi output」）。
+**DWG：** 同一台电脑先装 [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter)。图译会在 PATH 里找，也可以设 `CAD_ODA_EXEC`。ODA 不能打进图译的安装包，对方协议不允许。
 
-## DWG 和 DXF
+## 翻译走谁的引擎
 
-DXF 直接译，不用另装东西。
+图译自己没有云账号。你自己选一个：
 
-DWG 要本机有 [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter)，或设 `CAD_ODA_EXEC`。安装包里没有 ODA，也不会打进去。
+- 手头的术语表（对得上的词直接用，不送去网上）
+- [Azure Translator](https://azure.microsoft.com/products/ai-services/ai-translator)
+- [DeepL](https://www.deepl.com)
+- 这台电脑上的 [Ollama](https://ollama.com)
+- 你自己搭的、接口长得像 OpenAI 的服务
+
+密钥只存在这台电脑上。图译不往外打点，也不收费（MIT）。
 
 ## 命令行
+
+和窗口里是同一条流水线：
 
 ```bash
 python -m tuyi translate drawing.dxf
 python -m tuyi translate drawing.dwg -o out.dwg --mode zh_to_en
 ```
 
-Windows 安装目录里有 `tuyi-cli.exe`，和 `Tuyi.exe` 并排。`python -m dwglot` 还是能用。
+Windows 装好后，`Tuyi.exe` 旁边有 `tuyi-cli.exe`。`python -m dwglot` 也能用。
 
 ## 从源码跑
 
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cd frontend && npm ci && npm run build && cd ..
-python run.py
-```
-
-不要用 UPX 打包。
-
-## 贡献
-
-欢迎 PR。合进 `main` 前 Eric 会看。细节在 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
-不要把 ODA 打进安装包，也不要加付费授权。
+开发和测试写在 [CONTRIBUTING.md](CONTRIBUTING.md)。欢迎提 PR，合进 `main` 前 Eric 会看。
 
 ## 协议
 
-MIT。从 [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator) fork。Copyright Eric Tan / Honsen CAD_translator 贡献者。
-
-落地页在 `landing/`，可以挂 Vercel。
+MIT。从 [etianwang/CAD_translator](https://github.com/etianwang/CAD_translator) fork。
