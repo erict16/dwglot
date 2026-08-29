@@ -23,7 +23,7 @@ from backend.app_meta import APP_TITLE, APP_VERSION, GITHUB_URL, default_output_
 from backend.providers.azure import AzureFreeQuotaExceededError
 from backend.providers.base import TranslationProviderError
 from backend.queue import BatchQueue
-from backend.cad import ODA_OUTPUT_VERSIONS, analyze_source, dwg_unavailable_short, odafc_available, odafc_status, output_path_for
+from backend.cad import ODA_OUTPUT_VERSIONS, analyze_source, dwg_unavailable_short, odafc_available, odafc_status, output_path_for, same_cad_path
 from backend.translator import CADChineseTranslator, CONFIG_PATH, load_yaml_data, output_prefix, resource_path
 from backend.language_assets import LanguageAssets
 from backend.storage import atomic_write_json, quarantine_corrupt_file
@@ -607,6 +607,8 @@ class TranslationService:
                 output_file = output_path_for(
                     meta, body.output_dir, body.output_name.strip()
                 )
+                if same_cad_path(body.input_file, output_file):
+                    raise ValueError("不能覆盖原图，请换一个输出路径")
                 translator.translate_cad_file(
                     body.input_file,
                     output_file,

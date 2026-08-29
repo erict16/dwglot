@@ -279,9 +279,23 @@ def analyze_source(path: str) -> SourceCadMeta:
     return meta
 
 
+def _stem_without_cad_suffix(name: str) -> str:
+    text = (name or "").strip()
+    lower = text.lower()
+    if lower.endswith(".dxf") or lower.endswith(".dwg"):
+        return text[: text.rfind(".")]
+    return text
+
+
 def output_path_for(meta: SourceCadMeta, output_dir: str, output_name: str) -> str:
-    name = output_name.strip()
+    name = _stem_without_cad_suffix(output_name)
     return os.path.join(output_dir, name + meta.output_ext)
+
+
+def same_cad_path(left: str, right: str) -> bool:
+    if not left or not right:
+        return False
+    return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
 
 
 def _macos_odafc_app(executable: str) -> Optional[Path]:

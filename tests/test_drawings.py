@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from backend.api import app, service
 from unittest.mock import patch
 
+from backend.cad import analyze_source, output_path_for
 from backend.drawings import (
     PRINT_TIMEOUT,
     _layout_has_entities,
@@ -215,6 +216,23 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("\\C1;", mtext.dxf.text)
         attdef = next(entity for entity in doc.blocks.get("TITLE") if entity.dxftype() == "ATTDEF")
         self.assertEqual(attdef.dxf.text, "distribution board")
+
+    def test_writeback_refuses_to_overwrite_source(self):
+        src = self.root / "same.dxf"
+        src.write_bytes(Path(self.dxf).read_bytes())
+        before = src.read_bytes()
+        with self.assertRaises(ValueError) as raised:
+            writeback_rows(
+                str(src),
+                [{"source": "天花", "target": "ceiling", "selected": True, "handle": "1"}],
+                output_dir=str(self.root),
+                output_name="same",
+            )
+        self.assertIn("不能覆盖原图", str(raised.exception))
+        self.assertEqual(src.read_bytes(), before)
+        meta = analyze_source(str(src))
+        self.assertEqual(output_path_for(meta, str(self.root), "same.dxf"), str(src))
+        self.assertFalse(output_path_for(meta, str(self.root), "same.dxf").endswith(".dxf.dxf"))
 
     def test_translate_cad_file_keeps_mtext_codes(self):
         dest = self.root / "en_batch_mtext.dxf"

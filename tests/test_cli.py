@@ -156,6 +156,16 @@ class CliTranslateTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("多个输入", result.stderr)
 
+    def test_dash_o_same_path_does_not_overwrite(self):
+        src = self.root / "same.dxf"
+        shutil.copy(FLOOR, src)
+        before = src.read_bytes()
+        result = _run(["translate", str(src), "-o", str(src)])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("不能覆盖原图", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(src.read_bytes(), before)
+
     def test_glossary_override(self):
         package = self.root / "terms.hcterms.json"
         package.write_text(

@@ -22,6 +22,7 @@ from backend.cad import (
     dwg_unavailable_short,
     odafc_available,
     output_path_for,
+    same_cad_path,
 )
 from backend.languages import split_mode
 from backend.mtext_runs import map_translatable
@@ -507,6 +508,8 @@ def writeback_rows(
     if not output_name.strip():
         output_name = f"{output_prefix(mode)}_{Path(path).stem}"
     output_file = output_path_for(meta, output_dir, output_name.strip())
+    if same_cad_path(path, output_file):
+        raise ValueError("不能覆盖原图，请换一个输出路径")
     translator = CADChineseTranslator()
     translator.enable_v02_entities = False
 
