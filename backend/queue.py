@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Callable
 
 from backend.app_meta import QUEUE_PATH, migrate_user_data
-from backend.cad import dwg_unavailable_short, odafc_available
+from backend.cad import cad_listing, dwg_unavailable_short, odafc_available
 from backend.storage import atomic_write_json, quarantine_corrupt_file
 
 migrate_user_data()
@@ -117,7 +117,17 @@ class BatchQueue:
         with self.lock:
             total = len(self.tasks)
             done = sum(t["status"] in {"succeeded", "failed"} for t in self.tasks)
-            tasks = [{k: v for k, v in task.items() if not k.startswith("_")} for task in self.tasks]
+            tasks = []
+            for task in self.tasks:
+                row = {k: v for k, v in task.items() if not k.startswith("_")}
+                listing = cad_listing(row.get("input_file") or "")
+                row["name"] = listing["name"]
+                row["ext"] = listing["ext"]
+                row["dir"] = listing["dir"]
+                row["size"] = listing["size"]
+                row["size_label"] = listing["size_label"]
+                row["cad_version"] = listing["cad_version"]
+                tasks.append(row)
             return {"tasks": tasks, "paused": self.paused, "started": self.started, "resumable": self.resumable, "progress": round(done * 100 / total) if total else 0}
 
     def add(self, files: list[str]):

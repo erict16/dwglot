@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -45,6 +46,23 @@ ACAD_SIG_TO_ODA: dict[str, str] = {
     "AC1027": "ACAD2013",
     "AC1032": "ACAD2018",
 }
+
+# Header signature → year label shown in the file list (轻语-style 版本 column).
+ACAD_SIG_TO_LABEL: dict[str, str] = {
+    "AC1009": "R12",
+    "AC1012": "R13",
+    "AC1014": "R14",
+    "AC1015": "2000",
+    "AC1018": "2004",
+    "AC1021": "2007",
+    "AC1024": "2010",
+    "AC1027": "2013",
+    "AC1032": "2018",
+}
+
+ODA_DOWNLOAD_URL = "https://www.opendesign.com/guestfiles/oda_file_converter"
+
+_DXF_ACADVER = re.compile(r"\$ACADVER[^\n]*\n\s*1[^\n]*\n\s*(AC\d{4})", re.IGNORECASE)
 
 LogFn = Optional[Callable[[str], None]]
 _odafc_configured = False
@@ -227,6 +245,7 @@ def odafc_status() -> dict:
             "path": "",
             "source": "",
             "message": dwg_unavailable_message(),
+            "download_url": ODA_DOWNLOAD_URL,
         }
 
     app_dir = get_app_dir()
@@ -241,7 +260,7 @@ def odafc_status() -> dict:
         source = "bundled"
     else:
         source = "system"
-    return {"installed": True, "path": path, "source": source}
+    return {"installed": True, "path": path, "source": source, "download_url": ODA_DOWNLOAD_URL}
 
 
 def odafc_available() -> bool:
@@ -277,6 +296,61 @@ def analyze_source(path: str) -> SourceCadMeta:
         meta.acad_sig = sig
         meta.oda_version = ACAD_SIG_TO_ODA.get(sig, "ACAD2010")
     return meta
+
+
+def format_file_size(size: int) -> str:
+    n = max(0, int(size or 0))
+    if n < 1024:
+        return f"{n} B"
+    if n < 1024 * 1024:
+        value = n / 1024
+        return f"{value:.0f} KB" if value >= 10 else f"{value:.1f} KB"
+    value = n / (1024 * 1024)
+    return f"{value:.0f} MB" if value >= 10 else f"{value:.1f} MB"
+
+
+def read_dxf_acad_version(path: str) -> str:
+    try:
+        with open(path, "rb") as handle:
+            head = handle.read(65536)
+    except OSError:
+        return ""
+    match = _DXF_ACADVER.search(head.decode("latin-1", errors="ignore"))
+    return match.group(1).upper() if match else ""
+
+
+def cad_listing(path: str) -> dict:
+    """UI row: path, size, CAD year. Never raises; missing files still show a name."""
+    raw = str(path or "")
+    p = Path(raw)
+    suffix = p.suffix.lower()
+    ext = suffix[1:].upper()
+    listing = {
+        "path": raw,
+        "name": p.name,
+        "ext": ext,
+        "dir": str(p.parent) if raw else "",
+        "size": 0,
+        "size_label": "",
+        "cad_version": "",
+        "acad_sig": "",
+    }
+    if not raw or not p.is_file():
+        return listing
+    try:
+        listing["size"] = p.stat().st_size
+        listing["size_label"] = format_file_size(listing["size"])
+        if suffix == ".dwg":
+            sig = read_dwg_acad_signature(raw)
+        elif suffix == ".dxf":
+            sig = read_dxf_acad_version(raw)
+        else:
+            sig = ""
+        listing["acad_sig"] = sig
+        listing["cad_version"] = ACAD_SIG_TO_LABEL.get(sig, sig)
+    except OSError:
+        pass
+    return listing
 
 
 def output_path_for(meta: SourceCadMeta, output_dir: str, output_name: str) -> str:

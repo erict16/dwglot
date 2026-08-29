@@ -925,12 +925,41 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertNotIn("Traceback", response.text)
         body = response.json()
         self.assertIsInstance(body["installed"], bool)
+        self.assertIn("opendesign.com", body.get("download_url") or "")
         if body["installed"]:
             self.assertTrue(body["path"])
             self.assertIn(body.get("source"), ("env", "bundled", "system"))
         else:
             self.assertEqual(body["path"], "")
             self.assertIn("未检测到 ODA", body["message"])
+
+    def test_probe_and_open_list_cad_metadata(self):
+        fixture = FIXTURES / "floor_plan.dxf"
+        probed = self.client.post("/api/drawings/probe", json={"paths": [str(fixture), str(fixture.parent / "nope.dwg")]})
+        self.assertEqual(probed.status_code, 200, probed.text)
+        files = probed.json()["files"]
+        self.assertEqual(len(files), 2)
+        live = files[0]
+        self.assertEqual(live["name"], "floor_plan.dxf")
+        self.assertEqual(live["ext"], "DXF")
+        self.assertEqual(live["cad_version"], "2010")
+        self.assertGreater(live["size"], 0)
+        self.assertIn("B", live["size_label"])
+        self.assertEqual(files[1]["name"], "nope.dwg")
+        self.assertEqual(files[1]["size"], 0)
+        self.assertEqual(files[1]["cad_version"], "")
+        stub = Path(self.tmp.name) / "fake.dwg"
+        stub.write_bytes(b"AC1032" + b"\x00" * 32)
+        dwg = self.client.post("/api/drawings/probe", json={"paths": [str(stub)]})
+        self.assertEqual(dwg.status_code, 200, dwg.text)
+        self.assertEqual(dwg.json()["files"][0]["cad_version"], "2018")
+        with fixture.open("rb") as handle:
+            opened = self.client.post("/api/drawings/open", files={"files": ("floor_plan.dxf", handle, "application/dxf")})
+        self.assertEqual(opened.status_code, 200, opened.text)
+        listed = opened.json()["files"][0]
+        self.assertEqual(listed["ext"], "DXF")
+        self.assertEqual(listed["cad_version"], "2010")
+        self.assertGreater(listed["size"], 0)
 
     def test_language_assets_http(self):
         response = self.client.get("/api/language-assets")

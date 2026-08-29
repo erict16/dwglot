@@ -1,4 +1,4 @@
-﻿; 图译 — Inno Setup 6. ODA is not in this payload.
+; 图译 — Inno Setup 6. ODA is not in this payload.
 ; Compile via installer\build_installer.ps1 so MyAppVersion comes from backend\app_meta.py.
 
 #define MyAppName "图译"
@@ -18,7 +18,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}/releases
-DefaultDirName={autopf}\Tuyi
+DefaultDirName={sd}\Apps\Tuyi
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=Output
@@ -27,6 +27,7 @@ SetupIconFile=..\ico.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+WizardSizePercent=120
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
@@ -40,12 +41,20 @@ DisableReadyPage=no
 DisableDirPage=no
 UsePreviousAppDir=yes
 CloseApplications=yes
+ShowLanguageDialog=no
 
 [Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "chinesesimplified"; MessagesFile: "languages\ChineseSimplified.isl"
+
+[Messages]
+WelcomeLabel1=欢迎安装 图译
+WelcomeLabel2=图译把 DWG / DXF 里的文字译出来。%n%n这是未签名的 v{#MyAppVersion}。若 Windows 弹出 SmartScreen，点「更多信息」，再点「仍要运行」。%n%nDWG 需要本机已装 ODA File Converter，本安装包不含 ODA。
+FinishedHeadingLabel=图译已装好
+FinishedLabel=可以开始用了。DWG 需要本机已装 ODA File Converter。
+ClickFinish=点「完成」启动 图译。
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: checkedonce
+Name: "desktopicon"; Description: "在桌面创建快捷方式"; GroupDescription: "附加图标："; Flags: checkedonce
 
 [Files]
 ; onedir: Tuyi.exe + tuyi-cli.exe share {app}\_internal
@@ -55,8 +64,8 @@ Source: "..\dist\Tuyi\_internal\*"; DestDir: "{app}\_internal"; Flags: ignorever
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
+Name: "{group}\卸载 {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent

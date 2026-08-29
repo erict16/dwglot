@@ -23,7 +23,7 @@ from backend.app_meta import APP_TITLE, APP_VERSION, GITHUB_URL, default_output_
 from backend.providers.azure import AzureFreeQuotaExceededError
 from backend.providers.base import TranslationProviderError
 from backend.queue import BatchQueue
-from backend.cad import ODA_OUTPUT_VERSIONS, analyze_source, dwg_unavailable_short, odafc_available, odafc_status, output_path_for
+from backend.cad import ODA_OUTPUT_VERSIONS, analyze_source, cad_listing, dwg_unavailable_short, odafc_available, odafc_status, output_path_for
 from backend.translator import CADChineseTranslator, CONFIG_PATH, load_yaml_data, output_prefix, resource_path
 from backend.language_assets import LanguageAssets
 from backend.storage import atomic_write_json, quarantine_corrupt_file
@@ -97,6 +97,11 @@ class ConfigBody(BaseModel):
     openai_model: str = ""
     ollama_host: str = ""
     ollama_model: str = ""
+    setup_done: Optional[bool] = None
+
+
+class ProbeBody(BaseModel):
+    paths: list[str] = []
 
 
 class TranslateBody(BaseModel):
@@ -484,6 +489,8 @@ class TranslationService:
         for key in ("openai_key", "openai_base", "openai_model", "ollama_host", "ollama_model"):
             if key in extra and extra[key] is not None:
                 config[key] = str(extra[key]).strip()
+        if "setup_done" in extra and extra["setup_done"] is not None:
+            config["setup_done"] = bool(extra["setup_done"])
         config.setdefault("output_dir", self.default_output_dir())
         atomic_write_json(CONFIG_PATH, config)
 
@@ -500,7 +507,15 @@ class TranslationService:
             "openai_model": "",
             "ollama_host": "",
             "ollama_model": "",
+            "setup_done": False,
         }
+
+        def _as_bool(value, fallback=False) -> bool:
+            if value is None:
+                return fallback
+            if isinstance(value, bool):
+                return value
+            return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
         def _normalize(raw: object) -> dict:
             data = dict(defaults)
@@ -508,6 +523,9 @@ class TranslationService:
                 raise ValueError("config must be an object")
             for key, fallback in defaults.items():
                 value = raw.get(key, fallback)
+                if key == "setup_done":
+                    data[key] = _as_bool(value, False)
+                    continue
                 if value is None:
                     data[key] = fallback
                     continue
@@ -660,12 +678,12 @@ async def drawings_open(files: list[UploadFile] = File(default=[])):
     if not files:
         raise HTTPException(status_code=400, detail="请选择 CAD 文件")
     paths = service.save_dropped_files(files)
-    return {
-        "files": [
-            {"path": path, "name": Path(path).name, "ext": Path(path).suffix[1:].upper()}
-            for path in paths
-        ]
-    }
+    return {"files": [cad_listing(path) for path in paths]}
+
+
+@app.post("/api/drawings/probe")
+def drawings_probe(body: ProbeBody):
+    return {"files": [cad_listing(path) for path in body.paths or []]}
 
 
 @app.post("/api/drawings/extract")
@@ -824,6 +842,7 @@ def post_config(body: ConfigBody):
         openai_model=body.openai_model,
         ollama_host=body.ollama_host,
         ollama_model=body.ollama_model,
+        setup_done=body.setup_done,
     )
     return {"ok": True}
 

@@ -636,6 +636,23 @@ class ConfigAndDirectionTests(unittest.TestCase):
         self.assertEqual(body["openai_base"], "")
         self.assertEqual(body["provider"], "deepl")
         self.assertIsInstance(body["output_dir"], str)
+        self.assertFalse(body["setup_done"])
+
+    def test_setup_done_roundtrip(self):
+        first = self.client.get("/api/config")
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertFalse(first.json()["setup_done"])
+        saved = self.client.post(
+            "/api/config",
+            json={"output_dir": self.tmp.name, "setup_done": True, "deepl_key": "k"},
+        )
+        self.assertEqual(saved.status_code, 200, saved.text)
+        again = self.client.get("/api/config")
+        self.assertEqual(again.status_code, 200, again.text)
+        body = again.json()
+        self.assertTrue(body["setup_done"])
+        self.assertEqual(body["deepl_key"], "k")
+        self.assertEqual(body["output_dir"], self.tmp.name)
 
     def test_corrupt_config_recovers_without_traceback(self):
         cases = ["{not json", "[]", "null", "\"nope\""]

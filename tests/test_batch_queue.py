@@ -239,6 +239,22 @@ class BatchApiTests(unittest.TestCase):
         self.assertIn("CAD", response.json()["detail"])
         self.assertNotIn("Traceback", response.text)
 
+    def test_batch_rows_include_path_size_version(self):
+        src = Path(self.tmp.name) / "floor_plan.dxf"
+        shutil.copy(FIXTURES / "floor_plan.dxf", src)
+        added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+        self.assertEqual(added.status_code, 200, added.text)
+        task = added.json()["tasks"][0]
+        self.assertEqual(task["name"], "floor_plan.dxf")
+        self.assertEqual(task["ext"], "DXF")
+        self.assertEqual(task["cad_version"], "2010")
+        self.assertGreater(task["size"], 0)
+        self.assertTrue(task["size_label"])
+        self.assertEqual(task["dir"], str(src.parent))
+        listed = self.client.get("/api/batch")
+        self.assertEqual(listed.status_code, 200, listed.text)
+        self.assertEqual(listed.json()["tasks"][0]["cad_version"], "2010")
+
     def test_add_same_path_does_not_duplicate(self):
         src = Path(self.tmp.name) / "floor_plan.dxf"
         shutil.copy(FIXTURES / "floor_plan.dxf", src)

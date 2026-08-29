@@ -37,11 +37,20 @@ class PlatformCompatibilityTests(unittest.TestCase):
         self.assertIn("_internal", iss)
         self.assertIn("Tuyi_v{#MyAppVersion}_Setup", iss)
         self.assertIn('#define MyAppName "图译"', iss)
+        self.assertIn(r"{sd}\Apps\Tuyi", iss)
+        self.assertIn("chinesesimplified", iss)
+        self.assertIn("ChineseSimplified.isl", iss)
+        self.assertIn("更多信息", iss)
+        self.assertIn("仍要运行", iss)
+        self.assertIn("ODA File Converter", iss)
         self.assertNotIn("[UninstallDelete]", iss)
         self.assertNotIn("backend.licensing", spec)
         self.assertNotIn("ODAFileConverter", iss)
         self.assertNotIn("Honsen_CAD_Translator", spec)
         self.assertNotIn("Honsen_CAD_Translator", iss)
+        zh = root / "installer" / "languages" / "ChineseSimplified.isl"
+        self.assertTrue(zh.is_file(), zh)
+        self.assertIn("LanguageID=$0804", zh.read_text(encoding="utf-8"))
 
     def test_macos_pack_is_tuyi_without_oda(self):
         root = Path(__file__).resolve().parents[1]

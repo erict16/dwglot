@@ -10,6 +10,9 @@ const LANGS = [
   ["fr", "法"],
 ];
 
+const ODA_URL = "https://www.opendesign.com/guestfiles/oda_file_converter";
+const SHOT = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search).get("shot");
+
 function py() {
   return window.pywebview?.api || null;
 }
@@ -76,16 +79,73 @@ function enginePayload(engine, config) {
 }
 
 function asFiles(paths) {
-  return (paths || []).map((path) => ({
-    path,
-    name: String(path).split(/[/\\]/).pop(),
-    ext: String(path).toLowerCase().endsWith(".dxf") ? "DXF" : "DWG",
-  }));
+  return (paths || []).map((path) => {
+    const text = String(path);
+    const name = text.split(/[/\\]/).pop();
+    const dir = text.replace(/[/\\][^/\\]+$/, "");
+    return {
+      path: text,
+      name,
+      dir,
+      ext: text.toLowerCase().endsWith(".dxf") ? "DXF" : "DWG",
+      size: 0,
+      size_label: "",
+      cad_version: "",
+    };
+  });
+}
+
+function displayPath(path) {
+  return asText(path)
+    .replace(/^(?:\/Users\/[^/]+|\/home\/[^/]+)/, "~")
+    .replace(/^C:\\Users\\[^\\]+/i, "~");
+}
+
+function fileBits(file) {
+  return [file.ext, file.size_label, file.cad_version].filter(Boolean).join(" · ");
+}
+
+function initialTab() {
+  if (SHOT === "export") return "export";
+  if (SHOT === "import") return "import";
+  if (SHOT === "regular" || SHOT === "params") return "regular";
+  return "quick";
+}
+
+function FileRow({ file, current, onSelect }) {
+  return (
+    <div
+      className={`item${file.path === current ? " on" : ""}`}
+      onClick={() => onSelect(file)}
+    >
+      <span className={`dot${file.ext === "DXF" ? " dxf" : ""}`} />
+      <span className="item-body">
+        <span className="item-name">{file.name}</span>
+        <span className="item-meta">{fileBits(file) || file.ext}</span>
+        <span className="item-path">{displayPath(file.dir || file.path)}</span>
+      </span>
+    </div>
+  );
+}
+
+function JobRow({ name, dir, sizeLabel, version, layout, progress, status }) {
+  return (
+    <div className="job">
+      <div className="job-main">
+        <b>{name}</b>
+        <span className="job-path">{[displayPath(dir), sizeLabel, version].filter(Boolean).join(" · ")}</span>
+      </div>
+      <span>{layout}</span>
+      <span className="bar"><i style={{ width: `${progress || 0}%` }} /></span>
+      <span>{status}</span>
+    </div>
+  );
 }
 
 export default function App() {
-  const [tab, setTab] = useState("regular");
-  const [sheet, setSheet] = useState(false);
+  const [tab, setTab] = useState(initialTab);
+  const [sheet, setSheet] = useState(SHOT === "params");
+  const [setup, setSetup] = useState(SHOT === "setup");
   const [files, setFiles] = useState([]);
   const [current, setCurrent] = useState("");
   const [rows, setRows] = useState([]);
@@ -104,9 +164,9 @@ export default function App() {
     off: false,
     filename: false,
   });
-  const [oda, setOda] = useState({ installed: false, path: "" });
+  const [oda, setOda] = useState({ installed: false, path: "", download_url: ODA_URL });
   const [glossary, setGlossary] = useState(0);
-  const [status, setStatus] = useState("放入 DWG / DXF，提取文字后再译。");
+  const [status, setStatus] = useState("放入 DWG / DXF。快速翻译不用术语表。");
   const [config, setConfig] = useState({
     provider: "deepl",
     deepl_key: "",
@@ -119,6 +179,7 @@ export default function App() {
     ollama_host: "",
     ollama_model: "",
     project_package_path: "",
+    setup_done: true,
   });
   const [batch, setBatch] = useState({ tasks: [], running: false });
   const [updateMsg, setUpdateMsg] = useState("");
@@ -129,12 +190,11 @@ export default function App() {
   const glossaryInput = useRef(null);
 
   useEffect(() => {
-    const shot = new URLSearchParams(window.location.search).get("shot");
-    if (!shot) return;
+    if (!SHOT) return;
     setFiles([
-      { path: "/demo/电气原理图.dwg", name: "电气原理图.dwg", ext: "DWG" },
-      { path: "/demo/配电箱.dxf", name: "配电箱.dxf", ext: "DXF" },
-      { path: "/demo/总图-A1.dwg", name: "总图-A1.dwg", ext: "DWG" },
+      { path: "/demo/电气原理图.dwg", name: "电气原理图.dwg", ext: "DWG", dir: "/demo", size: 1843200, size_label: "1.8 MB", cad_version: "2018" },
+      { path: "/demo/配电箱.dxf", name: "配电箱.dxf", ext: "DXF", dir: "/demo", size: 246000, size_label: "240 KB", cad_version: "2010" },
+      { path: "/demo/总图-A1.dwg", name: "总图-A1.dwg", ext: "DWG", dir: "/demo", size: 3100000, size_label: "3.0 MB", cad_version: "2013" },
     ]);
     setCurrent("/demo/电气原理图.dwg");
     setRows([
@@ -147,10 +207,17 @@ export default function App() {
       { id: 6, source: "材料表", target: "Bill of Materials", layer: "0", type: "TABLE", duplicate: false },
       { id: 7, source: "电缆桥架", target: "Cable Tray", layer: "E-TRAY", type: "MTEXT", duplicate: false },
     ]);
-    if (shot === "export") setTab("export");
-    if (shot === "params") {
-      setTab("regular");
-      setSheet(true);
+    setGlossary(393);
+    setConfig((prev) => ({ ...prev, output_dir: prev.output_dir || "~/Documents/Tuyi output" }));
+    if (SHOT === "export") {
+      setBatch({
+        running: true,
+        tasks: [
+          { id: "1", input_file: "/demo/电气原理图.dwg", name: "电气原理图.dwg", dir: "/demo", size_label: "1.8 MB", cad_version: "2018", progress: 72, status: "写回中" },
+          { id: "2", input_file: "/demo/配电箱.dxf", name: "配电箱.dxf", dir: "/demo", size_label: "240 KB", cad_version: "2010", progress: 18, status: "排队" },
+          { id: "3", input_file: "/demo/总图-A1.dwg", name: "总图-A1.dwg", dir: "/demo", size_label: "3.0 MB", cad_version: "2013", progress: 0, status: "排队" },
+        ],
+      });
     }
   }, []);
 
@@ -183,9 +250,11 @@ export default function App() {
       ]);
       setOda(odaStatus);
       setGlossary(asCount(assets.builtin_terms?.length) + asCount(assets.terms?.length));
-      setConfig(cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {});
-    } catch (error) {
-      setStatus(error.message);
+      const next = cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {};
+      setConfig(next);
+      if (!SHOT && next.setup_done === false) setSetup(true);
+    } catch {
+      /* ODA / 术语表 badges already show empty; don't paint HTTP errors in the footer. */
     }
   }, []);
 
@@ -194,7 +263,8 @@ export default function App() {
   }, [refreshMeta]);
 
   useEffect(() => {
-    if (tab !== "export") return undefined;
+    if (SHOT) return undefined;
+    if (tab !== "export" && tab !== "quick") return undefined;
     const timer = setInterval(() => {
       api("/api/batch").then(setBatch).catch(() => {});
     }, 1200);
@@ -202,15 +272,29 @@ export default function App() {
     return () => clearInterval(timer);
   }, [tab]);
 
+  async function probeFiles(next) {
+    const paths = (next || []).map((item) => item.path).filter(Boolean);
+    if (!paths.length) return next || [];
+    try {
+      const data = await api("/api/drawings/probe", { method: "POST", body: JSON.stringify({ paths }) });
+      if (Array.isArray(data.files) && data.files.length) return data.files;
+    } catch {
+      /* keep name-only rows */
+    }
+    return next;
+  }
+
   async function loadOpened(next) {
     if (!next.length) {
       setStatus("没有选择文件。");
       return;
     }
-    setFiles(next);
+    const listed = next[0]?.size_label ? next : await probeFiles(next);
+    setFiles(listed);
     setWrittenPath("");
-    setCurrent(next[0].path);
-    await extractFile(next[0].path);
+    setCurrent(listed[0].path);
+    if (tab === "regular") await extractFile(listed[0].path);
+    else setStatus(`已打开 ${listed.length} 张。术语表不是必须的，点开始翻译即可。`);
   }
 
   async function openDrawings() {
@@ -282,7 +366,15 @@ export default function App() {
 
   function closeSheet() {
     setSheet(false);
-    if (current) extractFile(current);
+    if (current && tab === "regular") extractFile(current);
+  }
+
+  async function pickOutputDir() {
+    const picked = await py()?.pick_output_dir?.();
+    if (picked?.path) {
+      await api("/api/config", { method: "POST", body: JSON.stringify({ ...config, output_dir: picked.path }) });
+      setConfig((prev) => ({ ...prev, output_dir: picked.path }));
+    }
   }
 
   async function runTranslate() {
@@ -433,7 +525,7 @@ export default function App() {
     }
   }
 
-  async function startExport() {
+  async function startBatch() {
     const paths = files.map((item) => item.path);
     if (!paths.length) {
       setStatus("先打开图纸。");
@@ -463,11 +555,22 @@ export default function App() {
           ...enginePayload(engine, config),
         }),
       });
-      setTab("export");
-      setStatus(started.message || "批量导出已开始。");
+      if (tab !== "quick") setTab("export");
+      setStatus(started.message || (tab === "quick" ? "快速翻译已开始。" : "批量导出已开始。"));
     } catch (error) {
       setStatus(error.message);
     }
+  }
+
+  function primaryAction() {
+    if (tab === "regular") return runTranslate();
+    return startBatch();
+  }
+
+  function primaryLabel() {
+    if (tab === "regular") return "翻译";
+    if (tab === "export") return "开始导出";
+    return "开始翻译";
   }
 
   async function checkUpdates() {
@@ -545,8 +648,47 @@ export default function App() {
     if (kind === "max") native?.toggle_maximize?.();
   }
 
+  function openOda() {
+    const url = oda.download_url || ODA_URL;
+    const native = py();
+    if (native?.open_url) native.open_url(url);
+    else window.open(url, "_blank");
+  }
+
+  async function finishSetup() {
+    try {
+      await api("/api/config", {
+        method: "POST",
+        body: JSON.stringify({
+          ...config,
+          provider: engineProvider(engine, config),
+          setup_done: true,
+        }),
+      });
+      setConfig((prev) => ({ ...prev, setup_done: true }));
+      setSetup(false);
+      setTab("quick");
+      setStatus("可以开始了。把图纸拖进来，或点打开图纸。术语表不是必须的。");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  const jobList = (batch.tasks || []).length
+    ? batch.tasks
+    : files.map((file) => ({
+      id: file.path,
+      name: file.name,
+      dir: file.dir || file.path,
+      size_label: file.size_label,
+      cad_version: file.cad_version,
+      progress: 0,
+      status: tab === "quick" ? "待翻译" : "待导出",
+    }));
+
   return (
     <div className="win" data-theme="light">
+      <a className="skip" href="#grid">跳到文本表</a>
       <header className="tb pywebview-drag-region">
         <div className="lights" aria-hidden="true">
           <i className="r" onClick={() => onLights("close")} />
@@ -555,9 +697,29 @@ export default function App() {
         </div>
         <div className="brand">图译</div>
         <div className="seg" role="tablist">
-          <button type="button" className={tab === "regular" ? "on" : ""} onClick={() => setTab("regular")}>常规处理</button>
+          <button type="button" className={tab === "quick" ? "on" : ""} onClick={() => setTab("quick")}>快速翻译</button>
+          <button type="button" className={tab === "regular" ? "on" : ""} onClick={() => {
+            setTab("regular");
+            if (current && !SHOT) extractFile(current);
+          }}>常规处理</button>
           <button type="button" className={tab === "export" ? "on" : ""} onClick={() => setTab("export")}>批量导出</button>
           <button type="button" className={tab === "import" ? "on" : ""} onClick={() => setTab("import")}>批量导入</button>
+        </div>
+        <span className="grow" />
+        <button type="button" className={`tbtn${sheet ? " pri" : ""}`} onClick={() => setSheet(true)}>参数</button>
+      </header>
+
+      <div className="cmd">
+        <button type="button" className="tbtn" onClick={openDrawings}>打开图纸</button>
+        <button type="button" className="tbtn" onClick={loadGlossary}>术语表 {glossary}</button>
+        <span className="label">引擎</span>
+        <div className="pill" role="radiogroup" aria-label="引擎">
+          {[["cloud", "云"], ["local", "本地"], ["custom", "自定义"]].map(([value, label]) => (
+            <label key={value}>
+              <input type="radio" name="eng" checked={engine === value} onChange={() => setEngine(value)} />
+              {label}
+            </label>
+          ))}
         </div>
         <div className="pair">
           <select aria-label="源语言" value={sourceLang} onChange={(event) => setSourceLang(event.target.value)}>
@@ -568,29 +730,26 @@ export default function App() {
             {LANGS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
           </select>
         </div>
-        <div className="pill" role="radiogroup" aria-label="引擎">
-          {[["cloud", "云"], ["local", "本地"], ["custom", "自定义"]].map(([value, label]) => (
-            <label key={value}>
-              <input type="radio" name="eng" checked={engine === value} onChange={() => setEngine(value)} />
-              {label}
-            </label>
-          ))}
+        <select value={layout} onChange={(event) => setLayout(event.target.value)} aria-label="导出版式">
+          <option>纯译文</option>
+          <option>原译对照</option>
+          <option>译原对照</option>
+        </select>
+        <div className="path">
+          <input value={config.output_dir || ""} readOnly placeholder="保存到…" aria-label="保存位置" />
+          <button type="button" onClick={pickOutputDir}>选取</button>
         </div>
-        <span className="grow" />
-        <button type="button" className="tbtn" onClick={openDrawings}>打开图纸</button>
-        <button type="button" className="tbtn" onClick={loadGlossary}>加载术语表</button>
-        <button type="button" className={`tbtn${sheet ? " pri" : ""}`} onClick={() => setSheet(true)}>参数</button>
-        {tab === "export" ? (
-          <button type="button" className="tbtn pri" disabled={busy} onClick={startExport}>开始导出</button>
-        ) : tab === "regular" ? (
+        {tab !== "import" && (
+          <button type="button" className="tbtn pri" disabled={busy} onClick={primaryAction}>{primaryLabel()}</button>
+        )}
+        {tab === "regular" && (
           <>
-            <button type="button" className="tbtn pri" disabled={busy} onClick={runTranslate}>翻译</button>
             <button type="button" className="tbtn" disabled={busy} onClick={writeBack}>写回</button>
             <button type="button" className="tbtn" disabled={busy || !current} onClick={() => exportPdf(false)}>导出 PDF</button>
             <button type="button" className="tbtn" disabled={busy || !current} onClick={() => exportPdf(true)}>打印</button>
           </>
-        ) : null}
-      </header>
+        )}
+      </div>
 
       <input ref={cadInput} type="file" accept=".dxf,.dwg,application/dxf" multiple hidden onChange={onCadPicked} />
       <input ref={glossaryInput} type="file" accept=".json,.csv,.txt,.hcterms.json" hidden onChange={onGlossaryPicked} />
@@ -615,24 +774,54 @@ export default function App() {
             }
           }}
         >
-          <h2>{tab === "export" ? `待导出 · ${files.length}` : "已打开"}</h2>
+          <h2>{tab === "export" ? `待导出 · ${files.length}` : tab === "quick" ? `图纸 · ${files.length}` : "已打开"}</h2>
           {files.map((file) => (
-            <div
+            <FileRow
               key={file.path}
-              className={`item${file.path === current ? " on" : ""}`}
-              onClick={() => {
-                if (file.path !== current) setWrittenPath("");
-                setCurrent(file.path);
-                if (tab === "regular") extractFile(file.path);
+              file={file}
+              current={current}
+              onSelect={(item) => {
+                if (item.path !== current) setWrittenPath("");
+                setCurrent(item.path);
+                if (tab === "regular") extractFile(item.path);
               }}
-            >
-              <span className={`dot${file.ext === "DXF" ? " dxf" : ""}`} />
-              {file.name}
-              <span className="meta">{file.path === current ? "当前" : file.ext}</span>
-            </div>
+            />
           ))}
-          <p className="hint">{tab === "export" ? "批量时全部去重，并还原目录结构。" : "点工具栏「打开图纸」，或先提取再译。"}</p>
+          <p className="hint">
+            {tab === "export"
+              ? "批量时全部去重，并还原目录结构。"
+              : tab === "quick"
+                ? "选文件、选引擎，点开始。术语表可选。"
+                : "打开图纸，或先提取再译。"}
+          </p>
         </aside>
+
+        {tab === "quick" && (
+          <section className="quick">
+            {files.length === 0 && jobList.length === 0 ? (
+              <div className="well">
+                <b>快速翻译</b>
+                <p>把 DWG / DXF 拖到左边，或点打开图纸。不强制术语表。有引擎就整张译完，没有就只写术语表命中的。</p>
+                <button type="button" className="tbtn pri" onClick={openDrawings}>打开图纸</button>
+              </div>
+            ) : (
+              <div className="jobs">
+                {jobList.map((task) => (
+                  <JobRow
+                    key={task.id || task.name}
+                    name={task.name || (task.input_file || "").split(/[/\\]/).pop()}
+                    dir={task.dir || task.input_file}
+                    sizeLabel={task.size_label}
+                    version={task.cad_version}
+                    layout={layout}
+                    progress={task.progress}
+                    status={task.status || task.message}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {tab === "regular" && (
           <section className="main">
@@ -641,17 +830,9 @@ export default function App() {
               <label><input type="checkbox" checked={filters.numbers} onChange={(event) => setFilters((prev) => ({ ...prev, numbers: event.target.checked }))} /> 纯数字</label>
               <label><input type="checkbox" checked={filters.dupes} onChange={(event) => setFilters((prev) => ({ ...prev, dupes: event.target.checked }))} /> 重复</label>
               <label><input type="checkbox" checked={filters.nonsource} onChange={(event) => setFilters((prev) => ({ ...prev, nonsource: event.target.checked }))} /> 非源语言</label>
-              <span style={{ marginLeft: "auto" }}>
-                版式
-                <select value={layout} onChange={(event) => setLayout(event.target.value)} aria-label="导出版式" style={{ height: 24, border: 0, background: "rgba(118,118,128,.12)", borderRadius: 6, padding: "0 8px", font: "600 12px -apple-system,system-ui,sans-serif", color: "inherit", marginLeft: 6 }}>
-                  <option>纯译文</option>
-                  <option>原译对照</option>
-                  <option>译原对照</option>
-                </select>
-              </span>
             </div>
             <div className="table">
-              <table>
+              <table id="grid">
                 <thead>
                   <tr>
                     <th style={{ width: 36 }}>
@@ -696,7 +877,6 @@ export default function App() {
                             const value = event.target.value;
                             setRows((prev) => prev.map((item) => (item.id === row.id ? { ...item, target: value, via: "edit" } : item)));
                           }}
-                          style={{ width: "100%", border: 0, background: "transparent", color: "inherit", font: "inherit" }}
                         />
                       </td>
                       <td className="kind">{asText(row.layer) || "0"} · {asText(row.type)}</td>
@@ -711,21 +891,17 @@ export default function App() {
         {tab === "export" && (
           <>
             <div className="jobs">
-              {(batch.tasks || []).length === 0 && files.map((file) => (
-                <div className="job" key={file.path}>
-                  <span>{file.name}</span>
-                  <span>{layout}</span>
-                  <span className="bar"><i style={{ width: 0 }} /></span>
-                  <span>待导出</span>
-                </div>
-              ))}
-              {(batch.tasks || []).map((task) => (
-                <div className="job" key={task.id}>
-                  <span>{(task.input_file || "").split(/[/\\]/).pop()}</span>
-                  <span>{layout}</span>
-                  <span className="bar"><i style={{ width: `${task.progress || 0}%` }} /></span>
-                  <span>{task.status}</span>
-                </div>
+              {jobList.map((task) => (
+                <JobRow
+                  key={task.id || task.name}
+                  name={task.name || (task.input_file || "").split(/[/\\]/).pop()}
+                  dir={task.dir || task.input_file}
+                  sizeLabel={task.size_label}
+                  version={task.cad_version}
+                  layout={layout}
+                  progress={task.progress}
+                  status={task.status || task.message || "待导出"}
+                />
               ))}
             </div>
             <aside className="insp">
@@ -738,13 +914,7 @@ export default function App() {
               <h3>输出位置</h3>
               <div className="path">
                 <input value={config.output_dir || ""} readOnly />
-                <button type="button" onClick={async () => {
-                  const picked = await py()?.pick_output_dir?.();
-                  if (picked?.path) {
-                    await api("/api/config", { method: "POST", body: JSON.stringify({ ...config, output_dir: picked.path }) });
-                    setConfig((prev) => ({ ...prev, output_dir: picked.path }));
-                  }
-                }}>选取</button>
+                <button type="button" onClick={pickOutputDir}>选取</button>
               </div>
               <h3>过滤</h3>
               <label className="row"><input type="checkbox" checked={filters.numbers} onChange={(event) => setFilters((prev) => ({ ...prev, numbers: event.target.checked }))} /> 纯数字</label>
@@ -802,36 +972,35 @@ export default function App() {
                     <label key={name}><input type="radio" name="sheet-lay" checked={layout === name} onChange={() => setLayout(name)} /> {name}</label>
                   ))}
                 </div>
-                <div className="group">
-                  <h4>引擎 · 语言</h4>
-                  <label><input type="radio" name="sheet-eng" checked={engine === "cloud"} onChange={() => setEngine("cloud")} /> 云</label>
-                  <label><input type="radio" name="sheet-eng" checked={engine === "local"} onChange={() => setEngine("local")} /> 本地</label>
-                  <label><input type="radio" name="sheet-eng" checked={engine === "custom"} onChange={() => setEngine("custom")} /> 自定义</label>
-                  <p className="note">语言看工具栏。云 = DeepL / Azure；本地 = Ollama；自定义 = OpenAI 兼容接口。</p>
+                <div className="group span">
+                  <h4>引擎密钥</h4>
+                  <p className="note">云 / 本地 / 自定义在上面工具栏。密钥写在这里。</p>
                   {engine === "cloud" && (
                     <>
                       <label>云服务
-                        <select value={config.provider === "azure" ? "azure" : "deepl"} onChange={(event) => setConfig((prev) => ({ ...prev, provider: event.target.value }))} style={{ marginLeft: 8 }}>
+                        <select value={config.provider === "azure" ? "azure" : "deepl"} onChange={(event) => setConfig((prev) => ({ ...prev, provider: event.target.value }))}>
                           <option value="deepl">DeepL</option>
                           <option value="azure">Azure</option>
                         </select>
                       </label>
-                      <label>DeepL <input value={config.deepl_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, deepl_key: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
-                      <label>Azure <input value={config.azure_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_key: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
-                      <label>Region <input value={config.azure_region || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_region: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                      <div className="key-row">
+                        <label>DeepL <input value={config.deepl_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, deepl_key: event.target.value }))} /></label>
+                        <label>Azure <input value={config.azure_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_key: event.target.value }))} /></label>
+                        <label>Region <input value={config.azure_region || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_region: event.target.value }))} /></label>
+                      </div>
                     </>
                   )}
                   {engine === "local" && (
                     <>
-                      <label>Ollama <input value={config.ollama_host || ""} placeholder="http://127.0.0.1:11434" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_host: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
-                      <label>模型 <input value={config.ollama_model || ""} placeholder="llama3.1" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_model: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                      <label>Ollama <input value={config.ollama_host || ""} placeholder="http://127.0.0.1:11434" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_host: event.target.value }))} /></label>
+                      <label>模型 <input value={config.ollama_model || ""} placeholder="llama3.1" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_model: event.target.value }))} /></label>
                     </>
                   )}
                   {engine === "custom" && (
                     <>
-                      <label>Key <input value={config.openai_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, openai_key: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
-                      <label>URL <input value={config.openai_base || ""} placeholder="https://api.deepseek.com/v1" onChange={(event) => setConfig((prev) => ({ ...prev, openai_base: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
-                      <label>模型 <input value={config.openai_model || ""} placeholder="deepseek-chat" onChange={(event) => setConfig((prev) => ({ ...prev, openai_model: event.target.value }))} style={{ marginLeft: 8, flex: 1 }} /></label>
+                      <label>Key <input value={config.openai_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, openai_key: event.target.value }))} /></label>
+                      <label>URL <input value={config.openai_base || ""} placeholder="https://api.deepseek.com/v1" onChange={(event) => setConfig((prev) => ({ ...prev, openai_base: event.target.value }))} /></label>
+                      <label>模型 <input value={config.openai_model || ""} placeholder="deepseek-chat" onChange={(event) => setConfig((prev) => ({ ...prev, openai_model: event.target.value }))} /></label>
                     </>
                   )}
                   <button type="button" className="tbtn" onClick={async () => {
@@ -845,8 +1014,46 @@ export default function App() {
                     {oda.installed ? `已检测到 ${oda.path}` : "未装 ODA，DWG 请另存 DXF。"}
                     <br />术语表 {glossary} 条。
                   </p>
+                  {!oda.installed && <button type="button" className="linkish" onClick={openOda}>去装 ODA</button>}
                   <button type="button" className="tbtn" onClick={checkUpdates}>检查更新</button>
                   {updateMsg && <p className="note">{updateMsg}</p>}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {setup && (
+          <>
+            <div className="dim" />
+            <div className="setup-wrap">
+              <div className="sheet setup-sheet" role="dialog" aria-label="开始使用">
+                <div className="sheet-h">
+                  <span>开始使用 图译</span>
+                </div>
+                <div className="sheet-b">
+                  <p className="note">未签名的 v0.1。Windows 若弹出 SmartScreen，点「更多信息」再点「仍要运行」。Mac 请右键打开。</p>
+                  <div className="group">
+                    <h4>输出文件夹</h4>
+                    <div className="path">
+                      <input value={config.output_dir || ""} readOnly />
+                      <button type="button" onClick={pickOutputDir}>选取</button>
+                    </div>
+                  </div>
+                  <div className="group">
+                    <h4>ODA File Converter</h4>
+                    <p className="note">
+                      {oda.installed ? `已检测到 ${oda.path}` : "未装 ODA。DWG 需要本机已装 ODA File Converter；DXF 现在就能译。"}
+                    </p>
+                    <button type="button" className="linkish" onClick={openOda}>去装 ODA</button>
+                  </div>
+                  <div className="group">
+                    <h4>引擎 Key（可选）</h4>
+                    <p className="note">不填也能用内置术语表。剩下的再手填，或以后在参数里补。</p>
+                    <label>DeepL <input value={config.deepl_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, deepl_key: event.target.value }))} /></label>
+                    <label>Azure <input value={config.azure_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_key: event.target.value }))} /></label>
+                  </div>
+                  <button type="button" className="tbtn pri" onClick={finishSetup}>开始使用</button>
                 </div>
               </div>
             </div>
@@ -855,11 +1062,11 @@ export default function App() {
       </div>
 
       <footer className="foot">
-        <span className="live">{oda.installed ? "ODA 已安装" : "ODA 未安装 · DXF 仍可译"}</span>
+        <span className={oda.installed ? "live" : "live warn"}>{oda.installed ? "ODA 已安装" : "ODA 未安装 · DXF 仍可译"}</span>
         <span>术语表 <b>{glossary}</b></span>
         <span>去重前 <b>{rows.length}</b></span>
         <span>去重后 <b>{visibleRows.length}</b></span>
-        <span>{status}</span>
+        <span className="status">{status}</span>
         <span style={{ marginLeft: "auto" }}>
           <button type="button" className="tbtn" onClick={checkUpdates}>检查更新</button>
         </span>
