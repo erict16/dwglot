@@ -1499,6 +1499,17 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertIn("function asText(value)", text)
         self.assertIn("/^[\\d.\\-\\s]+$/", text)
 
+    def test_frontend_extract_ignores_stale_and_keeps_translations(self):
+        source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
+        text = source.read_text(encoding="utf-8")
+        self.assertIn("function extractScope(params)", text)
+        self.assertIn("extractSeq", text)
+        self.assertIn("seq !== extractSeq.current", text)
+        self.assertIn("extractScopeRef.current !== extractScope(params)", text)
+        self.assertIn("!current ? \"先打开图纸。\"", text)
+        self.assertNotIn("if (current) extractFile(current);", text)
+        self.assertIn("setBusy(true);\n    try {\n      await api(\"/api/batch/add\"", text)
+
     def test_frontend_import_tab_is_honest(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
         text = source.read_text(encoding="utf-8")

@@ -83,6 +83,18 @@ function asFiles(paths) {
   }));
 }
 
+function extractScope(params) {
+  return JSON.stringify({
+    attribs: params?.attribs,
+    dims: params?.dims,
+    model: params?.model,
+    paper: params?.paper,
+    frozen: params?.frozen,
+    locked: params?.locked,
+    off: params?.off,
+  });
+}
+
 export default function App() {
   const [tab, setTab] = useState("regular");
   const [sheet, setSheet] = useState(false);
@@ -127,6 +139,10 @@ export default function App() {
   const [writtenPath, setWrittenPath] = useState("");
   const cadInput = useRef(null);
   const glossaryInput = useRef(null);
+  const extractSeq = useRef(0);
+  const currentRef = useRef("");
+  const extractScopeRef = useRef("");
+  currentRef.current = current;
 
   useEffect(() => {
     const shot = new URLSearchParams(window.location.search).get("shot");
@@ -249,6 +265,7 @@ export default function App() {
   }
 
   async function extractFile(path) {
+    const seq = ++extractSeq.current;
     setBusy(true);
     setStatus("正在提取文字…");
     try {
@@ -270,23 +287,32 @@ export default function App() {
           translation_mode: modeKey(sourceLang, targetLang),
         }),
       });
+      if (seq !== extractSeq.current) return;
       setRows(Array.isArray(data.items) ? data.items : []);
       setStatus(`提取 ${asCount(data.count)} 条，去重后 ${asCount(data.unique)}。`);
     } catch (error) {
+      if (seq !== extractSeq.current) return;
       setRows([]);
       setStatus(error.message);
     } finally {
-      setBusy(false);
+      if (seq === extractSeq.current) setBusy(false);
     }
+  }
+
+  function openSheet() {
+    extractScopeRef.current = extractScope(params);
+    setSheet(true);
   }
 
   function closeSheet() {
     setSheet(false);
-    if (current) extractFile(current);
+    if (current && extractScopeRef.current !== extractScope(params)) extractFile(current);
   }
 
   async function runTranslate() {
-    if (!current) {
+    const path = current;
+    const seq = extractSeq.current;
+    if (!path) {
       setStatus("先打开图纸。");
       return;
     }
@@ -309,6 +335,7 @@ export default function App() {
         }),
       });
       const translated = Array.isArray(data.items) ? data.items : [];
+      if (currentRef.current !== path || seq !== extractSeq.current) return;
       const byKey = new Map();
       translated.forEach((item) => {
         const handle = asText(item?.handle);
@@ -330,19 +357,22 @@ export default function App() {
             ? "无法连接自定义接口。"
             : "剩下的要填云引擎 Key，或手填译文。";
         setStatus(`${bits.join("，")}。${hint}`);
-        if (engine !== "local") setSheet(true);
+        if (engine !== "local") openSheet();
       } else {
         setStatus(`译完。${bits.join("，")}。可以改译文再写回。`);
       }
     } catch (error) {
+      if (currentRef.current !== path || seq !== extractSeq.current) return;
       setStatus(error.message);
     } finally {
-      setBusy(false);
+      if (currentRef.current === path && seq === extractSeq.current) setBusy(false);
     }
   }
 
   async function writeBack() {
-    if (!current) {
+    const path = current;
+    const seq = extractSeq.current;
+    if (!path) {
       setStatus("先打开图纸。");
       return;
     }
@@ -360,7 +390,7 @@ export default function App() {
       const data = await api("/api/drawings/writeback", {
         method: "POST",
         body: JSON.stringify({
-          input_file: current,
+          input_file: path,
           items: visibleRows,
           output_dir: config.output_dir,
           output_name: named.name,
@@ -369,15 +399,17 @@ export default function App() {
           translate_filename: params.filename,
         }),
       });
+      if (currentRef.current !== path || seq !== extractSeq.current) return;
       setWrittenPath(data.path || "");
       setLastOutput(data.path || "");
       setStatus(`已写回 ${data.written} 条（${layout}）→ ${data.path}`);
       const native = py();
       if (native?.reveal_file && data.path) native.reveal_file(data.path);
     } catch (error) {
+      if (currentRef.current !== path || seq !== extractSeq.current) return;
       setStatus(error.message);
     } finally {
-      setBusy(false);
+      if (currentRef.current === path && seq === extractSeq.current) setBusy(false);
     }
   }
 
@@ -439,6 +471,7 @@ export default function App() {
       setStatus("先打开图纸。");
       return;
     }
+    setBusy(true);
     try {
       await api("/api/batch/add", { method: "POST", body: JSON.stringify({ files: paths }) });
       const started = await api("/api/batch/start", {
@@ -467,6 +500,8 @@ export default function App() {
       setStatus(started.message || "批量导出已开始。");
     } catch (error) {
       setStatus(error.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -579,7 +614,7 @@ export default function App() {
         <span className="grow" />
         <button type="button" className="tbtn" onClick={openDrawings}>打开图纸</button>
         <button type="button" className="tbtn" onClick={loadGlossary}>加载术语表</button>
-        <button type="button" className={`tbtn${sheet ? " pri" : ""}`} onClick={() => setSheet(true)}>参数</button>
+        <button type="button" className={`tbtn${sheet ? " pri" : ""}`} onClick={openSheet}>参数</button>
         {tab === "export" ? (
           <button type="button" className="tbtn pri" disabled={busy} onClick={startExport}>开始导出</button>
         ) : tab === "regular" ? (
@@ -674,7 +709,7 @@ export default function App() {
                 <tbody>
                   {visibleRows.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="kind">{rows.length ? "过滤后没有可显示的文字。" : "这张图没有可译文字。"}</td>
+                      <td colSpan={4} className="kind">{!current ? "先打开图纸。" : rows.length ? "过滤后没有可显示的文字。" : "这张图没有可译文字。"}</td>
                     </tr>
                   ) : visibleRows.map((row, index) => (
                     <tr key={row.id} className={index === 0 ? "on" : row.duplicate ? "skip" : ""}>
@@ -741,8 +776,12 @@ export default function App() {
                 <button type="button" onClick={async () => {
                   const picked = await py()?.pick_output_dir?.();
                   if (picked?.path) {
-                    await api("/api/config", { method: "POST", body: JSON.stringify({ ...config, output_dir: picked.path }) });
-                    setConfig((prev) => ({ ...prev, output_dir: picked.path }));
+                    try {
+                      await api("/api/config", { method: "POST", body: JSON.stringify({ ...config, output_dir: picked.path }) });
+                      setConfig((prev) => ({ ...prev, output_dir: picked.path }));
+                    } catch (error) {
+                      setStatus(error.message);
+                    }
                   }
                 }}>选取</button>
               </div>
@@ -835,8 +874,12 @@ export default function App() {
                     </>
                   )}
                   <button type="button" className="tbtn" onClick={async () => {
-                    await api("/api/config", { method: "POST", body: JSON.stringify({ ...config, provider: engineProvider(engine, config) }) });
-                    setStatus("已保存引擎设置。");
+                    try {
+                      await api("/api/config", { method: "POST", body: JSON.stringify({ ...config, provider: engineProvider(engine, config) }) });
+                      setStatus("已保存引擎设置。");
+                    } catch (error) {
+                      setStatus(error.message);
+                    }
                   }}>保存密钥</button>
                 </div>
                 <div className="group">
