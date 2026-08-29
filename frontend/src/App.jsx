@@ -223,13 +223,14 @@ export default function App() {
   const [writtenPath, setWrittenPath] = useState("");
   const cadInput = useRef(null);
   const glossaryInput = useRef(null);
+  const checkedLaunch = useRef(false);
+  const [bootReady, setBootReady] = useState(Boolean(SHOT));
 
   useEffect(() => {
     if (!SHOT) return;
     if (SHOT === "settings") {
       setGlossary(393);
       setConfig((prev) => ({ ...prev, output_dir: prev.output_dir || "~/Documents/Tuyi output" }));
-      return;
     }
     setFiles([
       { path: "/demo/电气原理图.dwg", name: "电气原理图.dwg", ext: "DWG", dir: "/demo", size: 1843200, size_label: "1.8 MB", cad_version: "2018" },
@@ -297,12 +298,34 @@ export default function App() {
       if (!SHOT && next.setup_done === false) setSetup(true);
     } catch {
       /* ODA / 术语表 badges already show empty; don't paint HTTP errors in the footer. */
+    } finally {
+      setBootReady(true);
     }
   }, []);
 
   useEffect(() => {
     refreshMeta();
   }, [refreshMeta]);
+
+  useEffect(() => {
+    if (SHOT || !bootReady || setup || checkedLaunch.current) return undefined;
+    checkedLaunch.current = true;
+    (async () => {
+      try {
+        const data = await api("/api/updates/check");
+        if (data.available) {
+          const line = `有新版本 ${data.latest}`;
+          setUpdateMsg(`${line}（当前 ${data.current}）`);
+          setStatus(line);
+        } else {
+          setUpdateMsg(data.message || `已是最新${data.current ? `（${data.current}）` : ""}`);
+        }
+      } catch {
+        /* launch stays quiet; manual 检查更新 still explains */
+      }
+    })();
+    return undefined;
+  }, [bootReady, setup]);
 
   useEffect(() => {
     if (SHOT) return undefined;
@@ -775,7 +798,6 @@ export default function App() {
         </div>
         <span className="grow" />
         <button type="button" className={`tbtn${sheet ? " pri" : ""}`} onClick={openParams}>参数</button>
-        <button type="button" className={`tbtn${settings ? " pri" : ""}`} onClick={openSettings}>设置</button>
       </header>
 
       {!settings && (
@@ -826,6 +848,51 @@ export default function App() {
       <input ref={glossaryInput} type="file" accept=".json,.csv,.txt,.hcterms.json" hidden onChange={onGlossaryPicked} />
 
       <div className="body">
+        <aside
+          className="side"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={async (event) => {
+            event.preventDefault();
+            const dropped = [...event.dataTransfer.files].filter((file) => /\.(dxf|dwg)$/i.test(file.name));
+            if (!dropped.length) return;
+            const form = new FormData();
+            dropped.forEach((file) => form.append("files", file));
+            try {
+              const response = await fetch("/api/drawings/open", { method: "POST", body: form });
+              const data = await response.json();
+              if (!response.ok) throw new Error(data.detail || "打开失败");
+              await loadOpened(data.files || []);
+            } catch (error) {
+              setStatus(error.message);
+            }
+          }}
+        >
+          <div className="side-list">
+            <h2>{tab === "export" ? `待导出 · ${files.length}` : tab === "quick" ? `图纸 · ${files.length}` : "已打开"}</h2>
+            {files.map((file) => (
+              <FileRow
+                key={file.path}
+                file={file}
+                current={current}
+                onSelect={(item) => {
+                  if (item.path !== current) setWrittenPath("");
+                  setCurrent(item.path);
+                  if (tab === "regular") extractFile(item.path);
+                }}
+              />
+            ))}
+            <p className="hint">
+              {tab === "export"
+                ? "批量时全部去重，并还原目录结构。"
+                : tab === "quick"
+                  ? "选文件、选引擎，点开始。术语表可选。"
+                  : "打开图纸，或先提取再译。"}
+            </p>
+          </div>
+          <div className="side-foot">
+            <button type="button" className={`side-settings${settings ? " on" : ""}`} onClick={openSettings}>设置</button>
+          </div>
+        </aside>
         {settings ? (
           <section className="prefs" aria-label="设置">
             <div className="prefs-h">
@@ -835,13 +902,12 @@ export default function App() {
             <div className="prefs-inner">
               <div className="prefs-brand">
                 <b>{appMeta.name_zh || "图译"}</b>
-                <div className="ver">{appMeta.name_en || "Tuyi"} v{appMeta.version || "0.1.2"} · 未签名</div>
+                <div className="ver">{appMeta.name_en || "Tuyi"} v{appMeta.version || "0.1.2"}</div>
               </div>
-              <p className="note">Windows 若弹出 SmartScreen，点「更多信息」再点「仍要运行」。Mac 请右键打开。</p>
               <div className="group">
                 <h4>更新</h4>
                 <button type="button" className="tbtn fill" onClick={checkUpdates}>检查更新</button>
-                <p className="note">{updateMsg || "不会自动检查。点上面这一下，去 GitHub Releases 看。"}</p>
+                <p className="note">{updateMsg || "启动时会静默看一眼。有新版本会写在状态栏。"}</p>
               </div>
               <div className="group">
                 <h4>输出文件夹</h4>
@@ -867,46 +933,6 @@ export default function App() {
           </section>
         ) : (
         <>
-        <aside
-          className="side"
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={async (event) => {
-            event.preventDefault();
-            const dropped = [...event.dataTransfer.files].filter((file) => /\.(dxf|dwg)$/i.test(file.name));
-            if (!dropped.length) return;
-            const form = new FormData();
-            dropped.forEach((file) => form.append("files", file));
-            try {
-              const response = await fetch("/api/drawings/open", { method: "POST", body: form });
-              const data = await response.json();
-              if (!response.ok) throw new Error(data.detail || "打开失败");
-              await loadOpened(data.files || []);
-            } catch (error) {
-              setStatus(error.message);
-            }
-          }}
-        >
-          <h2>{tab === "export" ? `待导出 · ${files.length}` : tab === "quick" ? `图纸 · ${files.length}` : "已打开"}</h2>
-          {files.map((file) => (
-            <FileRow
-              key={file.path}
-              file={file}
-              current={current}
-              onSelect={(item) => {
-                if (item.path !== current) setWrittenPath("");
-                setCurrent(item.path);
-                if (tab === "regular") extractFile(item.path);
-              }}
-            />
-          ))}
-          <p className="hint">
-            {tab === "export"
-              ? "批量时全部去重，并还原目录结构。"
-              : tab === "quick"
-                ? "选文件、选引擎，点开始。术语表可选。"
-                : "打开图纸，或先提取再译。"}
-          </p>
-        </aside>
 
         {tab === "quick" && (
           <section className="quick">
@@ -1104,7 +1130,6 @@ export default function App() {
                   <span>开始使用 图译</span>
                 </div>
                 <div className="sheet-b">
-                  <p className="note">未签名的 v0.1。Windows 若弹出 SmartScreen，点「更多信息」再点「仍要运行」。Mac 请右键打开。</p>
                   <div className="group">
                     <h4>输出文件夹</h4>
                     <div className="path">
