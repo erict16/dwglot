@@ -204,6 +204,30 @@ class PlatformCompatibilityTests(unittest.TestCase):
         self.assertEqual(cad.WORK_DXF_VERSION, "ACAD2010")
         self.assertIn(cad.WORK_DXF_VERSION, cad.ODA_OUTPUT_VERSIONS)
 
+    def test_dropped_files_dir_is_tuyi_not_honsen(self):
+        from backend.app_meta import DROPPED_FILES_DIR
+
+        self.assertEqual(DROPPED_FILES_DIR.name, ".tuyi_dropped_files")
+        api_src = (Path(__file__).resolve().parents[1] / "backend" / "api.py").read_text(encoding="utf-8")
+        self.assertIn("DROPPED_FILES_DIR", api_src)
+        self.assertNotIn("cad_translator_dropped_files", api_src)
+
+    def test_migrate_legacy_dropped_dir(self):
+        from backend.app_meta import migrate_legacy_dir
+
+        with tempfile.TemporaryDirectory() as home:
+            home_path = Path(home)
+            legacy = home_path / "cad_translator_dropped_files"
+            current = home_path / ".tuyi_dropped_files"
+            marker = legacy / "abc" / "a.dxf"
+            marker.parent.mkdir(parents=True)
+            marker.write_text("x", encoding="utf-8")
+            migrate_legacy_dir(legacy, current)
+            self.assertTrue((current / "abc" / "a.dxf").is_file())
+            self.assertFalse(legacy.exists())
+            migrate_legacy_dir(legacy, current)
+            self.assertTrue((current / "abc" / "a.dxf").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

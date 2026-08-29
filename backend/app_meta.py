@@ -18,6 +18,7 @@ GITHUB_URL = f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}"
 CONFIG_PATH = Path.home() / ".tuyi_config.json"
 QUEUE_PATH = Path.home() / ".tuyi_queue.json"
 ASSETS_PATH = Path.home() / ".tuyi_language_assets.sqlite3"
+DROPPED_FILES_DIR = Path.home() / ".tuyi_dropped_files"
 OUTPUT_DIR_NAME = "Tuyi output"
 
 # One-time copy from the Dwglot filenames, then from Honsen.
@@ -27,6 +28,7 @@ PREVIOUS_ASSETS_PATH = Path.home() / ".dwglot_language_assets.sqlite3"
 LEGACY_CONFIG_PATH = Path.home() / ".cad_translator_config.json"
 LEGACY_QUEUE_PATH = Path.home() / ".cad_translator_queue.json"
 LEGACY_ASSETS_PATH = Path.home() / ".cad_translator_language_assets.sqlite3"
+LEGACY_DROPPED_FILES_DIR = Path.home() / "cad_translator_dropped_files"
 
 
 def migrate_legacy_file(legacy: Path, current: Path) -> None:
@@ -38,6 +40,16 @@ def migrate_legacy_file(legacy: Path, current: Path) -> None:
         pass
 
 
+def migrate_legacy_dir(legacy: Path, current: Path) -> None:
+    if current.exists() or not legacy.exists() or not legacy.is_dir():
+        return
+    try:
+        current.parent.mkdir(parents=True, exist_ok=True)
+        legacy.rename(current)
+    except OSError:
+        pass
+
+
 def migrate_user_data() -> None:
     migrate_legacy_file(PREVIOUS_CONFIG_PATH, CONFIG_PATH)
     migrate_legacy_file(LEGACY_CONFIG_PATH, CONFIG_PATH)
@@ -45,6 +57,7 @@ def migrate_user_data() -> None:
     migrate_legacy_file(LEGACY_QUEUE_PATH, QUEUE_PATH)
     migrate_legacy_file(PREVIOUS_ASSETS_PATH, ASSETS_PATH)
     migrate_legacy_file(LEGACY_ASSETS_PATH, ASSETS_PATH)
+    migrate_legacy_dir(LEGACY_DROPPED_FILES_DIR, DROPPED_FILES_DIR)
 
 
 def default_output_dir() -> str:
