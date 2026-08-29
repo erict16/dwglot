@@ -242,6 +242,12 @@ input {
 @media (hover: hover) and (pointer: fine) {
   .tbtn:hover:not(:disabled) { background: rgba(118, 118, 128, 0.12); }
 }
+.tbtn.fill {
+  background: rgba(118, 118, 128, 0.16);
+}
+@media (hover: hover) and (pointer: fine) {
+  .tbtn.fill:hover:not(:disabled) { background: rgba(118, 118, 128, 0.22); }
+}
 .tbtn.pri {
   background: var(--accent-fill);
   color: var(--on-accent);
@@ -766,6 +772,65 @@ td input {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .v2 .tb .seg button { padding: 0 10px; }
+
+/* 设置 — full page, not a website card */
+.prefs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--content);
+}
+.prefs-h {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 20px;
+  border-bottom: 0.5px solid var(--hair);
+  font-weight: 600;
+  flex: none;
+}
+.prefs-h .done {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: 600 13px -apple-system, system-ui, sans-serif;
+}
+.prefs-inner {
+  flex: 1;
+  overflow: auto;
+  width: 560px;
+  max-width: calc(100% - 48px);
+  margin: 0 auto;
+  padding: 16px 0 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.prefs-brand {
+  padding: 0 2px;
+}
+.prefs-brand b {
+  display: block;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+.prefs-brand .ver {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.prefs .group {
+  padding: 4px 14px 10px;
+}
+.prefs .tbtn.fill {
+  margin-top: 4px;
+}
+.prefs .group label {
+  padding: 6px 0;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .tbtn,

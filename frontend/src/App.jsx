@@ -142,10 +142,45 @@ function JobRow({ name, dir, sizeLabel, version, layout, progress, status }) {
   );
 }
 
+function EngineKeyFields({ engine, config, setConfig }) {
+  if (engine === "local") {
+    return (
+      <>
+        <label>Ollama <input value={config.ollama_host || ""} placeholder="http://127.0.0.1:11434" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_host: event.target.value }))} /></label>
+        <label>模型 <input value={config.ollama_model || ""} placeholder="llama3.1" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_model: event.target.value }))} /></label>
+      </>
+    );
+  }
+  if (engine === "custom") {
+    return (
+      <>
+        <label>Key <input value={config.openai_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, openai_key: event.target.value }))} /></label>
+        <label>URL <input value={config.openai_base || ""} placeholder="https://api.deepseek.com/v1" onChange={(event) => setConfig((prev) => ({ ...prev, openai_base: event.target.value }))} /></label>
+        <label>模型 <input value={config.openai_model || ""} placeholder="deepseek-chat" onChange={(event) => setConfig((prev) => ({ ...prev, openai_model: event.target.value }))} /></label>
+      </>
+    );
+  }
+  return (
+    <>
+      <label>云服务
+        <select value={config.provider === "azure" ? "azure" : "deepl"} onChange={(event) => setConfig((prev) => ({ ...prev, provider: event.target.value }))}>
+          <option value="deepl">DeepL</option>
+          <option value="azure">Azure</option>
+        </select>
+      </label>
+      <label>DeepL <input value={config.deepl_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, deepl_key: event.target.value }))} /></label>
+      <label>Azure <input value={config.azure_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_key: event.target.value }))} /></label>
+      <label>Region <input value={config.azure_region || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_region: event.target.value }))} /></label>
+    </>
+  );
+}
+
 export default function App() {
   const [tab, setTab] = useState(initialTab);
   const [sheet, setSheet] = useState(SHOT === "params");
   const [setup, setSetup] = useState(SHOT === "setup");
+  const [settings, setSettings] = useState(SHOT === "settings");
+  const [appMeta, setAppMeta] = useState({ name_zh: "图译", version: "0.1.2" });
   const [files, setFiles] = useState([]);
   const [current, setCurrent] = useState("");
   const [rows, setRows] = useState([]);
@@ -191,6 +226,11 @@ export default function App() {
 
   useEffect(() => {
     if (!SHOT) return;
+    if (SHOT === "settings") {
+      setGlossary(393);
+      setConfig((prev) => ({ ...prev, output_dir: prev.output_dir || "~/Documents/Tuyi output" }));
+      return;
+    }
     setFiles([
       { path: "/demo/电气原理图.dwg", name: "电气原理图.dwg", ext: "DWG", dir: "/demo", size: 1843200, size_label: "1.8 MB", cad_version: "2018" },
       { path: "/demo/配电箱.dxf", name: "配电箱.dxf", ext: "DXF", dir: "/demo", size: 246000, size_label: "240 KB", cad_version: "2010" },
@@ -243,15 +283,17 @@ export default function App() {
 
   const refreshMeta = useCallback(async () => {
     try {
-      const [odaStatus, assets, cfg] = await Promise.all([
+      const [odaStatus, assets, cfg, meta] = await Promise.all([
         api("/api/odafc-status"),
         api("/api/language-assets"),
         api("/api/config"),
+        api("/api/meta"),
       ]);
       setOda(odaStatus);
       setGlossary(asCount(assets.builtin_terms?.length) + asCount(assets.terms?.length));
       const next = cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {};
       setConfig(next);
+      if (meta && typeof meta === "object") setAppMeta(meta);
       if (!SHOT && next.setup_done === false) setSetup(true);
     } catch {
       /* ODA / 术语表 badges already show empty; don't paint HTTP errors in the footer. */
@@ -575,6 +617,8 @@ export default function App() {
 
   async function checkUpdates() {
     setUpdateMsg("正在检查…");
+    setSettings(true);
+    setSheet(false);
     try {
       const data = await api("/api/updates/check");
       if (data.available) {
@@ -588,6 +632,29 @@ export default function App() {
     } catch {
       setUpdateMsg("GitHub API 暂不可用，打开 Releases 页查看");
     }
+  }
+
+  async function saveEngine() {
+    try {
+      await api("/api/config", { method: "POST", body: JSON.stringify({ ...config, provider: engineProvider(engine, config) }) });
+      setStatus("已保存引擎设置。");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  function openSettings() {
+    setSheet(false);
+    setSettings(true);
+  }
+
+  function openParams() {
+    setSettings(false);
+    setSheet(true);
+  }
+
+  function leaveSettings() {
+    setSettings(false);
   }
 
   async function loadGlossary() {
@@ -697,18 +764,21 @@ export default function App() {
         </div>
         <div className="brand">图译</div>
         <div className="seg" role="tablist">
-          <button type="button" className={tab === "quick" ? "on" : ""} onClick={() => setTab("quick")}>快速翻译</button>
-          <button type="button" className={tab === "regular" ? "on" : ""} onClick={() => {
+          <button type="button" className={tab === "quick" && !settings ? "on" : ""} onClick={() => { setSettings(false); setTab("quick"); }}>快速翻译</button>
+          <button type="button" className={tab === "regular" && !settings ? "on" : ""} onClick={() => {
+            setSettings(false);
             setTab("regular");
             if (current && !SHOT) extractFile(current);
           }}>常规处理</button>
-          <button type="button" className={tab === "export" ? "on" : ""} onClick={() => setTab("export")}>批量导出</button>
-          <button type="button" className={tab === "import" ? "on" : ""} onClick={() => setTab("import")}>批量导入</button>
+          <button type="button" className={tab === "export" && !settings ? "on" : ""} onClick={() => { setSettings(false); setTab("export"); }}>批量导出</button>
+          <button type="button" className={tab === "import" && !settings ? "on" : ""} onClick={() => { setSettings(false); setTab("import"); }}>批量导入</button>
         </div>
         <span className="grow" />
-        <button type="button" className={`tbtn${sheet ? " pri" : ""}`} onClick={() => setSheet(true)}>参数</button>
+        <button type="button" className={`tbtn${sheet ? " pri" : ""}`} onClick={openParams}>参数</button>
+        <button type="button" className={`tbtn${settings ? " pri" : ""}`} onClick={openSettings}>设置</button>
       </header>
 
+      {!settings && (
       <div className="cmd">
         <button type="button" className="tbtn" onClick={openDrawings}>打开图纸</button>
         <button type="button" className="tbtn" onClick={loadGlossary}>术语表 {glossary}</button>
@@ -750,11 +820,53 @@ export default function App() {
           </>
         )}
       </div>
+      )}
 
       <input ref={cadInput} type="file" accept=".dxf,.dwg,application/dxf" multiple hidden onChange={onCadPicked} />
       <input ref={glossaryInput} type="file" accept=".json,.csv,.txt,.hcterms.json" hidden onChange={onGlossaryPicked} />
 
       <div className="body">
+        {settings ? (
+          <section className="prefs" aria-label="设置">
+            <div className="prefs-h">
+              <span>设置</span>
+              <button type="button" className="done" onClick={leaveSettings}>完成</button>
+            </div>
+            <div className="prefs-inner">
+              <div className="prefs-brand">
+                <b>{appMeta.name_zh || "图译"}</b>
+                <div className="ver">{appMeta.name_en || "Tuyi"} v{appMeta.version || "0.1.2"} · 未签名</div>
+              </div>
+              <p className="note">Windows 若弹出 SmartScreen，点「更多信息」再点「仍要运行」。Mac 请右键打开。</p>
+              <div className="group">
+                <h4>更新</h4>
+                <button type="button" className="tbtn fill" onClick={checkUpdates}>检查更新</button>
+                <p className="note">{updateMsg || "不会自动检查。点上面这一下，去 GitHub Releases 看。"}</p>
+              </div>
+              <div className="group">
+                <h4>输出文件夹</h4>
+                <div className="path">
+                  <input value={config.output_dir || ""} readOnly placeholder="保存到…" />
+                  <button type="button" onClick={pickOutputDir}>选取</button>
+                </div>
+              </div>
+              <div className="group">
+                <h4>ODA File Converter</h4>
+                <p className="note">
+                  {oda.installed ? `已检测到 ${oda.path}` : "未装 ODA。DWG 需要本机已装 ODA File Converter；DXF 现在就能译。"}
+                </p>
+                <button type="button" className="linkish" onClick={openOda}>去装 ODA</button>
+              </div>
+              <div className="group">
+                <h4>引擎密钥</h4>
+                <p className="note">云 / 本地 / 自定义在翻译页工具栏。密钥写在这里。不填也能用内置术语表。</p>
+                <EngineKeyFields engine={engine} config={config} setConfig={setConfig} />
+                <button type="button" className="tbtn fill" onClick={saveEngine}>保存密钥</button>
+              </div>
+            </div>
+          </section>
+        ) : (
+        <>
         <aside
           className="side"
           onDragOver={(event) => event.preventDefault()}
@@ -936,6 +1048,8 @@ export default function App() {
             </div>
           </section>
         )}
+        </>
+        )}
 
         {sheet && (
           <>
@@ -973,50 +1087,8 @@ export default function App() {
                   ))}
                 </div>
                 <div className="group span">
-                  <h4>引擎密钥</h4>
-                  <p className="note">云 / 本地 / 自定义在上面工具栏。密钥写在这里。</p>
-                  {engine === "cloud" && (
-                    <>
-                      <label>云服务
-                        <select value={config.provider === "azure" ? "azure" : "deepl"} onChange={(event) => setConfig((prev) => ({ ...prev, provider: event.target.value }))}>
-                          <option value="deepl">DeepL</option>
-                          <option value="azure">Azure</option>
-                        </select>
-                      </label>
-                      <div className="key-row">
-                        <label>DeepL <input value={config.deepl_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, deepl_key: event.target.value }))} /></label>
-                        <label>Azure <input value={config.azure_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_key: event.target.value }))} /></label>
-                        <label>Region <input value={config.azure_region || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_region: event.target.value }))} /></label>
-                      </div>
-                    </>
-                  )}
-                  {engine === "local" && (
-                    <>
-                      <label>Ollama <input value={config.ollama_host || ""} placeholder="http://127.0.0.1:11434" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_host: event.target.value }))} /></label>
-                      <label>模型 <input value={config.ollama_model || ""} placeholder="llama3.1" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_model: event.target.value }))} /></label>
-                    </>
-                  )}
-                  {engine === "custom" && (
-                    <>
-                      <label>Key <input value={config.openai_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, openai_key: event.target.value }))} /></label>
-                      <label>URL <input value={config.openai_base || ""} placeholder="https://api.deepseek.com/v1" onChange={(event) => setConfig((prev) => ({ ...prev, openai_base: event.target.value }))} /></label>
-                      <label>模型 <input value={config.openai_model || ""} placeholder="deepseek-chat" onChange={(event) => setConfig((prev) => ({ ...prev, openai_model: event.target.value }))} /></label>
-                    </>
-                  )}
-                  <button type="button" className="tbtn" onClick={async () => {
-                    await api("/api/config", { method: "POST", body: JSON.stringify({ ...config, provider: engineProvider(engine, config) }) });
-                    setStatus("已保存引擎设置。");
-                  }}>保存密钥</button>
-                </div>
-                <div className="group">
-                  <h4>ODA · 术语表 · 更新</h4>
-                  <p className="note">
-                    {oda.installed ? `已检测到 ${oda.path}` : "未装 ODA，DWG 请另存 DXF。"}
-                    <br />术语表 {glossary} 条。
-                  </p>
-                  {!oda.installed && <button type="button" className="linkish" onClick={openOda}>去装 ODA</button>}
-                  <button type="button" className="tbtn" onClick={checkUpdates}>检查更新</button>
-                  {updateMsg && <p className="note">{updateMsg}</p>}
+                  <h4>引擎 · ODA</h4>
+                  <p className="note">引擎密钥、ODA、检查更新在「设置」。</p>
                 </div>
               </div>
             </div>
@@ -1049,7 +1121,7 @@ export default function App() {
                   </div>
                   <div className="group">
                     <h4>引擎 Key（可选）</h4>
-                    <p className="note">不填也能用内置术语表。剩下的再手填，或以后在参数里补。</p>
+                    <p className="note">不填也能用内置术语表。剩下的再手填，或以后在设置里补。</p>
                     <label>DeepL <input value={config.deepl_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, deepl_key: event.target.value }))} /></label>
                     <label>Azure <input value={config.azure_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_key: event.target.value }))} /></label>
                   </div>
@@ -1067,9 +1139,6 @@ export default function App() {
         <span>去重前 <b>{rows.length}</b></span>
         <span>去重后 <b>{visibleRows.length}</b></span>
         <span className="status">{status}</span>
-        <span style={{ marginLeft: "auto" }}>
-          <button type="button" className="tbtn" onClick={checkUpdates}>检查更新</button>
-        </span>
       </footer>
     </div>
   );
