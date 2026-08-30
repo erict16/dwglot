@@ -98,7 +98,7 @@ input {
 .tb {
   display: flex;
   align-items: center;
-  height: 52px;
+  height: 48px;
   padding: 0 12px 0 0;
   gap: 10px;
   flex: none;
@@ -261,7 +261,7 @@ input {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 40px;
+  height: 36px;
   padding: 0 12px 0 16px;
   flex: none;
   background: var(--bar);
@@ -348,8 +348,8 @@ input {
 }
 .item {
   margin: 1px 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -642,10 +642,10 @@ td input {
   background: var(--content);
 }
 .well {
-  margin: 28px 32px;
+  margin: 20px 24px;
   flex: 1;
   min-height: 220px;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1.5px dashed rgba(60, 60, 67, 0.22);
   background: var(--inset);
   display: flex;
@@ -807,21 +807,60 @@ td input {
 }
 .v2 .tb .seg button { padding: 0 10px; }
 
-/* 设置 — full page, not a website card */
+/* 设置 — Sequoia System Settings: inner nav + grouped rows */
 .prefs {
   flex: 1;
   min-width: 0;
   display: flex;
+  background: var(--inset);
+}
+.prefs-nav {
+  width: 168px;
+  flex: none;
+  padding: 10px 8px;
+  display: flex;
   flex-direction: column;
-  background: var(--content);
+  gap: 1px;
+  border-right: 0.5px solid var(--hair);
+}
+.prefs-nav button {
+  appearance: none;
+  border: 0;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: 400 13px/28px -apple-system, system-ui, sans-serif;
+  text-align: left;
+  cursor: default;
+}
+.prefs-nav button.on {
+  background: var(--sel);
+  color: #fff;
+  font-weight: 500;
+}
+@media (hover: hover) and (pointer: fine) {
+  .prefs-nav button:hover:not(.on) { background: rgba(118, 118, 128, 0.12); }
+}
+.prefs-nav button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.prefs-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 .prefs-h {
   display: flex;
   align-items: center;
   height: 44px;
-  padding: 0 20px;
-  border-bottom: 0.5px solid var(--hair);
-  font-weight: 600;
+  padding: 0 18px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
   flex: none;
 }
 .prefs-h .done {
@@ -831,39 +870,103 @@ td input {
   color: var(--accent);
   font: 600 13px -apple-system, system-ui, sans-serif;
 }
-.prefs-inner {
+.prefs-body {
   flex: 1;
   overflow: auto;
-  width: 560px;
-  max-width: calc(100% - 48px);
-  margin: 0 auto;
-  padding: 16px 0 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  padding: 4px 20px 28px;
 }
-.prefs-brand {
-  padding: 0 2px;
+.prefs-hero {
+  background: var(--content);
+  border-radius: 10px;
+  padding: 28px 16px 24px;
+  text-align: center;
+  margin-bottom: 12px;
+  box-shadow: 0 0 0 0.5px var(--hair);
 }
-.prefs-brand b {
+.prefs-hero b {
   display: block;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 650;
   letter-spacing: -0.03em;
 }
-.prefs-brand .ver {
-  margin-top: 2px;
+.prefs-hero p {
+  margin: 6px 0 0;
   font-size: 13px;
   color: var(--muted);
 }
-.prefs .group {
-  padding: 4px 14px 10px;
+.pref-block { margin-bottom: 14px; }
+.pref-group {
+  background: var(--content);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 0 0.5px var(--hair);
 }
-.prefs .tbtn.fill {
-  margin-top: 4px;
+.pref-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-bottom: 0.5px solid var(--hair);
 }
-.prefs .group label {
-  padding: 6px 0;
+.pref-row:last-child { border-bottom: 0; }
+.pref-lab {
+  flex: 1;
+  min-width: 72px;
+  font-size: 13px;
+}
+.pref-ctrl {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.pref-ctrl input,
+.pref-ctrl select {
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--inset);
+  color: var(--text);
+  padding: 0 8px;
+  font: 13px -apple-system, system-ui, sans-serif;
+  min-width: 140px;
+  max-width: 260px;
+}
+.pref-ctrl .path {
+  max-width: 320px;
+}
+.pref-ctrl .path input {
+  min-width: 0;
+  max-width: 220px;
+}
+.pref-chev {
+  color: rgba(60, 60, 67, 0.35);
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 400;
+}
+.pref-row.go {
+  cursor: default;
+}
+@media (hover: hover) and (pointer: fine) {
+  .pref-row.go:hover { background: rgba(118, 118, 128, 0.06); }
+}
+.pref-cap {
+  margin: 6px 4px 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.prefs-status {
+  margin: 48px 12px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 @media (prefers-reduced-motion: reduce) {

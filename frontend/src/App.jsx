@@ -11,7 +11,17 @@ const LANGS = [
 ];
 
 const ODA_URL = "https://www.opendesign.com/guestfiles/oda_file_converter";
-const SHOT = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search).get("shot");
+const SEARCH = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
+const SHOT = SEARCH.get("shot");
+const SHOT_PANE = SEARCH.get("pane");
+
+const PREF_PANES = [
+  ["general", "通用"],
+  ["update", "更新"],
+  ["output", "输出"],
+  ["oda", "ODA"],
+  ["engine", "引擎"],
+];
 
 function py() {
   return window.pywebview?.api || null;
@@ -142,36 +152,22 @@ function JobRow({ name, dir, sizeLabel, version, layout, progress, status }) {
   );
 }
 
-function EngineKeyFields({ engine, config, setConfig }) {
-  if (engine === "local") {
-    return (
-      <>
-        <label>Ollama <input value={config.ollama_host || ""} placeholder="http://127.0.0.1:11434" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_host: event.target.value }))} /></label>
-        <label>模型 <input value={config.ollama_model || ""} placeholder="llama3.1" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_model: event.target.value }))} /></label>
-      </>
-    );
-  }
-  if (engine === "custom") {
-    return (
-      <>
-        <label>Key <input value={config.openai_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, openai_key: event.target.value }))} /></label>
-        <label>URL <input value={config.openai_base || ""} placeholder="https://api.deepseek.com/v1" onChange={(event) => setConfig((prev) => ({ ...prev, openai_base: event.target.value }))} /></label>
-        <label>模型 <input value={config.openai_model || ""} placeholder="deepseek-chat" onChange={(event) => setConfig((prev) => ({ ...prev, openai_model: event.target.value }))} /></label>
-      </>
-    );
-  }
+function PrefRow({ label, children, onClick, chevron }) {
   return (
-    <>
-      <label>云服务
-        <select value={config.provider === "azure" ? "azure" : "deepl"} onChange={(event) => setConfig((prev) => ({ ...prev, provider: event.target.value }))}>
-          <option value="deepl">DeepL</option>
-          <option value="azure">Azure</option>
-        </select>
-      </label>
-      <label>DeepL <input value={config.deepl_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, deepl_key: event.target.value }))} /></label>
-      <label>Azure <input value={config.azure_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_key: event.target.value }))} /></label>
-      <label>Region <input value={config.azure_region || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_region: event.target.value }))} /></label>
-    </>
+    <div className={`pref-row${onClick ? " go" : ""}`} onClick={onClick} role={onClick ? "button" : undefined}>
+      <span className="pref-lab">{label}</span>
+      {children != null && <span className="pref-ctrl">{children}</span>}
+      {chevron && <span className="pref-chev" aria-hidden="true">›</span>}
+    </div>
+  );
+}
+
+function PrefGroup({ children, caption }) {
+  return (
+    <div className="pref-block">
+      <div className="pref-group">{children}</div>
+      {caption ? <p className="pref-cap">{caption}</p> : null}
+    </div>
   );
 }
 
@@ -180,6 +176,7 @@ export default function App() {
   const [sheet, setSheet] = useState(SHOT === "params");
   const [setup, setSetup] = useState(SHOT === "setup");
   const [settings, setSettings] = useState(SHOT === "settings");
+  const [prefsPane, setPrefsPane] = useState(SHOT_PANE || "general");
   const [appMeta, setAppMeta] = useState({ name_zh: "图译", version: "0.1.2" });
   const [files, setFiles] = useState([]);
   const [current, setCurrent] = useState("");
@@ -641,6 +638,7 @@ export default function App() {
   async function checkUpdates() {
     setUpdateMsg("正在检查…");
     setSettings(true);
+    setPrefsPane("update");
     setSheet(false);
     try {
       const data = await api("/api/updates/check");
@@ -669,6 +667,7 @@ export default function App() {
   function openSettings() {
     setSheet(false);
     setSettings(true);
+    if (!settings) setPrefsPane(SHOT_PANE || "general");
   }
 
   function openParams() {
@@ -873,8 +872,9 @@ export default function App() {
               <FileRow
                 key={file.path}
                 file={file}
-                current={current}
+                current={!settings && file.path === current ? file.path : ""}
                 onSelect={(item) => {
+                  setSettings(false);
                   if (item.path !== current) setWrittenPath("");
                   setCurrent(item.path);
                   if (tab === "regular") extractFile(item.path);
@@ -895,39 +895,121 @@ export default function App() {
         </aside>
         {settings ? (
           <section className="prefs" aria-label="设置">
-            <div className="prefs-h">
-              <span>设置</span>
-              <button type="button" className="done" onClick={leaveSettings}>完成</button>
-            </div>
-            <div className="prefs-inner">
-              <div className="prefs-brand">
-                <b>{appMeta.name_zh || "图译"}</b>
-                <div className="ver">{appMeta.name_en || "Tuyi"} v{appMeta.version || "0.1.2"}</div>
+            <nav className="prefs-nav" aria-label="设置分类">
+              {PREF_PANES.map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={prefsPane === id ? "on" : ""}
+                  onClick={() => setPrefsPane(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+            <div className="prefs-pane">
+              <div className="prefs-h">
+                <span>{PREF_PANES.find(([id]) => id === prefsPane)?.[1] || "设置"}</span>
+                <button type="button" className="done" onClick={leaveSettings}>完成</button>
               </div>
-              <div className="group">
-                <h4>更新</h4>
-                <button type="button" className="tbtn fill" onClick={checkUpdates}>检查更新</button>
-                <p className="note">{updateMsg || "启动时会静默看一眼。有新版本会写在状态栏。"}</p>
-              </div>
-              <div className="group">
-                <h4>输出文件夹</h4>
-                <div className="path">
-                  <input value={config.output_dir || ""} readOnly placeholder="保存到…" />
-                  <button type="button" onClick={pickOutputDir}>选取</button>
-                </div>
-              </div>
-              <div className="group">
-                <h4>ODA File Converter</h4>
-                <p className="note">
-                  {oda.installed ? `已检测到 ${oda.path}` : "未装 ODA。DWG 需要本机已装 ODA File Converter；DXF 现在就能译。"}
-                </p>
-                <button type="button" className="linkish" onClick={openOda}>去装 ODA</button>
-              </div>
-              <div className="group">
-                <h4>引擎密钥</h4>
-                <p className="note">云 / 本地 / 自定义在翻译页工具栏。密钥写在这里。不填也能用内置术语表。</p>
-                <EngineKeyFields engine={engine} config={config} setConfig={setConfig} />
-                <button type="button" className="tbtn fill" onClick={saveEngine}>保存密钥</button>
+              <div className="prefs-body">
+                {prefsPane === "general" && (
+                  <>
+                    <div className="prefs-hero">
+                      <b>{appMeta.name_zh || "图译"}</b>
+                      <p>{appMeta.name_en || "Tuyi"} v{appMeta.version || "0.1.2"}</p>
+                    </div>
+                    <PrefGroup>
+                      <PrefRow label="更新" chevron onClick={() => setPrefsPane("update")} />
+                      <PrefRow label="输出" chevron onClick={() => setPrefsPane("output")} />
+                      <PrefRow label="ODA" chevron onClick={() => setPrefsPane("oda")} />
+                      <PrefRow label="引擎" chevron onClick={() => setPrefsPane("engine")} />
+                    </PrefGroup>
+                  </>
+                )}
+                {prefsPane === "update" && (
+                  <>
+                    <PrefGroup caption={updateMsg || "启动时会静默看一眼。有新版本会写在状态栏。"}>
+                      <PrefRow label="当前版本">{appMeta.version || "0.1.2"}</PrefRow>
+                      <PrefRow label="立即检查">
+                        <button type="button" className="tbtn fill" onClick={checkUpdates}>检查更新</button>
+                      </PrefRow>
+                    </PrefGroup>
+                    <p className="prefs-status">
+                      {appMeta.name_zh || "图译"} {appMeta.version || "0.1.2"}
+                      <br />
+                      {updateMsg || "还没查过。"}
+                    </p>
+                  </>
+                )}
+                {prefsPane === "output" && (
+                  <PrefGroup caption="写回和导出的默认位置。">
+                    <PrefRow label="文件夹">
+                      <span className="path">
+                        <input value={config.output_dir || ""} readOnly placeholder="保存到…" />
+                        <button type="button" onClick={pickOutputDir}>选取</button>
+                      </span>
+                    </PrefRow>
+                  </PrefGroup>
+                )}
+                {prefsPane === "oda" && (
+                  <PrefGroup caption="DWG 需要本机已装 ODA File Converter。本程序不附带 ODA。">
+                    <PrefRow label="状态">{oda.installed ? "已安装" : "未安装"}</PrefRow>
+                    <PrefRow label="路径">{oda.installed ? oda.path : "—"}</PrefRow>
+                    <PrefRow label="安装">
+                      <button type="button" className="linkish" onClick={openOda}>去装 ODA</button>
+                    </PrefRow>
+                  </PrefGroup>
+                )}
+                {prefsPane === "engine" && (
+                  <PrefGroup caption="云 / 本地 / 自定义在翻译页工具栏。密钥写在这里。不填也能用内置术语表。">
+                    {engine === "cloud" && (
+                      <>
+                        <PrefRow label="云服务">
+                          <select value={config.provider === "azure" ? "azure" : "deepl"} onChange={(event) => setConfig((prev) => ({ ...prev, provider: event.target.value }))}>
+                            <option value="deepl">DeepL</option>
+                            <option value="azure">Azure</option>
+                          </select>
+                        </PrefRow>
+                        <PrefRow label="DeepL">
+                          <input value={config.deepl_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, deepl_key: event.target.value }))} />
+                        </PrefRow>
+                        <PrefRow label="Azure">
+                          <input value={config.azure_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_key: event.target.value }))} />
+                        </PrefRow>
+                        <PrefRow label="Region">
+                          <input value={config.azure_region || ""} onChange={(event) => setConfig((prev) => ({ ...prev, azure_region: event.target.value }))} />
+                        </PrefRow>
+                      </>
+                    )}
+                    {engine === "local" && (
+                      <>
+                        <PrefRow label="Ollama">
+                          <input value={config.ollama_host || ""} placeholder="http://127.0.0.1:11434" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_host: event.target.value }))} />
+                        </PrefRow>
+                        <PrefRow label="模型">
+                          <input value={config.ollama_model || ""} placeholder="llama3.1" onChange={(event) => setConfig((prev) => ({ ...prev, ollama_model: event.target.value }))} />
+                        </PrefRow>
+                      </>
+                    )}
+                    {engine === "custom" && (
+                      <>
+                        <PrefRow label="Key">
+                          <input value={config.openai_key || ""} onChange={(event) => setConfig((prev) => ({ ...prev, openai_key: event.target.value }))} />
+                        </PrefRow>
+                        <PrefRow label="URL">
+                          <input value={config.openai_base || ""} placeholder="https://api.deepseek.com/v1" onChange={(event) => setConfig((prev) => ({ ...prev, openai_base: event.target.value }))} />
+                        </PrefRow>
+                        <PrefRow label="模型">
+                          <input value={config.openai_model || ""} placeholder="deepseek-chat" onChange={(event) => setConfig((prev) => ({ ...prev, openai_model: event.target.value }))} />
+                        </PrefRow>
+                      </>
+                    )}
+                    <PrefRow label="保存">
+                      <button type="button" className="tbtn fill" onClick={saveEngine}>保存密钥</button>
+                    </PrefRow>
+                  </PrefGroup>
+                )}
               </div>
             </div>
           </section>
