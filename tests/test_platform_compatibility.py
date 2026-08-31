@@ -11,7 +11,8 @@ from backend import cad
 from backend.api import system_accent_theme
 from desktop.launcher import _webview_gui
 from desktop.native_bridge import NativeBridge
-from backend.api import TranslationService
+from backend.api import TranslationService, service
+from backend.app_meta import DROPPED_FILES_DIR, LEGACY_DROPPED_FILES_DIR, migrate_legacy_dir
 
 
 class PlatformCompatibilityTests(unittest.TestCase):
@@ -203,6 +204,33 @@ class PlatformCompatibilityTests(unittest.TestCase):
     def test_oda_working_dxf_uses_an_oda_output_identifier(self):
         self.assertEqual(cad.WORK_DXF_VERSION, "ACAD2010")
         self.assertIn(cad.WORK_DXF_VERSION, cad.ODA_OUTPUT_VERSIONS)
+
+    def test_dropped_files_cache_is_tuyi_hidden_dir(self):
+        self.assertEqual(DROPPED_FILES_DIR.name, ".tuyi_dropped_files")
+        self.assertEqual(LEGACY_DROPPED_FILES_DIR.name, "cad_translator_dropped_files")
+        self.assertEqual(Path(service.dropped_files_dir).name, ".tuyi_dropped_files")
+        api_src = (Path(__file__).resolve().parents[1] / "backend" / "api.py").read_text(encoding="utf-8")
+        self.assertNotIn("cad_translator_dropped_files", api_src)
+
+    def test_migrate_legacy_dropped_files_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            old = home / "cad_translator_dropped_files"
+            new = home / ".tuyi_dropped_files"
+            (old / "abc").mkdir(parents=True)
+            (old / "abc" / "plan.dxf").write_bytes(b"dxf")
+            migrate_legacy_dir(old, new)
+            self.assertTrue((new / "abc" / "plan.dxf").is_file())
+            self.assertEqual((new / "abc" / "plan.dxf").read_bytes(), b"dxf")
+            self.assertFalse(old.exists())
+
+            leftover = home / "cad_translator_dropped_files"
+            leftover.mkdir()
+            (leftover / "stale.dxf").write_bytes(b"old")
+            migrate_legacy_dir(leftover, new)
+            self.assertFalse((new / "stale.dxf").exists())
+            self.assertTrue((new / "abc" / "plan.dxf").is_file())
+            self.assertTrue((leftover / "stale.dxf").is_file())
 
 
 if __name__ == "__main__":
