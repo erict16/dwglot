@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -58,6 +62,19 @@ jobs:
           if (-not (Test-Path "dist\Tuyi\tuyi-cli.exe")) { throw "tuyi-cli.exe missing" }
           if (-not (Test-Path "dist\Tuyi\_internal")) { throw "_internal runtime missing" }
 
+      - name: Sign exe if cert present
+        if: ${{ secrets.WINDOWS_CERT_P12 != '' }}
+        shell: pwsh
+        env:
+          WINDOWS_CERT_P12: ${{ secrets.WINDOWS_CERT_P12 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:TEMP "tuyi.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_P12))
+          $signtool = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\x64\signtool.exe"
+          if (-not (Test-Path $signtool)) { Write-Host "signtool missing, skip"; exit 0 }
+          & $signtool sign /fd SHA256 /f $pfx /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td SHA256 "dist\Tuyi\Tuyi.exe"
+
       - name: Update zip
         run: python installer/pack_update_zip.py
 
@@ -79,6 +96,29 @@ jobs:
             throw "Tuyi_v${version}_Setup.exe missing"
           }
 
+      - name: Sign setup if cert present
+        if: ${{ secrets.WINDOWS_CERT_P12 != '' }}
+        shell: pwsh
+        env:
+          WINDOWS_CERT_P12: ${{ secrets.WINDOWS_CERT_P12 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:TEMP "tuyi-setup.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_P12))
+          $signtool = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\x64\signtool.exe"
+          if (-not (Test-Path $signtool)) { Write-Host "signtool missing, skip"; exit 0 }
+          $version = "${{ steps.ver.outputs.version }}"
+          & $signtool sign /fd SHA256 /f $pfx /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td SHA256 "installer\Output\Tuyi_v${version}_Setup.exe"
+
+      - name: Appcast
+        shell: pwsh
+        run: |
+          $version = "${{ steps.ver.outputs.version }}"
+          $env:APP_VERSION = $version
+          $env:EXE = "installer\Output\Tuyi_v${version}_Setup.exe"
+          $env:ZIP = "dist\Tuyi_v${version}_windows_x64.zip"
+          python tools/gen_appcast.py
+
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
@@ -86,6 +126,8 @@ jobs:
           path: |
             installer/Output/Tuyi_v${{ steps.ver.outputs.version }}_Setup.exe
             dist/Tuyi_v${{ steps.ver.outputs.version }}_windows_x64.zip
+            dist/appcast.xml
+            dist/latest.yml
 
       - name: GitHub Release
         if: github.ref_type == 'tag'
@@ -96,6 +138,8 @@ jobs:
           files: |
             installer/Output/Tuyi_v${{ steps.ver.outputs.version }}_Setup.exe
             dist/Tuyi_v${{ steps.ver.outputs.version }}_windows_x64.zip
+            dist/appcast.xml
+            dist/latest.yml
           fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false

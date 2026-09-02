@@ -1,6 +1,18 @@
 {
   "changelog": [
     {
+      "version": "0.1.3",
+      "date": "2026年9月",
+      "title": "批量导入、Excel、应用内更新",
+      "content": [
+        "[新增] 批量导入：导出/导入 CSV 或 Excel，填译文后写回",
+        "[新增] 参数里改术语表；本任务可关掉术语",
+        "[新增] 批量暂停/停止/重试，还原目录结构，无 ODA 时输出改 DXF",
+        "[新增] 装好的应用可从 GitHub 下 zip 更新",
+        "[说明] 安装包仍不带 ODA，DWG 需本机自装 ODA File Converter"
+      ]
+    },
+    {
       "version": "0.1.2",
       "date": "2026年8月",
       "title": "Windows 安装包瘦身",

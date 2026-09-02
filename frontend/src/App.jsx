@@ -104,6 +104,9 @@ export default function App() {
     off: false,
     filename: false,
     glossary: true,
+    blocks: false,
+    tree: true,
+    odaDxf: true,
   });
   const [oda, setOda] = useState({ installed: false, path: "" });
   const [glossary, setGlossary] = useState(0);
@@ -271,7 +274,7 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({
           path,
-          include_blocks: false,
+          include_blocks: params.blocks,
           include_attribs: params.attribs,
           include_model: params.model,
           include_paper: params.paper,
@@ -301,6 +304,7 @@ export default function App() {
   function extractKey() {
     return JSON.stringify({
       attribs: params.attribs,
+      blocks: params.blocks,
       dims: params.dims,
       model: params.model,
       paper: params.paper,
@@ -486,7 +490,7 @@ export default function App() {
         body: JSON.stringify({
           output_dir: config.output_dir,
           translation_mode: modeKey(sourceLang, targetLang),
-          translate_blocks: false,
+          translate_blocks: params.blocks,
           include_attribs: params.attribs,
           enable_v02: params.dims,
           include_model: params.model,
@@ -499,6 +503,8 @@ export default function App() {
           skip_nonsource: filters.nonsource,
           translate_filename: params.filename,
           use_glossary: params.glossary,
+          preserve_tree: params.tree,
+          oda_fallback_dxf: params.odaDxf,
           output_format: "source",
           style: layout,
           ...enginePayload(engine, config),
@@ -541,7 +547,16 @@ export default function App() {
     }
   }
 
-  async function exportTable() {
+  function bytesToB64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    bytes.forEach((value) => {
+      binary += String.fromCharCode(value);
+    });
+    return btoa(binary);
+  }
+
+  async function exportTable(fmt = "csv") {
     if (!current && !visibleRows.length) {
       setStatus("先打开图纸。");
       return;
@@ -553,19 +568,27 @@ export default function App() {
           path: current,
           items: rows,
           translation_mode: modeKey(sourceLang, targetLang),
+          format: fmt,
         }),
       });
       const native = py();
       if (native?.save_table_file) {
-        const saved = await native.save_table_file(data.filename, data.csv);
+        const saved = await native.save_table_file(data.filename, data.csv || "", data.xlsx_b64 || "");
         if (saved?.path) setStatus(`表格已导出 → ${saved.path}`);
         return;
       }
-      const blob = new Blob([data.csv], { type: "text/csv;charset=utf-8" });
+      let blob;
+      if (fmt === "xlsx" && data.xlsx_b64) {
+        const binary = atob(data.xlsx_b64);
+        const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+        blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      } else {
+        blob = new Blob([data.csv], { type: "text/csv;charset=utf-8" });
+      }
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = data.filename || "图译表格.csv";
+      link.download = data.filename || (fmt === "xlsx" ? "图译表格.xlsx" : "图译表格.csv");
       link.click();
       URL.revokeObjectURL(url);
       setStatus(`表格已导出 ${asCount(data.count)} 条。`);
@@ -574,9 +597,9 @@ export default function App() {
     }
   }
 
-  async function applyTableCsv(text) {
+  async function applyTableCsv(text, xlsxB64 = "") {
     const csv = String(text || "");
-    if (!csv.trim()) {
+    if (!csv.trim() && !xlsxB64) {
       setStatus("表格是空的");
       return;
     }
@@ -593,6 +616,7 @@ export default function App() {
       method: "POST",
       body: JSON.stringify({
         csv,
+        xlsx_b64: xlsxB64,
         items,
         file: selected?.name || "",
       }),
@@ -611,7 +635,7 @@ export default function App() {
         return;
       }
       try {
-        await applyTableCsv(picked.text);
+        await applyTableCsv(picked.text, picked.xlsx_b64 || "");
       } catch (error) {
         setStatus(error.message);
       }
@@ -625,7 +649,11 @@ export default function App() {
     event.target.value = "";
     if (!file) return;
     try {
-      await applyTableCsv(await file.text());
+      if (/\.xlsx$/i.test(file.name)) {
+        await applyTableCsv("", bytesToB64(await file.arrayBuffer()));
+      } else {
+        await applyTableCsv(await file.text());
+      }
     } catch (error) {
       setStatus(error.message);
     }
@@ -882,7 +910,8 @@ export default function App() {
           <button type="button" className="tbtn pri" disabled={busy} onClick={startExport}>开始导出</button>
         ) : tab === "import" ? (
           <>
-            <button type="button" className="tbtn" disabled={busy} onClick={exportTable}>导出表格</button>
+            <button type="button" className="tbtn" disabled={busy} onClick={() => exportTable("csv")}>导出表格</button>
+            <button type="button" className="tbtn" disabled={busy} onClick={() => exportTable("xlsx")}>导出 Excel</button>
             <button type="button" className="tbtn" disabled={busy} onClick={importTable}>导入表格</button>
             <button type="button" className="tbtn pri" disabled={busy} onClick={writeBack}>写回</button>
             <button type="button" className="tbtn" disabled={busy} onClick={writeBackAll}>全部写回</button>
@@ -899,7 +928,7 @@ export default function App() {
 
       <input ref={cadInput} type="file" accept=".dxf,.dwg,application/dxf" multiple hidden onChange={onCadPicked} />
       <input ref={glossaryInput} type="file" accept=".json,.csv,.txt,.hcterms.json" hidden onChange={onGlossaryPicked} />
-      <input ref={tableInput} type="file" accept=".csv,.txt,text/csv" hidden onChange={onTablePicked} />
+      <input ref={tableInput} type="file" accept=".csv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={onTablePicked} />
 
       <div className="body">
         <aside
@@ -1055,6 +1084,8 @@ export default function App() {
                   }
                 }}>选取</button>
               </div>
+              <label className="row"><input type="checkbox" checked={params.tree} onChange={(event) => setParams((prev) => ({ ...prev, tree: event.target.checked }))} /> 还原目录结构</label>
+              <label className="row"><input type="checkbox" checked={params.odaDxf} onChange={(event) => setParams((prev) => ({ ...prev, odaDxf: event.target.checked }))} /> 无 ODA 时改写 DXF</label>
               <h3>过滤</h3>
               <label className="row"><input type="checkbox" checked={filters.numbers} onChange={(event) => setFilters((prev) => ({ ...prev, numbers: event.target.checked }))} /> 纯数字</label>
               <label className="row"><input type="checkbox" checked={filters.dupes} onChange={(event) => setFilters((prev) => ({ ...prev, dupes: event.target.checked }))} /> 重复</label>
@@ -1088,6 +1119,7 @@ export default function App() {
                 <div className="group">
                   <h4>导入范围</h4>
                   <label><input type="checkbox" checked={params.attribs} onChange={(event) => setParams((prev) => ({ ...prev, attribs: event.target.checked }))} /> 块属性</label>
+                  <label><input type="checkbox" checked={params.blocks} onChange={(event) => setParams((prev) => ({ ...prev, blocks: event.target.checked }))} /> 块内文字</label>
                   <label><input type="checkbox" checked={params.dims} onChange={(event) => setParams((prev) => ({ ...prev, dims: event.target.checked }))} /> 标注、表格</label>
                   <label><input type="checkbox" checked={params.model} onChange={(event) => setParams((prev) => ({ ...prev, model: event.target.checked }))} /> 模型空间</label>
                   <label><input type="checkbox" checked={params.filename} onChange={(event) => setParams((prev) => ({ ...prev, filename: event.target.checked }))} /> 同时翻译文件名</label>
@@ -1105,6 +1137,8 @@ export default function App() {
                   <label><input type="checkbox" checked={filters.dupes} onChange={(event) => setFilters((prev) => ({ ...prev, dupes: event.target.checked }))} /> 重复内容</label>
                   <label><input type="checkbox" checked={filters.nonsource} onChange={(event) => setFilters((prev) => ({ ...prev, nonsource: event.target.checked }))} /> 非源语言</label>
                   <label><input type="checkbox" checked={params.glossary} onChange={(event) => setParams((prev) => ({ ...prev, glossary: event.target.checked }))} /> 本任务使用术语表</label>
+                  <label><input type="checkbox" checked={params.tree} onChange={(event) => setParams((prev) => ({ ...prev, tree: event.target.checked }))} /> 还原目录结构</label>
+                  <label><input type="checkbox" checked={params.odaDxf} onChange={(event) => setParams((prev) => ({ ...prev, odaDxf: event.target.checked }))} /> 无 ODA 时改写 DXF</label>
                 </div>
                 <div className="group">
                   <h4>导出版式</h4>

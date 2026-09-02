@@ -87,6 +87,24 @@ class PlatformCompatibilityTests(unittest.TestCase):
         ci = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("unittest discover", ci)
         self.assertIn("npm run build", ci)
+        self.assertIn("PYTHONUTF8", ci)
+
+    def test_safe_log_survives_cp1252_stdout(self):
+        from backend.translator import CADChineseTranslator
+
+        class LatinStdout:
+            encoding = "cp1252"
+
+            def write(self, text):
+                text.encode("cp1252")
+                return len(text)
+
+            def flush(self):
+                return None
+
+        translator = CADChineseTranslator(log_callback=None)
+        with patch("backend.translator.sys.stdout", LatinStdout()):
+            translator.safe_log("块参照 PANEL 中发现 1 个块内文字")
 
     def test_frozen_cli_exe_dispatches_to_cli(self):
         import run

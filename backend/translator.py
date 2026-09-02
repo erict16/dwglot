@@ -14,6 +14,22 @@ from pathlib import Path
 import deepl
 import yaml
 
+def _print_safe(text: str) -> None:
+    try:
+        print(text)
+        return
+    except UnicodeEncodeError:
+        pass
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    payload = (str(text) + "\n").encode(encoding, errors="replace")
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is not None:
+        buffer.write(payload)
+        buffer.flush()
+        return
+    sys.stdout.write(payload.decode(encoding, errors="replace"))
+
+
 try:  # The removed legacy GUI is retained only for config compatibility tests.
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox
@@ -229,15 +245,16 @@ class CADChineseTranslator:
             except Exception:
                 self.safe_log(" DeepL 初始化失败")
     def safe_log(self, message, level="INFO"):
+        line = f"[{level}][无日志回调]: {message}"
         if not self.log_callback:
-            print(f"[{level}][无日志回调]:", message)
+            _print_safe(line)
             return
         try:
             cleaned = self.cleaner.clean_for_log(message)
             self.log_callback(cleaned, level=level)
         except Exception as e:
-            print("[日志记录失败]", e)
-            print("原始日志内容:", repr(message))
+            _print_safe(f"[日志记录失败] {e}")
+            _print_safe(f"原始日志内容: {message!r}")
 
     def configure_azure(self, key, region=""):
         self.translation_provider = "azure"
@@ -491,7 +508,9 @@ class CADChineseTranslator:
             self.safe_log(f"✔ 术语表命中 ({lang_config['name']}): \"{cleaned}\" → \"{final}\"")
             return final
 
-        memory_translation = self.language_assets.lookup_memory(cleaned, lang_config_key, layer)
+        memory_translation = None
+        if self.use_glossary:
+            memory_translation = self.language_assets.lookup_memory(cleaned, lang_config_key, layer)
         if memory_translation:
             final = self.cleaner.safe_utf8(self.cleaner.full_clean(memory_translation)).strip()
             self.translated_cache[cache_key] = final
@@ -754,6 +773,17 @@ class CADChineseTranslator:
         from ezdxf.lldxf.types import DXFTag
         old_text = tag.value
         tags[index] = DXFTag(302, text)
+        for neighbor_index, neighbor in enumerate(tags):
+            code = getattr(neighbor, "code", None)
+            if neighbor_index == index or code not in {1, 303}:
+                continue
+            if neighbor.value == old_text:
+                tags[neighbor_index] = DXFTag(code, text)
+        try:
+            if hasattr(entity.dxf, "revision"):
+                entity.dxf.revision = int(getattr(entity.dxf, "revision", 0) or 0) + 1
+        except Exception:
+            pass
         self._sync_acad_table_preview_block(entity, old_text, text)
 
     def _sync_acad_table_preview_block(self, entity, old_text, new_text):

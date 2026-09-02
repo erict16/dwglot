@@ -3,7 +3,7 @@
 
 #define MyAppName "图译"
 #ifndef MyAppVersion
-#define MyAppVersion "0.1.2"
+#define MyAppVersion "0.1.3"
 #endif
 #define MyAppPublisher "Eric Tan"
 #define MyAppExeName "Tuyi.exe"
