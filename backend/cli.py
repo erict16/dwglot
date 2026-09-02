@@ -42,6 +42,7 @@ def translate_one(
     translate_filename: bool,
     glossary: str,
     provider: str = "",
+    style: str = "纯译文",
 ) -> dict:
     from backend.api import service
     from backend.drawings import translate_drawing
@@ -69,6 +70,7 @@ def translate_one(
             project_package_path=project or "",
             provider=provider,
             engine=engine,
+            style=style,
         )
 
 
@@ -90,6 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
     translate.add_argument("--translate-filename", action="store_true", default=False)
     translate.add_argument("--output-dir", default="")
     translate.add_argument("--glossary", default="", help="optional project terminology JSON")
+    translate.add_argument("--style", default="纯译文", help="纯译文 / 原译对照 / 译原对照")
     return parser
 
 
@@ -124,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
                 translate_filename=args.translate_filename,
                 glossary=args.glossary,
                 provider=args.provider,
+                style=args.style,
             )
         except FileNotFoundError as exc:
             print(_chinese_error(exc, "图纸不存在"), file=sys.stderr)

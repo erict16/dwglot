@@ -57,6 +57,18 @@ class TableCsvUnitTests(unittest.TestCase):
         self.assertEqual(filled[0]["target"], "")
         self.assertEqual(filled[1]["target"], "CODE")
 
+    def test_xlsx_roundtrip(self):
+        from backend.table_xlsx import export_table_xlsx, parse_table_xlsx
+
+        items = [
+            {"handle": "A1", "field": "text", "source": "天花图", "target": "ceiling", "layer": "0", "type": "TEXT"},
+        ]
+        payload = export_table_xlsx(items, "floor_plan.dxf")
+        parsed = parse_table_xlsx(payload)
+        self.assertEqual(parsed[0]["source"], "天花图")
+        self.assertEqual(parsed[0]["target"], "ceiling")
+        self.assertEqual(parsed[0]["handle"], "A1")
+
     def test_chinese_headers_and_empty(self):
         parsed = parse_table_csv("原文,译文\n天花图,ceiling\n")
         self.assertEqual(parsed[0]["source"], "天花图")

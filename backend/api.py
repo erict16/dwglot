@@ -1,6 +1,7 @@
 """FastAPI backend for the React web UI."""
 
 import asyncio
+import base64
 from collections import deque
 import json
 import os
@@ -162,6 +163,8 @@ class BatchStartBody(BaseModel):
     skip_nonsource: bool = True
     translate_filename: bool = False
     use_glossary: bool = True
+    preserve_tree: bool = True
+    oda_fallback_dxf: bool = True
 
 
 class ExtractBody(BaseModel):
@@ -258,16 +261,19 @@ class TableExportBody(BaseModel):
     path: str = ""
     items: list[dict] = []
     translation_mode: str = "zh_to_en"
+    format: str = "csv"
 
 
 class TablePreviewBody(BaseModel):
     csv: str = ""
+    xlsx_b64: str = ""
     items: list[dict] = []
     file: str = ""
 
 
 class BatchImportBody(BaseModel):
     csv: str = ""
+    xlsx_b64: str = ""
     files: list[str] = []
     output_dir: str = ""
     translation_mode: str = "zh_to_en"
@@ -321,12 +327,15 @@ class TranslationService:
         problem = batch_path_problem(path)
         if problem:
             raise _fatal_batch_error(problem)
-        if task.get("output_format") == "dwg" and not odafc_available():
-            raise _fatal_batch_error(dwg_unavailable_short())
         provider = task.get("provider", "deepl")
         config = self.load_config()
         engine = self._engine_from(config, task)
         fmt = task.get("output_format", "source")
+        if fmt == "dwg" and not odafc_available():
+            if task.get("oda_fallback_dxf", True):
+                fmt = "dxf"
+            else:
+                raise _fatal_batch_error(dwg_unavailable_short())
         ext = os.path.splitext(path)[1] if fmt == "source" else f".{fmt}"
         translator = CADChineseTranslator(log_callback=log)
         translator.configure_language_assets(task.get("project_package_path") or config.get("project_package_path", ""))
@@ -440,14 +449,27 @@ class TranslationService:
         """Reserve a distinct output path before concurrent work starts."""
         if task.get("_output_path"):
             return task["_output_path"]
-        base = os.path.join(task["output_dir"], name + ext)
+        directory = task["output_dir"]
+        if task.get("preserve_tree"):
+            root = task.get("tree_root") or ""
+            source_dir = os.path.dirname(os.path.abspath(task.get("input_file") or ""))
+            dropped = str(self.dropped_files_dir.resolve())
+            if root and source_dir and not source_dir.startswith(dropped):
+                try:
+                    relative = os.path.relpath(source_dir, root)
+                except ValueError:
+                    relative = ""
+                if relative and relative != "." and not relative.startswith(".."):
+                    directory = os.path.join(task["output_dir"], relative)
+                    os.makedirs(directory, exist_ok=True)
+        base = os.path.join(directory, name + ext)
         candidate = base
         with self._output_lock:
             if candidate in self._reserved_outputs or os.path.exists(candidate):
-                candidate = os.path.join(task["output_dir"], f"{name}_{task['id'][:8]}{ext}")
+                candidate = os.path.join(directory, f"{name}_{task['id'][:8]}{ext}")
             suffix = 1
             while candidate in self._reserved_outputs or os.path.exists(candidate):
-                candidate = os.path.join(task["output_dir"], f"{name}_{task['id'][:8]}_{suffix}{ext}")
+                candidate = os.path.join(directory, f"{name}_{task['id'][:8]}_{suffix}{ext}")
                 suffix += 1
             self._reserved_outputs.add(candidate)
         task["_output_path"] = candidate
@@ -1065,11 +1087,14 @@ def add_batch(body: BatchBody):
 def drawings_export_table(body: TableExportBody):
     try:
         split_mode(body.translation_mode)
+        fmt = (body.format or "csv").strip().lower()
+        if fmt not in {"csv", "xlsx"}:
+            raise HTTPException(status_code=400, detail="表格只支持 CSV / Excel")
         if body.items:
-            return table_csv_for_path(body.path, body.items, mode=body.translation_mode)
+            return table_csv_for_path(body.path, body.items, mode=body.translation_mode, fmt=fmt)
         if not body.path:
             raise HTTPException(status_code=400, detail="请选择 CAD 文件")
-        return table_csv_for_path(body.path, mode=body.translation_mode)
+        return table_csv_for_path(body.path, mode=body.translation_mode, fmt=fmt)
     except HTTPException:
         raise
     except FileNotFoundError as exc:
@@ -1080,10 +1105,20 @@ def drawings_export_table(body: TableExportBody):
         raise HTTPException(status_code=400, detail="导出表格失败") from None
 
 
+def _xlsx_bytes(b64: str) -> bytes | None:
+    text = (b64 or "").strip()
+    if not text:
+        return None
+    try:
+        return base64.b64decode(text)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Excel 表格读不出来") from exc
+
+
 @app.post("/api/drawings/import-table")
 def drawings_import_table(body: TablePreviewBody):
     try:
-        return preview_table_csv(body.items, body.csv, file_name=body.file)
+        return preview_table_csv(body.items, body.csv, file_name=body.file, xlsx=_xlsx_bytes(body.xlsx_b64))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=_chinese_detail(exc, "导入表格失败")) from exc
     except Exception:
@@ -1103,6 +1138,7 @@ def batch_import(body: BatchImportBody):
             mode=body.translation_mode,
             style=body.style,
             translate_filename=body.translate_filename,
+            xlsx=_xlsx_bytes(body.xlsx_b64),
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=_chinese_detail(exc, "图纸不存在")) from exc

@@ -76,7 +76,11 @@ class BatchQueue:
         lower = str(path).lower()
         if not lower.endswith((".dxf", ".dwg")):
             return f"无效 CAD 文件: {path}"
-        if (lower.endswith(".dwg") or output_format == "dwg") and not odafc_available():
+        if lower.endswith(".dwg") and not odafc_available():
+            return dwg_unavailable_short()
+        if output_format == "dwg" and not odafc_available():
+            if task.get("oda_fallback_dxf", True):
+                return None
             return dwg_unavailable_short()
         return None
 
@@ -202,6 +206,9 @@ class BatchQueue:
                             translate_filename=settings.get("translate_filename", False),
                             use_glossary=settings.get("use_glossary", True),
                             project_package_path=settings.get("project_package_path", ""),
+                            preserve_tree=settings.get("preserve_tree", True),
+                            oda_fallback_dxf=settings.get("oda_fallback_dxf", True),
+                            tree_root=settings.get("tree_root", ""),
                             status="queued", progress=0,
                             retries=0, output_file="", message="等待中", logs=[], _key=settings.get("api_key") or settings.get("deepl_key", ""),
                         )
@@ -210,6 +217,15 @@ class BatchQueue:
                         if reason:
                             task.update(status="failed", message=reason)
                             task.pop("_key", None)
+                if settings.get("preserve_tree", True):
+                    dirs = [
+                        os.path.dirname(os.path.abspath(task.get("input_file") or ""))
+                        for task in self.tasks
+                        if task.get("input_file")
+                    ]
+                    root = os.path.commonpath(dirs) if dirs else ""
+                    for task in self.tasks:
+                        task["tree_root"] = root
             self.started = True
             self.paused = False
             self.resumable = False

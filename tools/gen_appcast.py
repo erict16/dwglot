@@ -34,12 +34,25 @@ def main() -> None:
     tag = os.environ.get("RELEASE_TAG") or f"v{version}"
     dmg = Path(os.environ["DMG"]) if os.environ.get("DMG") else None
     exe = Path(os.environ["EXE"]) if os.environ.get("EXE") else None
+    zip_asset = Path(os.environ["ZIP"]) if os.environ.get("ZIP") else None
     out = Path(os.environ.get("OUT") or "dist")
     out.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000")
     html = f"{GITHUB_URL}/releases/tag/{tag}"
 
     items = []
+    if zip_asset and zip_asset.is_file():
+        url = f"{GITHUB_URL}/releases/download/{tag}/{zip_asset.name}"
+        items.append(
+            f"""    <item>
+      <title>图译 {version} zip</title>
+      <pubDate>{now}</pubDate>
+      <link>{html}</link>
+      <sparkle:version>{version}</sparkle:version>
+      <sparkle:shortVersionString>{version}</sparkle:shortVersionString>
+      <enclosure url="{url}" length="{zip_asset.stat().st_size}" type="application/zip"/>
+    </item>"""
+        )
     if dmg and dmg.is_file():
         url = f"{GITHUB_URL}/releases/download/{tag}/{dmg.name}"
         items.append(

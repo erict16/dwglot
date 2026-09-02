@@ -27,6 +27,7 @@ from backend.languages import split_mode
 from backend.mtext_runs import map_translatable
 from backend.styles import register_cjk_font, rewrite_shx_styles
 from backend.table_csv import apply_table_rows, export_table_csv, parse_table_csv
+from backend.table_xlsx import export_table_xlsx, parse_table_payload
 from backend.translator import CADChineseTranslator, output_prefix
 from backend.storage import atomic_output_path
 
@@ -430,7 +431,7 @@ def translate_rows(
             if hit:
                 used["glossary"] = True
                 return hit
-            memory = translator.language_assets.lookup_memory(text, mode, layer)
+            memory = translator.language_assets.lookup_memory(text, mode, layer) if translator.use_glossary else None
             if memory:
                 used["glossary"] = True
                 return memory
@@ -567,17 +568,34 @@ def writeback_rows(
     }
 
 
-def table_csv_for_path(path: str, items: list[dict] | None = None, *, mode: str = "zh_to_en") -> dict:
+def table_csv_for_path(
+    path: str,
+    items: list[dict] | None = None,
+    *,
+    mode: str = "zh_to_en",
+    fmt: str = "csv",
+) -> dict:
     if items is None:
         items = extract_preview(path, mode=mode, **REGULAR_EXTRACT)["items"]
     name = Path(path).name if path else "drawing.dxf"
-    csv_text = export_table_csv(items, name)
     stem = strip_cad_suffix(Path(name).name) or "drawing"
-    return {"csv": csv_text, "filename": f"{stem}.csv", "count": len(items), "items": items}
+    if fmt == "xlsx":
+        import base64
+
+        payload = export_table_xlsx(items, name)
+        return {
+            "csv": "",
+            "xlsx_b64": base64.b64encode(payload).decode("ascii"),
+            "filename": f"{stem}.xlsx",
+            "count": len(items),
+            "items": items,
+        }
+    csv_text = export_table_csv(items, name)
+    return {"csv": csv_text, "xlsx_b64": "", "filename": f"{stem}.csv", "count": len(items), "items": items}
 
 
-def preview_table_csv(items: list[dict], csv_text: str, file_name: str = "") -> dict:
-    imported = parse_table_csv(csv_text)
+def preview_table_csv(items: list[dict], csv_text: str, file_name: str = "", xlsx: bytes | None = None) -> dict:
+    imported = parse_table_payload(csv=csv_text, xlsx=xlsx)
     if not imported:
         raise ValueError("表格是空的")
     filled, applied = apply_table_rows(items, imported, file_name=file_name)
@@ -592,8 +610,9 @@ def import_table_writeback(
     mode: str = "zh_to_en",
     style: str = "纯译文",
     translate_filename: bool = False,
+    xlsx: bytes | None = None,
 ) -> dict:
-    imported = parse_table_csv(csv_text)
+    imported = parse_table_payload(csv=csv_text, xlsx=xlsx)
     if not imported:
         raise ValueError("表格是空的")
     paths = [path for path in files if path]

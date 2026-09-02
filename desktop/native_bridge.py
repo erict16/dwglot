@@ -81,14 +81,18 @@ class NativeBridge:
         return {"path": path or ""}
 
     def pick_table_file(self) -> dict:
-        paths = self._open_dialog(file_types=("CSV (*.csv)", "Text files (*.txt)"))
+        paths = self._open_dialog(file_types=("表格 (*.csv;*.xlsx)", "CSV (*.csv)", "Excel (*.xlsx)", "Text files (*.txt)"))
         path = paths[0] if paths else ""
         if not path:
-            return {"path": "", "text": ""}
+            return {"path": "", "text": "", "xlsx_b64": ""}
         try:
             raw = Path(path).read_bytes()
         except OSError:
-            return {"path": path, "text": "", "error": "表格读不出来"}
+            return {"path": path, "text": "", "xlsx_b64": "", "error": "表格读不出来"}
+        import base64
+
+        if path.lower().endswith(".xlsx"):
+            return {"path": path, "text": "", "xlsx_b64": base64.b64encode(raw).decode("ascii")}
         text = ""
         for encoding in ("utf-8-sig", "utf-8", "gb18030"):
             try:
@@ -97,14 +101,20 @@ class NativeBridge:
             except UnicodeDecodeError:
                 continue
         if not text.strip() and raw.strip():
-            return {"path": path, "text": "", "error": "表格读不出来"}
-        return {"path": path, "text": text}
+            return {"path": path, "text": "", "xlsx_b64": "", "error": "表格读不出来"}
+        return {"path": path, "text": text, "xlsx_b64": ""}
 
-    def save_table_file(self, filename: str = "图译表格.csv", content: str = "") -> dict:
-        path = self._save_dialog(filename or "图译表格.csv", ("CSV (*.csv)",))
+    def save_table_file(self, filename: str = "图译表格.csv", content: str = "", xlsx_b64: str = "") -> dict:
+        suffix = ".xlsx" if (filename or "").lower().endswith(".xlsx") or xlsx_b64 else ".csv"
+        types = ("Excel (*.xlsx)",) if suffix == ".xlsx" else ("CSV (*.csv)",)
+        path = self._save_dialog(filename or f"图译表格{suffix}", types)
         if not path:
             return {"path": ""}
-        if content:
+        if xlsx_b64:
+            import base64
+
+            Path(path).write_bytes(base64.b64decode(xlsx_b64))
+        elif content:
             Path(path).write_text(content, encoding="utf-8-sig")
         return {"path": path}
 

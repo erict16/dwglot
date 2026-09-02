@@ -491,7 +491,9 @@ class CADChineseTranslator:
             self.safe_log(f"✔ 术语表命中 ({lang_config['name']}): \"{cleaned}\" → \"{final}\"")
             return final
 
-        memory_translation = self.language_assets.lookup_memory(cleaned, lang_config_key, layer)
+        memory_translation = None
+        if self.use_glossary:
+            memory_translation = self.language_assets.lookup_memory(cleaned, lang_config_key, layer)
         if memory_translation:
             final = self.cleaner.safe_utf8(self.cleaner.full_clean(memory_translation)).strip()
             self.translated_cache[cache_key] = final
@@ -754,6 +756,17 @@ class CADChineseTranslator:
         from ezdxf.lldxf.types import DXFTag
         old_text = tag.value
         tags[index] = DXFTag(302, text)
+        for neighbor_index, neighbor in enumerate(tags):
+            code = getattr(neighbor, "code", None)
+            if neighbor_index == index or code not in {1, 303}:
+                continue
+            if neighbor.value == old_text:
+                tags[neighbor_index] = DXFTag(code, text)
+        try:
+            if hasattr(entity.dxf, "revision"):
+                entity.dxf.revision = int(getattr(entity.dxf, "revision", 0) or 0) + 1
+        except Exception:
+            pass
         self._sync_acad_table_preview_block(entity, old_text, text)
 
     def _sync_acad_table_preview_block(self, entity, old_text, new_text):
