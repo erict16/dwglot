@@ -78,6 +78,7 @@ class PlatformCompatibilityTests(unittest.TestCase):
         self.assertNotIn("v0.1.2", win)
         self.assertNotIn("|| 'v0.1.2'", win)
         self.assertIn("macos-latest", mac)
+        self.assertNotIn("macos-13", mac)
         self.assertIn("build_macos.py", mac)
         self.assertIn("unittest discover", win)
         self.assertIn("unittest discover", mac)
@@ -144,7 +145,11 @@ class PlatformCompatibilityTests(unittest.TestCase):
     def test_windows_keeps_edgechromium_and_exe_candidates(self):
         with patch("desktop.launcher.sys.platform", "win32"):
             self.assertEqual(_webview_gui(), "edgechromium")
-        with patch("backend.cad.sys.platform", "win32"), patch.dict(os.environ, {}, clear=True):
+        with (
+            patch("backend.cad.sys.platform", "win32"),
+            patch("backend.cad.shutil.which", return_value=None),
+            patch.dict(os.environ, {}, clear=True),
+        ):
             candidates = cad.odafc_candidate_paths()
         self.assertTrue(any(path.name == "ODAFileConverter.exe" for path in candidates))
         self.assertIn(Path(cad.ODA_SYSTEM_EXE), candidates)

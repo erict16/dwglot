@@ -15,16 +15,7 @@ env:
 
 jobs:
   macos:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            arch: arm64
-          - os: macos-13
-            arch: x86_64
-    runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.arch == 'x86_64' }}
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -76,7 +67,6 @@ jobs:
           fi
 
       - name: Appcast
-        if: matrix.arch == 'arm64'
         run: |
           dmg=(dist/Tuyi_v${{ steps.ver.outputs.version }}_macOS_*.dmg)
           APP_VERSION="${{ steps.ver.outputs.version }}" DMG="${dmg[0]}" python tools/gen_appcast.py
@@ -84,7 +74,7 @@ jobs:
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
-          name: macos-${{ matrix.arch }}
+          name: macos-arm64
           path: |
             dist/Tuyi_v${{ steps.ver.outputs.version }}_macOS_*.dmg
             dist/Tuyi_v${{ steps.ver.outputs.version }}_macOS_*.zip
