@@ -27,8 +27,20 @@ from backend.cad import ODA_OUTPUT_VERSIONS, analyze_source, dwg_unavailable_sho
 from backend.translator import CADChineseTranslator, CONFIG_PATH, load_yaml_data, output_prefix, resource_path
 from backend.language_assets import LanguageAssets
 from backend.storage import atomic_write_json, quarantine_corrupt_file
-from backend.updates import check_github_release, unavailable_payload
-from backend.drawings import build_output_name, ensure_output_dir, extract_preview, export_pdf, print_pdf, translate_cjk_filename_stem, translate_rows, writeback_rows
+from backend.updates import ApplyError, check_github_release, start_apply, unavailable_payload, update_status
+from backend.drawings import (
+    build_output_name,
+    ensure_output_dir,
+    extract_preview,
+    export_pdf,
+    import_table_writeback,
+    preview_table_csv,
+    print_pdf,
+    table_csv_for_path,
+    translate_cjk_filename_stem,
+    translate_rows,
+    writeback_rows,
+)
 from backend.languages import split_mode
 
 ENGINE_PROVIDERS = {"deepl", "azure", "openai", "ollama"}
@@ -149,6 +161,7 @@ class BatchStartBody(BaseModel):
     skip_dupes: bool = True
     skip_nonsource: bool = True
     translate_filename: bool = False
+    use_glossary: bool = True
 
 
 class ExtractBody(BaseModel):
@@ -183,6 +196,7 @@ class TranslateRowsBody(BaseModel):
     skip_numbers: bool = True
     skip_dupes: bool = True
     skip_nonsource: bool = True
+    use_glossary: bool = True
 
 
 class WritebackBody(BaseModel):
@@ -240,6 +254,27 @@ class ImportTermsBody(BaseModel):
     project_package_path: str = ""
 
 
+class TableExportBody(BaseModel):
+    path: str = ""
+    items: list[dict] = []
+    translation_mode: str = "zh_to_en"
+
+
+class TablePreviewBody(BaseModel):
+    csv: str = ""
+    items: list[dict] = []
+    file: str = ""
+
+
+class BatchImportBody(BaseModel):
+    csv: str = ""
+    files: list[str] = []
+    output_dir: str = ""
+    translation_mode: str = "zh_to_en"
+    style: str = "纯译文"
+    translate_filename: bool = False
+
+
 class TranslationService:
     def __init__(self):
         self.status = "idle"
@@ -295,6 +330,7 @@ class TranslationService:
         ext = os.path.splitext(path)[1] if fmt == "source" else f".{fmt}"
         translator = CADChineseTranslator(log_callback=log)
         translator.configure_language_assets(task.get("project_package_path") or config.get("project_package_path", ""))
+        translator.use_glossary = task.get("use_glossary", True)
         translator.configure_engine(provider, **engine)
         stem = Path(path).stem
         if task.get("translate_filename"):
@@ -655,6 +691,23 @@ def updates_check():
         return unavailable_payload("GitHub API 暂不可用，打开 Releases 页查看")
 
 
+@app.get("/api/updates/status")
+def updates_status():
+    return update_status()
+
+
+@app.post("/api/updates/apply")
+def updates_apply():
+    if service.batch.started:
+        raise HTTPException(status_code=400, detail="请先停止翻译队列")
+    try:
+        return start_apply()
+    except ApplyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception:
+        raise HTTPException(status_code=400, detail="更新失败")
+
+
 @app.post("/api/drawings/open")
 async def drawings_open(files: list[UploadFile] = File(default=[])):
     if not files:
@@ -712,6 +765,7 @@ def drawings_translate(body: TranslateRowsBody):
             skip_numbers=body.skip_numbers,
             skip_dupes=body.skip_dupes,
             skip_nonsource=body.skip_nonsource,
+            use_glossary=body.use_glossary,
         )
     except (ValueError, TranslationProviderError) as exc:
         raise HTTPException(status_code=400, detail=_chinese_detail(exc, "翻译失败")) from exc
@@ -1007,12 +1061,55 @@ def add_batch(body: BatchBody):
         raise HTTPException(status_code=400, detail=str(exc) or "无法加入队列") from exc
 
 
-BATCH_IMPORT_NOT_READY = "批量导入还没做，请用常规处理写回"
+@app.post("/api/drawings/export-table")
+def drawings_export_table(body: TableExportBody):
+    try:
+        split_mode(body.translation_mode)
+        if body.items:
+            return table_csv_for_path(body.path, body.items, mode=body.translation_mode)
+        if not body.path:
+            raise HTTPException(status_code=400, detail="请选择 CAD 文件")
+        return table_csv_for_path(body.path, mode=body.translation_mode)
+    except HTTPException:
+        raise
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=_chinese_detail(exc, "图纸不存在")) from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=_chinese_detail(exc, "导出表格失败")) from exc
+    except Exception:
+        raise HTTPException(status_code=400, detail="导出表格失败") from None
+
+
+@app.post("/api/drawings/import-table")
+def drawings_import_table(body: TablePreviewBody):
+    try:
+        return preview_table_csv(body.items, body.csv, file_name=body.file)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=_chinese_detail(exc, "导入表格失败")) from exc
+    except Exception:
+        raise HTTPException(status_code=400, detail="导入表格失败") from None
 
 
 @app.post("/api/batch/import")
-def batch_import():
-    raise HTTPException(status_code=501, detail=BATCH_IMPORT_NOT_READY)
+def batch_import(body: BatchImportBody):
+    output_dir = body.output_dir or service.load_config().get("output_dir") or service.default_output_dir()
+    try:
+        ensure_output_dir(output_dir)
+        split_mode(body.translation_mode)
+        return import_table_writeback(
+            body.files,
+            body.csv,
+            output_dir=output_dir,
+            mode=body.translation_mode,
+            style=body.style,
+            translate_filename=body.translate_filename,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=_chinese_detail(exc, "图纸不存在")) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=_chinese_detail(exc, "导入失败")) from exc
+    except Exception:
+        raise HTTPException(status_code=400, detail="导入失败") from None
 
 
 @app.post("/api/batch/drop")

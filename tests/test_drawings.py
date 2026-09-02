@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -32,6 +34,7 @@ from backend.translator import CADChineseTranslator
 from backend.updates import check_github_release
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+_SKIP_WIN_PRINT = unittest.skipIf(sys.platform == "win32", "print_pdf uses os.startfile on Windows")
 
 
 def _pdf_text(path: Path) -> str:
@@ -44,6 +47,8 @@ def _pdf_text(path: Path) -> str:
 def _pdf_dark_pixels(path: Path) -> int:
     from PIL import Image
 
+    if shutil.which("pdftoppm") is None:
+        raise unittest.SkipTest("pdftoppm not installed")
     with tempfile.TemporaryDirectory() as tmp:
         prefix = Path(tmp) / "page"
         subprocess.run(["pdftoppm", "-png", "-r", "120", str(path), str(prefix)], check=True)
@@ -601,8 +606,9 @@ class DrawingsLoopTests(unittest.TestCase):
     def test_dwg_without_oda_is_a_clear_error(self):
         dwg = self.root / "no_oda.dwg"
         dwg.write_bytes(b"AC1032" + b"\x00" * 32)
-        with self.assertRaisesRegex(RuntimeError, "ODA"):
-            extract_preview(str(dwg))
+        with patch("backend.drawings.odafc_available", return_value=False):
+            with self.assertRaisesRegex(RuntimeError, "ODA"):
+                extract_preview(str(dwg))
 
     def test_pdf_cjk_uses_bundled_noto_and_is_not_tofu(self):
         font_path = bundled_font_path()
@@ -1324,6 +1330,7 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertFalse(printed_body["print"]["ok"])
         _assert_cjk_pdf(self, Path(printed_body["path"]), min_ink=800)
 
+    @_SKIP_WIN_PRINT
     def test_export_pdf_and_print_empty_layout1(self):
         dxf = FIXTURES / "floor_plan.dxf"
         self.assertTrue(dxf.is_file(), "tests/fixtures/floor_plan.dxf")
@@ -1362,6 +1369,7 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertIn("打印命令", printed_body["print"]["message"])
         self.assertNotIn("Traceback", printed_body["print"]["message"])
 
+    @_SKIP_WIN_PRINT
     def test_export_pdf_and_print_empty_drawing(self):
         dxf = Path(self.tmp.name) / "empty.dxf"
         ezdxf.new("R2010").saveas(dxf)
@@ -1398,6 +1406,7 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertIn("打印命令", printed_body["print"]["message"])
         self.assertNotIn("Traceback", printed_body["print"]["message"])
 
+    @_SKIP_WIN_PRINT
     def test_export_pdf_print_after(self):
         with patch("backend.drawings.shutil.which", return_value=None), patch(
             "backend.drawings.subprocess.run", side_effect=AssertionError("lp must not run")
@@ -1441,6 +1450,7 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertEqual(run.call_count, 1)
         _assert_cjk_pdf(self, Path(ok_body["path"]), min_ink=800)
 
+    @_SKIP_WIN_PRINT
     def test_print_without_lp_keeps_cjk_pdf(self):
         dest = Path(self.tmp.name) / "print.pdf"
         pdf = export_pdf(str(self.dxf), str(dest))
@@ -1471,6 +1481,7 @@ class DrawingsApiTests(unittest.TestCase):
             floor = export_pdf(str(committed), str(Path(self.tmp.name) / "floor_print.pdf"))
             _assert_cjk_pdf(self, Path(floor["path"]), min_ink=800)
 
+    @_SKIP_WIN_PRINT
     def test_print_timeout_is_calm(self):
         dest = Path(self.tmp.name) / "timeout.pdf"
         pdf = export_pdf(str(self.dxf), str(dest))
@@ -1484,6 +1495,7 @@ class DrawingsApiTests(unittest.TestCase):
         self.assertNotIn("Traceback", result["message"])
         self.assertLessEqual(PRINT_TIMEOUT, 5.0)
 
+    @_SKIP_WIN_PRINT
     def test_print_lp_fail_is_chinese(self):
         dest = Path(self.tmp.name) / "lp_fail.pdf"
         pdf = export_pdf(str(self.dxf), str(dest))
@@ -1538,8 +1550,23 @@ class DrawingsApiTests(unittest.TestCase):
     def test_frontend_import_tab_is_honest(self):
         source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
         text = source.read_text(encoding="utf-8")
-        self.assertIn("批量导入还没做。", text)
+        self.assertIn("导出表格", text)
+        self.assertIn("导入表格", text)
+        self.assertIn("全部写回", text)
+        self.assertIn("/api/batch/import", text)
+        self.assertNotIn("批量导入还没做。", text)
         self.assertNotIn("人工 Excel 回填", text)
+
+    def test_frontend_batch_and_glossary_controls(self):
+        source = Path(__file__).resolve().parents[1] / "frontend" / "src" / "App.jsx"
+        text = source.read_text(encoding="utf-8")
+        self.assertIn("暂停", text)
+        self.assertIn("停止", text)
+        self.assertIn("重试", text)
+        self.assertIn("本任务使用术语表", text)
+        self.assertIn("导出术语", text)
+        self.assertIn("use_glossary: params.glossary", text)
+        self.assertIn('style: fromWriteback ? "纯译文" : layout', text)
 
     def test_open_dwg_without_oda_rejected(self):
         from backend.cad import odafc_available

@@ -45,7 +45,10 @@ jobs:
       - name: Python deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          pip install -r requirements.txt pyinstaller httpx
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests
 
       - name: PyInstaller
         shell: pwsh
@@ -54,6 +57,9 @@ jobs:
           if (-not (Test-Path "dist\Tuyi\Tuyi.exe")) { throw "Tuyi.exe missing" }
           if (-not (Test-Path "dist\Tuyi\tuyi-cli.exe")) { throw "tuyi-cli.exe missing" }
           if (-not (Test-Path "dist\Tuyi\_internal")) { throw "_internal runtime missing" }
+
+      - name: Update zip
+        run: python installer/pack_update_zip.py
 
       - name: Inno Setup 6
         run: choco install innosetup --no-progress
@@ -77,7 +83,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-setup
-          path: installer/Output/Tuyi_v${{ steps.ver.outputs.version }}_Setup.exe
+          path: |
+            installer/Output/Tuyi_v${{ steps.ver.outputs.version }}_Setup.exe
+            dist/Tuyi_v${{ steps.ver.outputs.version }}_windows_x64.zip
 
       - name: GitHub Release
         if: github.ref_type == 'tag'
@@ -85,7 +93,9 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: 图译 Tuyi v${{ steps.ver.outputs.version }}
-          files: installer/Output/Tuyi_v${{ steps.ver.outputs.version }}_Setup.exe
+          files: |
+            installer/Output/Tuyi_v${{ steps.ver.outputs.version }}_Setup.exe
+            dist/Tuyi_v${{ steps.ver.outputs.version }}_windows_x64.zip
           fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false

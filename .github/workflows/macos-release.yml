@@ -48,7 +48,10 @@ jobs:
       - name: Python deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-macos.txt
+          pip install -r requirements-macos.txt httpx
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests
 
       - name: PyInstaller + DMG
         run: python installer/build_macos.py --skip-frontend --dmg
@@ -57,7 +60,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
-          path: dist/Tuyi_v${{ steps.ver.outputs.version }}_macOS_*.dmg
+          path: |
+            dist/Tuyi_v${{ steps.ver.outputs.version }}_macOS_*.dmg
+            dist/Tuyi_v${{ steps.ver.outputs.version }}_macOS_*.zip
 
       - name: GitHub Release
         if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
@@ -65,7 +70,9 @@ jobs:
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.ver.outputs.version) }}
           name: 图译 Tuyi v${{ steps.ver.outputs.version }}
-          files: dist/Tuyi_v${{ steps.ver.outputs.version }}_macOS_*.dmg
+          files: |
+            dist/Tuyi_v${{ steps.ver.outputs.version }}_macOS_*.dmg
+            dist/Tuyi_v${{ steps.ver.outputs.version }}_macOS_*.zip
           fail_on_unmatched_files: true
           generate_release_notes: false
           draft: false

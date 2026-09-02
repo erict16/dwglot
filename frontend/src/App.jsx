@@ -103,6 +103,7 @@ export default function App() {
     locked: false,
     off: false,
     filename: false,
+    glossary: true,
   });
   const [oda, setOda] = useState({ installed: false, path: "" });
   const [glossary, setGlossary] = useState(0);
@@ -122,11 +123,17 @@ export default function App() {
   });
   const [batch, setBatch] = useState({ tasks: [], running: false });
   const [updateMsg, setUpdateMsg] = useState("");
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [updating, setUpdating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lastOutput, setLastOutput] = useState("");
   const [writtenPath, setWrittenPath] = useState("");
+  const [terms, setTerms] = useState([]);
+  const [termDraft, setTermDraft] = useState({ source: "", target: "" });
+  const [tableCsv, setTableCsv] = useState("");
   const cadInput = useRef(null);
   const glossaryInput = useRef(null);
+  const tableInput = useRef(null);
   const extractSnap = useRef("");
 
   useEffect(() => {
@@ -183,6 +190,7 @@ export default function App() {
         api("/api/config"),
       ]);
       setOda(odaStatus);
+      setTerms(Array.isArray(assets.terms) ? assets.terms : []);
       setGlossary(asCount(assets.builtin_terms?.length) + asCount(assets.terms?.length));
       setConfig(cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : {});
     } catch (error) {
@@ -193,6 +201,12 @@ export default function App() {
   useEffect(() => {
     refreshMeta();
   }, [refreshMeta]);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("shot")) return undefined;
+    checkUpdates({ silent: true });
+    return undefined;
+  }, []);
 
   useEffect(() => {
     if (tab !== "export") return undefined;
@@ -271,11 +285,14 @@ export default function App() {
           translation_mode: modeKey(sourceLang, targetLang),
         }),
       });
-      setRows(Array.isArray(data.items) ? data.items : []);
+      const items = Array.isArray(data.items) ? data.items : [];
+      setRows(items);
       setStatus(`提取 ${asCount(data.count)} 条，去重后 ${asCount(data.unique)}。`);
+      return items;
     } catch (error) {
       setRows([]);
       setStatus(error.message);
+      return [];
     } finally {
       setBusy(false);
     }
@@ -327,6 +344,7 @@ export default function App() {
           skip_numbers: filters.numbers,
           skip_dupes: filters.dupes,
           skip_nonsource: filters.nonsource,
+          use_glossary: params.glossary,
           ...enginePayload(engine, config),
         }),
       });
@@ -428,8 +446,8 @@ export default function App() {
           path: sourcePath,
           output_dir: config.output_dir,
           output_name: `${stem}.pdf`,
-          style: "纯译文",
-          items: [],
+          style: fromWriteback ? "纯译文" : layout,
+          items: fromWriteback ? [] : visibleRows,
         }),
       });
       setLastOutput(data.path || "");
@@ -480,6 +498,7 @@ export default function App() {
           skip_dupes: filters.dupes,
           skip_nonsource: filters.nonsource,
           translate_filename: params.filename,
+          use_glossary: params.glossary,
           output_format: "source",
           style: layout,
           ...enginePayload(engine, config),
@@ -492,20 +511,277 @@ export default function App() {
     }
   }
 
-  async function checkUpdates() {
-    setUpdateMsg("正在检查…");
+  async function pauseExport(paused) {
+    try {
+      const data = await api("/api/batch/pause", { method: "POST", body: JSON.stringify({ paused }) });
+      setBatch(data);
+      setStatus(paused ? "已暂停。" : "继续导出。");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function stopExport() {
+    try {
+      const data = await api("/api/batch/stop", { method: "POST" });
+      setBatch(data);
+      setStatus("已停止。");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function retryTask(id) {
+    try {
+      const data = await api(`/api/batch/${id}/retry`, { method: "POST" });
+      setBatch(data);
+      setStatus("已重新排队。");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function exportTable() {
+    if (!current && !visibleRows.length) {
+      setStatus("先打开图纸。");
+      return;
+    }
+    try {
+      const data = await api("/api/drawings/export-table", {
+        method: "POST",
+        body: JSON.stringify({
+          path: current,
+          items: rows,
+          translation_mode: modeKey(sourceLang, targetLang),
+        }),
+      });
+      const native = py();
+      if (native?.save_table_file) {
+        const saved = await native.save_table_file(data.filename, data.csv);
+        if (saved?.path) setStatus(`表格已导出 → ${saved.path}`);
+        return;
+      }
+      const blob = new Blob([data.csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = data.filename || "图译表格.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+      setStatus(`表格已导出 ${asCount(data.count)} 条。`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function applyTableCsv(text) {
+    const csv = String(text || "");
+    if (!csv.trim()) {
+      setStatus("表格是空的");
+      return;
+    }
+    setTableCsv(csv);
+    let items = rows;
+    if (!items.length && current) {
+      items = await extractFile(current);
+    }
+    if (!items.length) {
+      setStatus("先打开图纸。");
+      return;
+    }
+    const data = await api("/api/drawings/import-table", {
+      method: "POST",
+      body: JSON.stringify({
+        csv,
+        items,
+        file: selected?.name || "",
+      }),
+    });
+    setRows(Array.isArray(data.items) ? data.items : []);
+    setStatus(`表格填入 ${asCount(data.applied)} 条。可以改译文再写回。`);
+  }
+
+  async function importTable() {
+    const native = py();
+    if (native?.pick_table_file) {
+      const picked = await native.pick_table_file();
+      if (!picked?.path) return;
+      if (picked.error) {
+        setStatus(picked.error);
+        return;
+      }
+      try {
+        await applyTableCsv(picked.text);
+      } catch (error) {
+        setStatus(error.message);
+      }
+      return;
+    }
+    tableInput.current?.click();
+  }
+
+  async function onTablePicked(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      await applyTableCsv(await file.text());
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function writeBackAll() {
+    if (!files.length) {
+      setStatus("先打开图纸。");
+      return;
+    }
+    let csv = tableCsv;
+    if (!csv.trim()) {
+      const native = py();
+      if (native?.pick_table_file) {
+        const picked = await native.pick_table_file();
+        if (!picked?.path) return;
+        csv = picked.text || "";
+      } else {
+        tableInput.current?.click();
+        return;
+      }
+    }
+    setBusy(true);
+    try {
+      const data = await api("/api/batch/import", {
+        method: "POST",
+        body: JSON.stringify({
+          csv,
+          files: files.map((item) => item.path),
+          output_dir: config.output_dir,
+          translation_mode: modeKey(sourceLang, targetLang),
+          style: layout,
+          translate_filename: params.filename,
+        }),
+      });
+      setStatus(`已写回 ${asCount(data.written)} 条，共 ${asCount(data.files)} 张图。`);
+      const last = [...(data.results || [])].reverse().find((item) => item.written && item.path);
+      if (last?.path) {
+        setWrittenPath(last.path);
+        setLastOutput(last.path);
+        py()?.reveal_file?.(last.path);
+      }
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveTerm(term) {
+    try {
+      await api("/api/language-assets/terms", {
+        method: "POST",
+        body: JSON.stringify({
+          scope: term.scope || "global",
+          mode: term.mode || modeKey(sourceLang, targetLang),
+          source: term.source,
+          target: term.target,
+          layer_contains: term.layer_contains || "",
+          project_package_path: config.project_package_path || "",
+          id: term.id,
+        }),
+      });
+      await refreshMeta();
+      setStatus("术语已保存。");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function deleteTerm(term) {
+    try {
+      await api("/api/language-assets/terms/delete", {
+        method: "POST",
+        body: JSON.stringify({
+          scope: term.scope || "global",
+          id: term.id,
+          project_package_path: config.project_package_path || "",
+        }),
+      });
+      await refreshMeta();
+      setStatus("术语已删除。");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  function exportTerms() {
+    const lines = ["source,target,mode"];
+    terms.forEach((term) => {
+      lines.push(`${asText(term.source)},${asText(term.target)},${asText(term.mode)}`);
+    });
+    const csv = `${lines.join("\n")}\n`;
+    const native = py();
+    if (native?.save_table_file) {
+      native.save_table_file("术语表.csv", csv).then((saved) => {
+        if (saved?.path) setStatus(`术语表已导出 → ${saved.path}`);
+      });
+      return;
+    }
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "术语表.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatus("术语表已导出。");
+  }
+
+  async function checkUpdates(options = {}) {
+    const silent = Boolean(options.silent);
+    if (!silent) setUpdateMsg("正在检查…");
     try {
       const data = await api("/api/updates/check");
+      setUpdateInfo(data);
       if (data.available) {
         setUpdateMsg(`有新版本 ${data.latest}（当前 ${data.current}）`);
-        const native = py();
-        if (native?.open_url && data.html_url) native.open_url(data.html_url);
-        else if (data.html_url) window.open(data.html_url, "_blank");
-      } else {
+        if (!data.can_apply && !silent) {
+          const native = py();
+          if (native?.open_url && data.html_url) native.open_url(data.html_url);
+          else if (data.html_url) window.open(data.html_url, "_blank");
+        }
+      } else if (!silent) {
         setUpdateMsg(data.message || `已是 ${data.current}`);
       }
     } catch {
-      setUpdateMsg("GitHub API 暂不可用，打开 Releases 页查看");
+      if (!silent) setUpdateMsg("GitHub API 暂不可用，打开 Releases 页查看");
+    }
+  }
+
+  async function applyUpdate() {
+    if (updating) return;
+    setUpdating(true);
+    setUpdateMsg("正在下载更新…");
+    try {
+      await api("/api/updates/apply", { method: "POST" });
+      for (let i = 0; i < 900; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        const status = await api("/api/updates/status");
+        const percent = Math.round(Number(status.percent || 0) * 100);
+        if (status.phase === "downloading") setUpdateMsg(`正在下载更新… ${percent}%`);
+        else if (status.phase === "verifying") setUpdateMsg("正在校验…");
+        else if (status.phase === "applying") setUpdateMsg("准备重启…");
+        else if (status.phase === "restarting") {
+          setUpdateMsg("正在重启…");
+          py()?.close_window?.();
+          return;
+        } else if (status.phase === "error") {
+          throw new Error(status.message || "更新失败");
+        }
+      }
+      throw new Error("更新超时");
+    } catch (error) {
+      setUpdateMsg(error.message || "更新失败");
+      setUpdating(false);
     }
   }
 
@@ -604,18 +880,26 @@ export default function App() {
         <button type="button" className={`tbtn${sheet ? " pri" : ""}`} onClick={openSheet}>参数</button>
         {tab === "export" ? (
           <button type="button" className="tbtn pri" disabled={busy} onClick={startExport}>开始导出</button>
-        ) : tab === "regular" ? (
+        ) : tab === "import" ? (
+          <>
+            <button type="button" className="tbtn" disabled={busy} onClick={exportTable}>导出表格</button>
+            <button type="button" className="tbtn" disabled={busy} onClick={importTable}>导入表格</button>
+            <button type="button" className="tbtn pri" disabled={busy} onClick={writeBack}>写回</button>
+            <button type="button" className="tbtn" disabled={busy} onClick={writeBackAll}>全部写回</button>
+          </>
+        ) : (
           <>
             <button type="button" className="tbtn pri" disabled={busy} onClick={runTranslate}>翻译</button>
             <button type="button" className="tbtn" disabled={busy} onClick={writeBack}>写回</button>
             <button type="button" className="tbtn" disabled={busy || !current} onClick={() => exportPdf(false)}>导出 PDF</button>
             <button type="button" className="tbtn" disabled={busy || !current} onClick={() => exportPdf(true)}>打印</button>
           </>
-        ) : null}
+        )}
       </header>
 
       <input ref={cadInput} type="file" accept=".dxf,.dwg,application/dxf" multiple hidden onChange={onCadPicked} />
       <input ref={glossaryInput} type="file" accept=".json,.csv,.txt,.hcterms.json" hidden onChange={onGlossaryPicked} />
+      <input ref={tableInput} type="file" accept=".csv,.txt,text/csv" hidden onChange={onTablePicked} />
 
       <div className="body">
         <aside
@@ -645,7 +929,7 @@ export default function App() {
               onClick={() => {
                 if (file.path !== current) setWrittenPath("");
                 setCurrent(file.path);
-                if (tab === "regular") extractFile(file.path);
+                if (tab === "regular" || tab === "import") extractFile(file.path);
               }}
             >
               <span className={`dot${file.ext === "DXF" ? " dxf" : ""}`} />
@@ -653,10 +937,10 @@ export default function App() {
               <span className="meta">{file.path === current ? "当前" : file.ext}</span>
             </div>
           ))}
-          <p className="hint">{tab === "export" ? "批量时全部去重，并还原目录结构。" : "点工具栏「打开图纸」，或先提取再译。"}</p>
+          <p className="hint">{tab === "export" ? "批量时全部去重，并还原目录结构。" : tab === "import" ? "先导出表格，填译文后再导入写回。" : "点工具栏「打开图纸」，或先提取再译。"}</p>
         </aside>
 
-        {tab === "regular" && (
+        {(tab === "regular" || tab === "import") && (
           <section className="main">
             <div className="filters">
               过滤
@@ -747,6 +1031,9 @@ export default function App() {
                   <span>{layout}</span>
                   <span className="bar"><i style={{ width: `${task.progress || 0}%` }} /></span>
                   <span>{task.status}</span>
+                  {(task.status === "failed" || task.status === "cancelled") && (
+                    <button type="button" className="tbtn" onClick={() => retryTask(task.id)}>重试</button>
+                  )}
                 </div>
               ))}
             </div>
@@ -772,21 +1059,21 @@ export default function App() {
               <label className="row"><input type="checkbox" checked={filters.numbers} onChange={(event) => setFilters((prev) => ({ ...prev, numbers: event.target.checked }))} /> 纯数字</label>
               <label className="row"><input type="checkbox" checked={filters.dupes} onChange={(event) => setFilters((prev) => ({ ...prev, dupes: event.target.checked }))} /> 重复</label>
               <label className="row"><input type="checkbox" checked={filters.nonsource} onChange={(event) => setFilters((prev) => ({ ...prev, nonsource: event.target.checked }))} /> 非源语言</label>
+              <h3>队列</h3>
+              {batch.started && !batch.paused ? (
+                <button type="button" className="tbtn" onClick={() => pauseExport(true)}>暂停</button>
+              ) : (
+                <button type="button" className="tbtn" onClick={() => (batch.started ? pauseExport(false) : startExport())}>
+                  {batch.started ? "继续" : "开始导出"}
+                </button>
+              )}
+              <button type="button" className="tbtn" onClick={stopExport}>停止</button>
               <h3>PDF</h3>
               <button type="button" className="tbtn" disabled={busy || !current} onClick={() => exportPdf(false)}>导出 PDF</button>
               <button type="button" className="tbtn" disabled={busy || !current} onClick={() => exportPdf(true)}>打印</button>
               {lastOutput && <p className="note">{lastOutput}</p>}
             </aside>
           </>
-        )}
-
-        {tab === "import" && (
-          <section className="main">
-            <div className="filters">批量导入还没做。</div>
-            <div className="table" style={{ padding: 24, color: "var(--muted)" }}>
-              表格回填以后再说。现在请用「常规处理」里的写回，或去「批量导出」。
-            </div>
-          </section>
         )}
 
         {sheet && (
@@ -817,6 +1104,7 @@ export default function App() {
                   <label><input type="checkbox" checked={filters.numbers} onChange={(event) => setFilters((prev) => ({ ...prev, numbers: event.target.checked }))} /> 纯数字、符号</label>
                   <label><input type="checkbox" checked={filters.dupes} onChange={(event) => setFilters((prev) => ({ ...prev, dupes: event.target.checked }))} /> 重复内容</label>
                   <label><input type="checkbox" checked={filters.nonsource} onChange={(event) => setFilters((prev) => ({ ...prev, nonsource: event.target.checked }))} /> 非源语言</label>
+                  <label><input type="checkbox" checked={params.glossary} onChange={(event) => setParams((prev) => ({ ...prev, glossary: event.target.checked }))} /> 本任务使用术语表</label>
                 </div>
                 <div className="group">
                   <h4>导出版式</h4>
@@ -861,13 +1149,68 @@ export default function App() {
                     setStatus("已保存引擎设置。");
                   }}>保存密钥</button>
                 </div>
+                <div className="group terms">
+                  <h4>我的术语</h4>
+                  <p className="note">内置 YAML 只读。这里改的是你自己的词，导出 CSV 后再用「加载术语表」导回来。</p>
+                  {terms.length === 0 && <p className="note">还没有自己的术语。</p>}
+                  {terms.map((term) => (
+                    <div className="term-row" key={`${term.scope}-${term.id}-${term.source}`}>
+                      <input
+                        value={asText(term.source)}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setTerms((prev) => prev.map((item) => (item === term ? { ...item, source: value } : item)));
+                        }}
+                        aria-label="原文"
+                      />
+                      <input
+                        value={asText(term.target)}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setTerms((prev) => prev.map((item) => (item === term ? { ...item, target: value } : item)));
+                        }}
+                        aria-label="译文"
+                      />
+                      <button type="button" className="tbtn" onClick={() => saveTerm(term)}>保存</button>
+                      <button type="button" className="tbtn" onClick={() => deleteTerm(term)}>删除</button>
+                    </div>
+                  ))}
+                  <div className="term-row">
+                    <input
+                      value={termDraft.source}
+                      placeholder="新原文"
+                      onChange={(event) => setTermDraft((prev) => ({ ...prev, source: event.target.value }))}
+                    />
+                    <input
+                      value={termDraft.target}
+                      placeholder="新译文"
+                      onChange={(event) => setTermDraft((prev) => ({ ...prev, target: event.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      className="tbtn"
+                      onClick={async () => {
+                        if (!termDraft.source.trim() || !termDraft.target.trim()) {
+                          setStatus("术语、译文不能为空");
+                          return;
+                        }
+                        await saveTerm({ ...termDraft, scope: "global" });
+                        setTermDraft({ source: "", target: "" });
+                      }}
+                    >添加</button>
+                  </div>
+                  <button type="button" className="tbtn" onClick={exportTerms}>导出术语</button>
+                </div>
                 <div className="group">
                   <h4>ODA · 术语表 · 更新</h4>
                   <p className="note">
                     {oda.installed ? `已检测到 ${oda.path}` : "未装 ODA，DWG 请另存 DXF。"}
                     <br />术语表 {glossary} 条。
                   </p>
-                  <button type="button" className="tbtn" onClick={checkUpdates}>检查更新</button>
+                  <button type="button" className="tbtn" onClick={() => checkUpdates()} disabled={updating}>检查更新</button>
+                  {updateInfo?.available && updateInfo?.can_apply && (
+                    <button type="button" className="tbtn pri" onClick={applyUpdate} disabled={updating}>更新并重启</button>
+                  )}
                   {updateMsg && <p className="note">{updateMsg}</p>}
                 </div>
               </div>
@@ -883,7 +1226,10 @@ export default function App() {
         <span>去重后 <b>{visibleRows.length}</b></span>
         <span>{status}</span>
         <span style={{ marginLeft: "auto" }}>
-          <button type="button" className="tbtn" onClick={checkUpdates}>检查更新</button>
+          {updateInfo?.available && updateInfo?.can_apply && (
+            <button type="button" className="tbtn pri" onClick={applyUpdate} disabled={updating}>更新并重启</button>
+          )}
+          <button type="button" className="tbtn" onClick={() => checkUpdates()} disabled={updating}>检查更新</button>
         </span>
       </footer>
     </div>

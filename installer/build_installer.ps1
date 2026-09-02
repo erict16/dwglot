@@ -37,6 +37,10 @@ if (-not $iscc) {
     throw "Inno Setup 6 not found. Install from https://jrsoftware.org/isinfo.php"
 }
 
+Write-Host "==> Update zip..." -ForegroundColor Cyan
+& python (Join-Path $Root "installer\pack_update_zip.py")
+if ($LASTEXITCODE -ne 0) { throw "update zip failed" }
+
 Write-Host "==> Inno Setup v$version..." -ForegroundColor Cyan
 & $iscc "/DMyAppVersion=$version" (Join-Path $Root "installer\Dwglot_Setup.iss")
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }

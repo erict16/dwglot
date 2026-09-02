@@ -26,6 +26,7 @@ from backend.cad import (
 from backend.languages import split_mode
 from backend.mtext_runs import map_translatable
 from backend.styles import register_cjk_font, rewrite_shx_styles
+from backend.table_csv import apply_table_rows, export_table_csv, parse_table_csv
 from backend.translator import CADChineseTranslator, output_prefix
 from backend.storage import atomic_output_path
 
@@ -388,6 +389,7 @@ def translate_rows(
     skip_numbers: bool = False,
     skip_dupes: bool = False,
     skip_nonsource: bool = False,
+    use_glossary: bool = True,
 ) -> dict:
     split_mode(mode)
     items = [
@@ -403,6 +405,7 @@ def translate_rows(
     ]
     translator = CADChineseTranslator()
     translator.configure_language_assets(project_package_path)
+    translator.use_glossary = use_glossary
     engine = engine or {}
     translator.configure_engine(provider, **{k: engine.get(k, "") for k in ENGINE_KEYS})
     has_mt = translator.has_mt()
@@ -562,6 +565,65 @@ def writeback_rows(
         "skipped": len(items) - len(writable),
         "style": style,
     }
+
+
+def table_csv_for_path(path: str, items: list[dict] | None = None, *, mode: str = "zh_to_en") -> dict:
+    if items is None:
+        items = extract_preview(path, mode=mode, **REGULAR_EXTRACT)["items"]
+    name = Path(path).name if path else "drawing.dxf"
+    csv_text = export_table_csv(items, name)
+    stem = strip_cad_suffix(Path(name).name) or "drawing"
+    return {"csv": csv_text, "filename": f"{stem}.csv", "count": len(items), "items": items}
+
+
+def preview_table_csv(items: list[dict], csv_text: str, file_name: str = "") -> dict:
+    imported = parse_table_csv(csv_text)
+    if not imported:
+        raise ValueError("表格是空的")
+    filled, applied = apply_table_rows(items, imported, file_name=file_name)
+    return {"items": filled, "applied": applied, "imported": len(imported)}
+
+
+def import_table_writeback(
+    files: list[str],
+    csv_text: str,
+    *,
+    output_dir: str = "",
+    mode: str = "zh_to_en",
+    style: str = "纯译文",
+    translate_filename: bool = False,
+) -> dict:
+    imported = parse_table_csv(csv_text)
+    if not imported:
+        raise ValueError("表格是空的")
+    paths = [path for path in files if path]
+    if not paths:
+        raise ValueError("请选择 CAD 文件")
+    results = []
+    written_total = 0
+    for path in paths:
+        if not os.path.isfile(path):
+            raise FileNotFoundError("图纸不存在")
+        preview = extract_preview(path, mode=mode, **REGULAR_EXTRACT)
+        filled, applied = apply_table_rows(preview["items"], imported, file_name=Path(path).name)
+        if applied == 0:
+            results.append({"file": Path(path).name, "written": 0, "applied": 0, "message": "表格对不上这张图"})
+            continue
+        named = build_output_name(mode, Path(path).stem, translate_filename=translate_filename)
+        written = writeback_rows(
+            path,
+            filled,
+            output_dir=output_dir,
+            output_name=named,
+            mode=mode,
+            include_blocks=REGULAR_EXTRACT["include_blocks"],
+            style=style,
+        )
+        written_total += int(written.get("written") or 0)
+        results.append({**written, "file": Path(path).name, "applied": applied})
+    if written_total == 0:
+        raise ValueError("没有可写回的译文")
+    return {"results": results, "written": written_total, "files": len(results)}
 
 
 def translate_drawing(

@@ -322,10 +322,10 @@ class BatchApiTests(unittest.TestCase):
         self.assertEqual(dropped.status_code, 200, dropped.text)
         self.assertNotIn("Traceback", dropped.text)
 
-    def test_batch_import_is_not_ready(self):
+    def test_batch_import_needs_a_table(self):
         response = self.client.post("/api/batch/import", json={})
-        self.assertEqual(response.status_code, 501, response.text)
-        self.assertIn("还没做", response.json()["detail"])
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn("空", response.json()["detail"])
         self.assertNotIn("Traceback", response.text)
 
     def test_start_empty_is_400(self):
@@ -442,6 +442,35 @@ class BatchApiTests(unittest.TestCase):
         mtext = next(item for item in preview["items"] if item["type"] == "MTEXT")
         self.assertIn("partition", mtext["source"].lower())
         self.assertIn("\\C1;", mtext["raw"])
+
+    def test_batch_can_skip_glossary(self):
+        src = Path(self.tmp.name) / "floor_plan.dxf"
+        shutil.copy(FIXTURES / "floor_plan.dxf", src)
+        config = dict(EMPTY_ENGINE, output_dir=self.tmp.name)
+        with patch.object(service, "load_config", return_value=config), patch.object(service, "save_config"):
+            added = self.client.post("/api/batch/add", json={"files": [str(src)]})
+            self.assertEqual(added.status_code, 200, added.text)
+            started = self.client.post(
+                "/api/batch/start",
+                json={
+                    "provider": "deepl",
+                    "deepl_key": "",
+                    "output_dir": self.tmp.name,
+                    "translation_mode": "zh_to_en",
+                    "use_glossary": False,
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            task = None
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                task = self.client.get("/api/batch").json()["tasks"][0]
+                if task["status"] not in {"queued", "retrying", "running"}:
+                    break
+                time.sleep(0.05)
+        self.assertIsNotNone(task)
+        self.assertEqual(task["status"], "failed", task)
+        self.assertIn("译文", task["message"])
 
     def test_batch_attribs_off_leaves_insert_attribs(self):
         fixture = FIXTURES / "floor_plan.dxf"
