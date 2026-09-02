@@ -26,6 +26,8 @@ class LicensePathTests(unittest.TestCase):
         self.assertNotIn("/api/license/activate", paths)
         self.assertNotIn("/api/support/qrcode/{kind}", paths)
         self.assertIn("/api/updates/check", paths)
+        self.assertIn("/api/updates/status", paths)
+        self.assertIn("/api/updates/apply", paths)
         self.assertIn("/api/meta", paths)
 
     def test_meta_disables_licensing(self):

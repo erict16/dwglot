@@ -64,6 +64,7 @@ class PlatformCompatibilityTests(unittest.TestCase):
         self.assertIn('if "--oda-dmg" in sys.argv', script)
         self.assertNotIn('add_argument("--oda-dmg"', script)
         self.assertIn("--deep", script)
+        self.assertIn("--keepParent", script)
 
     def test_release_workflows_use_app_version_and_tag_only(self):
         root = Path(__file__).resolve().parents[1]
@@ -77,6 +78,14 @@ class PlatformCompatibilityTests(unittest.TestCase):
         self.assertNotIn("|| 'v0.1.2'", win)
         self.assertIn("macos-latest", mac)
         self.assertIn("build_macos.py", mac)
+        self.assertIn("unittest discover", win)
+        self.assertIn("unittest discover", mac)
+        self.assertIn("windows_x64.zip", win)
+        self.assertIn("pack_update_zip.py", win)
+        self.assertIn("macOS_*.zip", mac)
+        ci = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("unittest discover", ci)
+        self.assertIn("npm run build", ci)
 
     def test_frozen_cli_exe_dispatches_to_cli(self):
         import run

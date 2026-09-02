@@ -155,6 +155,7 @@ class CADChineseTranslator:
         self.translated_cache = {}
         self.language_assets = LanguageAssets()
         self.project_package_path = ""
+        self.use_glossary = True
         self.default_font = pick_available_font()
         self.log_callback = log_callback
         self.deepl_api_key = os.environ.get("DEEPL_API_KEY")
@@ -303,6 +304,8 @@ class CADChineseTranslator:
         self.project_package_path = project_package_path or ""
 
     def glossary_hit(self, text, lang_config_key, layer=""):
+        if not self.use_glossary:
+            return None
         cleaned = self.cleaner.full_clean(decode_oda_mbcs_escapes(str(text or "")))
         if not cleaned.strip():
             return None
@@ -477,9 +480,11 @@ class CADChineseTranslator:
         if not lang_config:
             self.safe_log(f"无效的翻译配置: {lang_config_key}")
             return self.cleaner.safe_utf8(text)
-        glossary_translation = self.language_assets.lookup_term(cleaned, lang_config_key, layer, self.project_package_path)
-        glossary_translation = glossary_translation or self.get_layer_glossary_translation(cleaned, lang_config_key, layer)
-        glossary_translation = glossary_translation or self.get_glossary_translation(cleaned, lang_config_key)
+        glossary_translation = None
+        if self.use_glossary:
+            glossary_translation = self.language_assets.lookup_term(cleaned, lang_config_key, layer, self.project_package_path)
+            glossary_translation = glossary_translation or self.get_layer_glossary_translation(cleaned, lang_config_key, layer)
+            glossary_translation = glossary_translation or self.get_glossary_translation(cleaned, lang_config_key)
         if glossary_translation:
             final = self.cleaner.safe_utf8(self.cleaner.full_clean(glossary_translation)).strip()
             self.translated_cache[cache_key] = final

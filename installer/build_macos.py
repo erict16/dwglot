@@ -134,6 +134,11 @@ def main() -> None:
             str(dmg_output),
         )
         print(f"DMG: {dmg_output}")
+        zip_output = ROOT / "dist" / f"Tuyi_v{version}_macOS_{arch}.zip"
+        if zip_output.exists():
+            zip_output.unlink()
+        run("ditto", "-c", "-k", "--keepParent", str(OUTPUT_APP), str(zip_output))
+        print(f"ZIP: {zip_output}")
 
     print(f"Built: {OUTPUT_APP}")
     print(f"Version: {version}")

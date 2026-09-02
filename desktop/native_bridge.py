@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import webview
 
@@ -78,6 +79,34 @@ class NativeBridge:
     def save_term_package(self) -> dict:
         path = self._save_dialog("项目术语.hcterms.json", ("图译术语包 (*.hcterms.json)",))
         return {"path": path or ""}
+
+    def pick_table_file(self) -> dict:
+        paths = self._open_dialog(file_types=("CSV (*.csv)", "Text files (*.txt)"))
+        path = paths[0] if paths else ""
+        if not path:
+            return {"path": "", "text": ""}
+        try:
+            raw = Path(path).read_bytes()
+        except OSError:
+            return {"path": path, "text": "", "error": "表格读不出来"}
+        text = ""
+        for encoding in ("utf-8-sig", "utf-8", "gb18030"):
+            try:
+                text = raw.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        if not text.strip() and raw.strip():
+            return {"path": path, "text": "", "error": "表格读不出来"}
+        return {"path": path, "text": text}
+
+    def save_table_file(self, filename: str = "图译表格.csv", content: str = "") -> dict:
+        path = self._save_dialog(filename or "图译表格.csv", ("CSV (*.csv)",))
+        if not path:
+            return {"path": ""}
+        if content:
+            Path(path).write_text(content, encoding="utf-8-sig")
+        return {"path": path}
 
     def export_logs(self) -> dict:
         path = self._save_dialog(

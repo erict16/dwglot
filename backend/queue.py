@@ -199,6 +199,9 @@ class BatchQueue:
                             skip_numbers=settings.get("skip_numbers", True),
                             skip_dupes=settings.get("skip_dupes", True),
                             skip_nonsource=settings.get("skip_nonsource", True),
+                            translate_filename=settings.get("translate_filename", False),
+                            use_glossary=settings.get("use_glossary", True),
+                            project_package_path=settings.get("project_package_path", ""),
                             status="queued", progress=0,
                             retries=0, output_file="", message="等待中", logs=[], _key=settings.get("api_key") or settings.get("deepl_key", ""),
                         )
