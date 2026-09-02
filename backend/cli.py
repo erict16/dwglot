@@ -27,6 +27,17 @@ def _split_output(output: str, output_dir: str) -> tuple[str, str]:
     return output_dir, name
 
 
+def _configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if not callable(reconfigure):
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def _emit_result(result: dict) -> None:
     print(result["path"])
     print(f"extracted: {result['extracted']}")
@@ -97,6 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _configure_stdio()
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command != "translate":

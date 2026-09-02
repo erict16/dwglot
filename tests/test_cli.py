@@ -29,6 +29,8 @@ LIVE_DWG_DIR = Path("/workspace/dwglot-drawings")
 def _run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO) + os.pathsep + env.get("PYTHONPATH", "")
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     return subprocess.run(
         [sys.executable, "-m", "tuyi", *args],
         cwd=str(REPO),
