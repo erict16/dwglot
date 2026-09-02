@@ -89,6 +89,20 @@ class PlatformCompatibilityTests(unittest.TestCase):
         self.assertIn("npm run build", ci)
         self.assertIn("PYTHONUTF8", ci)
 
+    def test_landing_download_names_windows_and_mac_chips(self):
+        html = (Path(__file__).resolve().parents[1] / "landing" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("Windows 10 或 11", html)
+        self.assertIn("64 位", html)
+        self.assertIn("Apple 芯片", html)
+        self.assertIn("Intel", html)
+        self.assertIn("macArm", html)
+        self.assertIn("macIntel", html)
+        self.assertIn("关于本机", html)
+        self.assertIn("仍要运行", html)
+        self.assertIn("ODA File Converter", html)
+        self.assertIn("跳到下载", html)
+        self.assertNotIn("FAQ", html)
+
     def test_safe_log_survives_cp1252_stdout(self):
         from backend.translator import CADChineseTranslator
 

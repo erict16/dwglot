@@ -1,24 +1,28 @@
 <!DOCTYPE html>
-<!-- Tailwind Plus template: Salient (product / SaaS marketing). Recolored to 图译 #007aff. -->
+<!-- 图译 landing. Same Mac-window language as the app: #007aff, system type. -->
 <html lang="zh-Hans">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>图译 Tuyi — DWG / DXF Translator</title>
-  <meta name="description" content="图译 Tuyi translates text inside DWG and DXF drawings. Open-source desktop app. No AutoCAD. Windows and macOS." />
-  <meta name="keywords" content="DWG, DXF, CAD translator, drawing translation, 图纸翻译, Tuyi, 图译, ezdxf" />
+  <meta name="theme-color" content="#e8e8ed" />
+  <title>图译 Tuyi — 图纸里的字，译完写出新文件</title>
+  <meta name="description" content="打开 DWG / DXF，译图纸上的文字，写出一份新文件。不用 AutoCAD。Windows 10/11 64 位，Mac Apple 芯片。" />
   <meta property="og:title" content="图译 Tuyi — DWG / DXF Translator" />
-  <meta property="og:description" content="Open a DWG or DXF, translate the text on the drawing, write it back. No AutoCAD." />
+  <meta property="og:description" content="打开图纸，译文字，写出新文件。原图不动。不用 AutoCAD。" />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="shots/regular.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="shots/mark.png" type="image/png" />
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" />
+  <link rel="preconnect" href="https://api.github.com" />
   <script>
-    // Fill these when a GitHub Release has the installer files. Empty = button stays, click says 安装包还没放上来.
-    const DL = {
-      mac: "https://github.com/erict16/tuyi/releases/download/v0.1.3/Tuyi_v0.1.3_macOS_arm64.dmg",
+    const FALLBACK = {
       win: "https://github.com/erict16/tuyi/releases/download/v0.1.3/Tuyi_v0.1.3_Setup.exe",
+      macArm: "https://github.com/erict16/tuyi/releases/download/v0.1.3/Tuyi_v0.1.3_macOS_arm64.dmg",
+      macIntel: "",
     };
+    window.DL = { ...FALLBACK };
+    window.DL_META = { version: "v0.1.3", winSize: "约 64 MB" };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -32,181 +36,335 @@
             navy: "#0b1120",
           },
           fontFamily: {
-            sans: ["-apple-system", "SF Pro Text", "system-ui", "sans-serif"],
+            sans: ["-apple-system", "SF Pro Text", "SF Pro Display", "Helvetica Neue", "system-ui", "sans-serif"],
           },
         },
       },
     };
   </script>
+  <style>
+    html { color-scheme: light; }
+    .text-pretty { text-wrap: pretty; }
+    .chip[aria-checked="true"] { background: #fff; color: #1d1d1f; }
+    .dl-card[data-current="true"] { box-shadow: 0 0 0 2px #fff; }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; }
+    }
+  </style>
 </head>
 <body class="bg-white text-ink antialiased">
+  <a class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-ink focus:shadow" href="#download">跳到下载</a>
+
   <header class="sticky top-0 z-20 border-b border-black/5 bg-white/80 backdrop-blur">
     <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-      <a href="./" class="flex items-center gap-2 font-semibold">
+      <a href="./" class="flex items-center gap-2 font-semibold" translate="no">
         <img src="shots/mark.png" alt="" width="28" height="28" class="rounded-md" />
         图译 Tuyi
       </a>
-      <nav class="hidden items-center gap-8 text-sm text-slate-600 sm:flex">
-        <a href="#features" class="hover:text-ink">功能</a>
-        <a href="#download" class="hover:text-ink">下载</a>
-        <a href="#faq" class="hover:text-ink">FAQ</a>
+      <nav class="hidden items-center gap-8 text-sm text-slate-600 sm:flex" aria-label="页面">
+        <a href="#how" class="hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">怎么用</a>
+        <a href="#features" class="hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">功能</a>
+        <a href="#download" class="hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">下载</a>
+        <a href="#faq" class="hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">常见问题</a>
       </nav>
-      <a href="#download" class="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white hover:brightness-110">下载</a>
+      <a href="#download" class="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">下载</a>
     </div>
   </header>
 
-  <section class="bg-mist">
-    <div class="mx-auto max-w-4xl px-4 pb-16 pt-16 text-center sm:pb-20 sm:pt-20">
-      <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">图译 Tuyi - DWG / DXF Translator</h1>
-      <p class="mx-auto mt-4 max-w-xl text-lg text-slate-600">打开 DWG 或 DXF，译图纸里的字，写出一份新文件。不装 AutoCAD。</p>
-      <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-        <a href="#download" class="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110">下载图译</a>
-        <a href="#features" class="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-ink ring-1 ring-black/10 hover:bg-mist">看看功能</a>
-      </div>
-      <div class="mx-auto mt-12 max-w-5xl">
-        <img src="shots/regular.png" alt="图译常规处理：原文和译文表" width="1280" height="800" class="rounded-2xl shadow-xl ring-1 ring-black/10" />
-      </div>
-    </div>
-  </section>
-
-  <section id="features" class="bg-navy py-20 text-white">
-    <div class="mx-auto max-w-6xl px-4">
-      <h2 class="text-center text-3xl font-semibold tracking-tight">译图纸里的字，不是整张图当图片扫</h2>
-      <p class="mx-auto mt-3 max-w-2xl text-center text-slate-300">TEXT / MTEXT / 属性。术语表先匹配，再走云、本地或自定义引擎。</p>
-      <div class="mt-10 flex flex-wrap justify-center gap-2" role="tablist">
-        <button type="button" data-tab="regular" class="tab on rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-navy">常规处理</button>
-        <button type="button" data-tab="export" class="tab rounded-full px-4 py-1.5 text-sm font-semibold text-slate-300">批量导出</button>
-        <button type="button" data-tab="params" class="tab rounded-full px-4 py-1.5 text-sm font-semibold text-slate-300">参数</button>
-      </div>
-      <img id="feature-shot" src="shots/regular.png" alt="图译界面" width="1280" height="800" class="mt-8 rounded-2xl ring-1 ring-white/10" />
-    </div>
-  </section>
-
-  <section class="bg-white py-20">
-    <div class="mx-auto grid max-w-6xl gap-12 px-4 lg:grid-cols-2 lg:items-center">
-      <div>
-        <h2 class="text-3xl font-semibold tracking-tight">批量导出和参数，都在同一扇 Mac 窗里</h2>
-        <p class="mt-4 max-w-prose text-slate-600">左侧已打开图纸。中间原文 | 译文 | 图层。云 / 本地 / 自定义是分段控件，不是商店。DXF 直接译；DWG 要你本机自己装 ODA。</p>
-        <ul class="mt-6 space-y-2 text-slate-700">
-          <li>默认中 → 英，可换方向</li>
-          <li>过滤纯数字、重复、非源语言</li>
-          <li>有新版本时，软件里可以检查更新</li>
-        </ul>
-      </div>
-      <img src="shots/export.png" alt="批量导出" width="1280" height="800" class="rounded-2xl shadow-lg ring-1 ring-black/10" />
-    </div>
-  </section>
-
-  <section id="download" class="scroll-mt-20 bg-accent py-16 text-white">
-    <div class="mx-auto max-w-3xl px-4 text-center">
-      <h2 class="text-3xl font-semibold tracking-tight">下载图译</h2>
-      <p class="mt-3 text-white/90">Windows 10 / 11，64 位。Mac 目前只有 Apple 芯片（M1 及以后）。Intel Mac 要另打一份，现在还没有。</p>
-      <div class="mt-8 flex flex-col items-stretch justify-center gap-4 sm:flex-row sm:items-center">
-        <button type="button" data-dl="mac" class="dl-btn min-h-14 min-w-[15rem] rounded-2xl bg-white px-8 py-4 text-lg font-semibold text-accent hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-          下载 macOS（Apple 芯片）
-        </button>
-        <button type="button" data-dl="win" class="dl-btn min-h-14 min-w-[15rem] rounded-2xl bg-white px-8 py-4 text-lg font-semibold text-accent hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-          下载 Windows 10/11（64 位）
-        </button>
-      </div>
-      <p class="mt-8 text-left text-sm leading-7 text-white/90 sm:text-center">
-        第一次打开，系统会拦一下。<br />
-        Mac：右键图标，选「打开」。<br />
-        Windows：点「更多信息」，再点「仍要运行」。
-      </p>
-      <p id="dl-msg" class="mt-4 hidden text-sm font-semibold text-white" role="status" aria-live="polite"></p>
-    </div>
-  </section>
-
-  <section id="faq" class="bg-mist py-20">
-    <div class="mx-auto max-w-3xl px-4">
-      <h2 class="text-3xl font-semibold tracking-tight">FAQ</h2>
-      <dl class="mt-10 divide-y divide-black/10">
-        <div class="py-5">
-          <dt class="font-semibold">要装 AutoCAD 吗？</dt>
-          <dd class="mt-2 text-slate-600">不要。图译是独立桌面程序。DXF 直接读；DWG 用你本机的 ODA File Converter。</dd>
+  <main>
+    <section class="bg-mist">
+      <div class="mx-auto max-w-4xl px-4 pb-16 pt-16 text-center sm:pb-20 sm:pt-20">
+        <p class="text-sm font-medium text-slate-500">桌面软件 · 不用 AutoCAD</p>
+        <h1 class="mt-2 text-pretty text-4xl font-semibold tracking-tight sm:text-5xl">图纸上的字，译完写出新文件</h1>
+        <p class="mx-auto mt-4 max-w-xl text-lg text-slate-600">打开 DWG 或 DXF，图译列出文字。你改译文，它在旁边另存一份。原图不动。</p>
+        <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <a href="#download" class="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy">下载图译</a>
+          <a href="#how" class="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-ink ring-1 ring-black/10 hover:bg-mist focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">先看怎么用</a>
         </div>
-        <div class="py-5">
-          <dt class="font-semibold">ODA 打进安装包了吗？</dt>
-          <dd class="mt-2 text-slate-600">没有，也不会。协议不允许跟软件一起发。你自己在电脑上装 ODA File Converter 就行；只译 DXF 可以先不装。</dd>
+        <p class="mt-4 text-sm text-slate-500">Windows 10 / 11（64 位）· Mac Apple 芯片 · 中译英默认</p>
+        <div class="mx-auto mt-12 max-w-5xl">
+          <img src="shots/regular.png" alt="图译窗口：左边原文，右边译文，按图层列出" width="1280" height="800" fetchpriority="high" class="rounded-2xl shadow-xl ring-1 ring-black/10" />
         </div>
-        <div class="py-5">
-          <dt class="font-semibold">第一次打不开？</dt>
-          <dd class="mt-2 text-slate-600">正常。Mac 右键图标，选打开。Windows 点更多信息，再点仍要运行。Windows 要 10 或 11 的 64 位。Mac 现在只有 Apple 芯片（M1 及以后）；Intel 要另打一份，还没上。</dd>
+      </div>
+    </section>
+
+    <section id="how" class="scroll-mt-20 bg-white py-20">
+      <div class="mx-auto max-w-5xl px-4">
+        <h2 class="text-pretty text-center text-3xl font-semibold tracking-tight">三步</h2>
+        <ol class="mt-10 grid gap-8 sm:grid-cols-3">
+          <li>
+            <p class="text-sm font-semibold text-accent">1</p>
+            <h3 class="mt-1 text-lg font-semibold">打开图纸</h3>
+            <p class="mt-2 text-slate-600">DWG 或 DXF。列出 TITLE、注释、属性。原文件只读，不改。</p>
+          </li>
+          <li>
+            <p class="text-sm font-semibold text-accent">2</p>
+            <h3 class="mt-1 text-lg font-semibold">译文字</h3>
+            <p class="mt-2 text-slate-600">术语表先命中。其余走你自己的 DeepL / Azure / Ollama / 自定义接口。可以手改。</p>
+          </li>
+          <li>
+            <p class="text-sm font-semibold text-accent">3</p>
+            <h3 class="mt-1 text-lg font-semibold">写出新文件</h3>
+            <p class="mt-2 text-slate-600">默认放到「文档 / Tuyi output」。批量可以按原来的文件夹结构排。</p>
+          </li>
+        </ol>
+        <p class="mx-auto mt-10 max-w-2xl rounded-2xl bg-mist px-5 py-4 text-sm text-slate-700">
+          只译 DXF，装上就能用。要译 DWG，本机自己装
+          <a class="font-semibold text-accent underline-offset-2 hover:underline" href="https://www.opendesign.com/guestfiles/oda_file_converter">ODA File Converter</a>。
+          图译不把它打进安装包。
+        </p>
+      </div>
+    </section>
+
+    <section id="features" class="scroll-mt-20 bg-navy py-20 text-white">
+      <div class="mx-auto max-w-6xl px-4">
+        <h2 class="text-pretty text-center text-3xl font-semibold tracking-tight">译的是 CAD 文字，不是把整张图当图片扫</h2>
+        <p class="mx-auto mt-3 max-w-2xl text-center text-slate-300">TEXT / MTEXT / 属性 / 标注 / 表格。中、英、日、韩、德、法。云、本地、自定义三段。</p>
+        <div class="mt-10 flex flex-wrap justify-center gap-2" role="tablist" aria-label="界面预览">
+          <button type="button" data-tab="regular" aria-selected="true" class="tab on rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">常规处理</button>
+          <button type="button" data-tab="export" aria-selected="false" class="tab rounded-full px-4 py-1.5 text-sm font-semibold text-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">批量导出</button>
+          <button type="button" data-tab="params" aria-selected="false" class="tab rounded-full px-4 py-1.5 text-sm font-semibold text-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">参数</button>
         </div>
-        <div class="py-5">
-          <dt class="font-semibold">收费吗？有授权码吗？</dt>
-          <dd class="mt-2 text-slate-600">没有。MIT 开源，无试用、无收款码。翻译要用的密钥是你自己的 Azure / DeepL / Ollama / 自定义接口。想改代码就提 PR，合进 main 前我会看。</dd>
+        <img id="feature-shot" src="shots/regular.png" alt="常规处理：原文和译文表" width="1280" height="800" loading="lazy" class="mt-8 rounded-2xl ring-1 ring-white/10" />
+      </div>
+    </section>
+
+    <section class="bg-white py-20">
+      <div class="mx-auto grid max-w-6xl gap-12 px-4 lg:grid-cols-2 lg:items-center">
+        <div>
+          <h2 class="text-pretty text-3xl font-semibold tracking-tight">一批图，一张表，一次写回</h2>
+          <p class="mt-4 max-w-prose text-slate-600">常规处理改单张。批量导出按队列跑。人工改过的译文可以导出 CSV / Excel，再导入写回。</p>
+          <ul class="mt-6 space-y-2 text-slate-700">
+            <li>默认中 → 英，工具栏换方向</li>
+            <li>过滤纯数字、重复、非源语言</li>
+            <li>有新版本时，软件里检查更新</li>
+          </ul>
         </div>
-      </dl>
-    </div>
-  </section>
+        <img src="shots/export.png" alt="批量导出队列" width="1280" height="800" loading="lazy" class="rounded-2xl shadow-lg ring-1 ring-black/10" />
+      </div>
+    </section>
+
+    <section id="download" class="scroll-mt-20 bg-accent py-16 text-white">
+      <div class="mx-auto max-w-5xl px-4">
+        <h2 class="text-pretty text-center text-3xl font-semibold tracking-tight">下载图译</h2>
+        <p id="dl-ver" class="mt-3 text-center text-white/90">v0.1.3 · MIT 开源 · 安装包未签名</p>
+
+        <div class="mt-10 grid gap-4 sm:grid-cols-2">
+          <article class="dl-card rounded-3xl bg-white/10 p-6 text-left ring-1 ring-white/25" data-os="win">
+            <h3 class="text-xl font-semibold">Windows</h3>
+            <p class="mt-2 text-sm text-white/90">Windows 10 或 11，<strong class="font-semibold text-white">64 位</strong>。不要 32 位，不要 7 / 8。</p>
+            <p class="mt-1 text-sm text-white/80">Setup.exe · <span id="win-size">约 64 MB</span> · Win10 要有 WebView2（一般已装）</p>
+            <a id="btn-win" class="dl-link mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-white px-5 py-3 text-base font-semibold text-accent hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" href="https://github.com/erict16/tuyi/releases/download/v0.1.3/Tuyi_v0.1.3_Setup.exe" rel="noopener">下载 Windows</a>
+            <p class="mt-3 text-xs leading-5 text-white/80">第一次会拦：更多信息 → 仍要运行。</p>
+          </article>
+
+          <article class="dl-card rounded-3xl bg-white/10 p-6 text-left ring-1 ring-white/25" data-os="mac">
+            <h3 class="text-xl font-semibold">Mac</h3>
+            <p class="mt-2 text-sm text-white/90">Apple 芯片和 Intel 不是同一个安装包。下错了打不开。</p>
+            <div class="mt-4 inline-flex rounded-full bg-black/20 p-1" role="radiogroup" aria-label="Mac 芯片">
+              <button type="button" class="chip rounded-full px-3 py-1.5 text-sm font-semibold text-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" role="radio" aria-checked="true" data-chip="arm">Apple 芯片</button>
+              <button type="button" class="chip rounded-full px-3 py-1.5 text-sm font-semibold text-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" role="radio" aria-checked="false" data-chip="intel">Intel</button>
+            </div>
+            <p id="mac-hint" class="mt-3 text-sm text-white/90">M1 / M2 / M3 / M4。苹果菜单 → 关于本机 → 芯片。</p>
+            <a id="btn-mac" class="dl-link mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-white px-5 py-3 text-base font-semibold text-accent hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" href="https://github.com/erict16/tuyi/releases/download/v0.1.3/Tuyi_v0.1.3_macOS_arm64.dmg" rel="noopener">下载 macOS（Apple 芯片）</a>
+            <p class="mt-3 text-xs leading-5 text-white/80">第一次：右键图标 → 打开。或系统设置 → 隐私与安全性 → 仍要打开。</p>
+          </article>
+        </div>
+
+        <p id="dl-msg" class="mt-6 hidden text-center text-sm font-semibold" role="status" aria-live="polite"></p>
+        <p class="mt-8 text-center text-sm text-white/80">
+          <a class="underline-offset-2 hover:underline" href="https://github.com/erict16/tuyi/releases">所有版本</a>
+          · 密钥用你自己的，图译不建账号
+        </p>
+      </div>
+    </section>
+
+    <section id="faq" class="scroll-mt-20 bg-mist py-20">
+      <div class="mx-auto max-w-3xl px-4">
+        <h2 class="text-3xl font-semibold tracking-tight">常见问题</h2>
+        <dl class="mt-10 divide-y divide-black/10">
+          <div class="py-5">
+            <dt class="font-semibold">Windows 哪个版本能用？</dt>
+            <dd class="mt-2 text-slate-600">Windows 10 或 11，64 位。32 位不行，Windows 7 / 8 不行。Win10 如果提示缺少 WebView2，装微软的 Edge WebView2 运行时。</dd>
+          </div>
+          <div class="py-5">
+            <dt class="font-semibold">我的 Mac 该下哪一份？</dt>
+            <dd class="mt-2 text-slate-600">左上角苹果 → 关于本机。写着「Apple M1 / M2 / M3 / M4」就下 Apple 芯片。写着 Intel 就下 Intel。两份不能混。Intel 包还没打出来时，按钮会告诉你。</dd>
+          </div>
+          <div class="py-5">
+            <dt class="font-semibold">要装 AutoCAD 吗？</dt>
+            <dd class="mt-2 text-slate-600">不要。图译是独立程序。DXF 直接读；DWG 用你本机的 ODA File Converter。</dd>
+          </div>
+          <div class="py-5">
+            <dt class="font-semibold">ODA 打进安装包了吗？</dt>
+            <dd class="mt-2 text-slate-600">没有，也不会。协议不允许跟软件一起发。你自己装 ODA File Converter。只译 DXF 可以先不装。</dd>
+          </div>
+          <div class="py-5">
+            <dt class="font-semibold">第一次打不开？</dt>
+            <dd class="mt-2 text-slate-600">正常，安装包还没买代码签名。Mac：右键图标，选打开。Windows：更多信息 → 仍要运行。</dd>
+          </div>
+          <div class="py-5">
+            <dt class="font-semibold">收费吗？有授权码吗？</dt>
+            <dd class="mt-2 text-slate-600">没有。MIT 开源。翻译用的密钥是你自己的 DeepL / Azure / Ollama / 自定义接口。图译不建账号，默认也不往外打电话，除非你点检查更新。</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+  </main>
 
   <footer class="border-t border-black/5 py-5">
-    <div class="mx-auto flex max-w-6xl items-center justify-between px-4 text-sm text-slate-500">
-      <span>图译 Tuyi · MIT</span>
+    <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 text-sm text-slate-500">
+      <span translate="no">图译 Tuyi · MIT</span>
       <div class="flex items-center gap-4">
-        <a href="https://github.com/erict16/tuyi" class="text-slate-500 hover:text-ink" aria-label="GitHub">
+        <a href="https://github.com/erict16/tuyi" class="text-slate-500 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" aria-label="GitHub">
           <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/></svg>
         </a>
-        <a href="https://github.com/erict16/tuyi/blob/main/CONTRIBUTING.md" class="hover:text-ink">Contribute</a>
-        <a href="https://github.com/erict16/tuyi/releases" class="hover:text-ink">Releases</a>
+        <a href="https://github.com/erict16/tuyi/blob/main/CONTRIBUTING.md" class="hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">参与</a>
+        <a href="https://github.com/erict16/tuyi/releases" class="hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">版本</a>
       </div>
     </div>
   </footer>
 
   <script>
     const shot = { regular: "shots/regular.png", export: "shots/export.png", params: "shots/params.png" };
+    const alts = { regular: "常规处理：原文和译文表", export: "批量导出队列", params: "参数" };
     const img = document.getElementById("feature-shot");
     document.querySelectorAll(".tab").forEach((btn) => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".tab").forEach((b) => {
           b.classList.remove("on", "bg-white", "text-navy");
           b.classList.add("text-slate-300");
+          b.setAttribute("aria-selected", "false");
         });
         btn.classList.add("on", "bg-white", "text-navy");
         btn.classList.remove("text-slate-300");
+        btn.setAttribute("aria-selected", "true");
         img.src = shot[btn.dataset.tab];
+        img.alt = alts[btn.dataset.tab] || "图译界面";
       });
     });
-    document.querySelector('.tab[data-tab="regular"]').classList.add("bg-white", "text-navy");
-
-    const ua = navigator.userAgent;
-    let os = "";
-    if (/Windows/i.test(ua)) os = "win";
-    else if (/Mac OS X|Macintosh/i.test(ua) && !/iPhone|iPad|iPod/i.test(ua)) os = "mac";
-
-    const solid = ["bg-white", "text-accent", "hover:brightness-110"];
-    const ghost = ["bg-white/10", "text-white", "ring-2", "ring-white/70", "hover:bg-white/20"];
-    document.querySelectorAll(".dl-btn").forEach((btn) => {
-      if (!os) return;
-      if (btn.dataset.dl === os) {
-        ghost.forEach((c) => btn.classList.remove(c));
-        solid.forEach((c) => btn.classList.add(c));
-        btn.setAttribute("aria-current", "true");
-      } else {
-        solid.forEach((c) => btn.classList.remove(c));
-        ghost.forEach((c) => btn.classList.add(c));
-        btn.removeAttribute("aria-current");
-      }
-    });
+    document.querySelector('.tab[data-tab="regular"]').setAttribute("aria-selected", "true");
 
     const msg = document.getElementById("dl-msg");
-    document.querySelectorAll(".dl-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const url = (DL[btn.dataset.dl] || "").trim();
-        if (!url) {
-          msg.textContent = "安装包还没放上来";
-          msg.classList.remove("hidden");
-          return;
+    const btnMac = document.getElementById("btn-mac");
+    const btnWin = document.getElementById("btn-win");
+    const macHint = document.getElementById("mac-hint");
+    let macChip = "arm";
+
+    function bytesLabel(n) {
+      if (!n) return "";
+      return `约 ${Math.round(n / 1024 / 1024)} MB`;
+    }
+
+    function setLink(el, url, label, missing) {
+      if (url) {
+        el.href = url;
+        el.removeAttribute("aria-disabled");
+        el.classList.remove("opacity-60");
+        el.textContent = label;
+      } else {
+        el.href = "#download";
+        el.setAttribute("aria-disabled", "true");
+        el.classList.add("opacity-60");
+        el.textContent = missing;
+      }
+    }
+
+    function applyMacChip(chip) {
+      macChip = chip;
+      document.querySelectorAll("[data-chip]").forEach((b) => {
+        const on = b.dataset.chip === chip;
+        b.setAttribute("aria-checked", on ? "true" : "false");
+      });
+      if (chip === "intel") {
+        macHint.textContent = "Intel 芯片。苹果菜单 → 关于本机。这份和 Apple 芯片不是同一个文件。";
+        setLink(btnMac, window.DL.macIntel, "下载 macOS（Intel）", "Intel 安装包还没打出来");
+      } else {
+        macHint.textContent = "M1 / M2 / M3 / M4。苹果菜单 → 关于本机 → 芯片。";
+        setLink(btnMac, window.DL.macArm, "下载 macOS（Apple 芯片）", "Apple 芯片安装包还没放上来");
+      }
+    }
+
+    document.querySelectorAll("[data-chip]").forEach((b) => {
+      b.addEventListener("click", () => applyMacChip(b.dataset.chip));
+    });
+
+    function detectOs() {
+      const ua = navigator.userAgent;
+      if (/Windows/i.test(ua)) return "win";
+      if (/Mac OS X|Macintosh/i.test(ua) && !/iPhone|iPad|iPod/i.test(ua)) return "mac";
+      return "";
+    }
+
+    async function detectMacChip() {
+      try {
+        if (navigator.userAgentData?.getHighEntropyValues) {
+          const { architecture } = await navigator.userAgentData.getHighEntropyValues(["architecture"]);
+          if (/arm/i.test(architecture || "")) return "arm";
+          if (/x86|amd64/i.test(architecture || "")) return "intel";
         }
-        msg.classList.add("hidden");
-        const a = document.createElement("a");
-        a.href = url;
-        a.rel = "noopener";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+      } catch (_) {}
+      return "arm";
+    }
+
+    async function hydrateFromGithub() {
+      try {
+        const res = await fetch("https://api.github.com/repos/erict16/tuyi/releases/latest");
+        if (!res.ok) return;
+        const data = await res.json();
+        const assets = data.assets || [];
+        let win = "", macArm = "", macIntel = "", winBytes = 0;
+        for (const asset of assets) {
+          const name = asset.name || "";
+          const url = asset.browser_download_url || "";
+          if (/Tuyi_v.+_Setup\.exe$/i.test(name)) {
+            win = url;
+            winBytes = asset.size || 0;
+          } else if (/macOS_arm64\.dmg$/i.test(name)) {
+            macArm = url;
+          } else if (/macOS_x86_64\.dmg$/i.test(name)) {
+            macIntel = url;
+          }
+        }
+        if (win) window.DL.win = win;
+        window.DL.macArm = macArm;
+        window.DL.macIntel = macIntel;
+        if (data.tag_name) {
+          window.DL_META.version = data.tag_name;
+          const ver = document.getElementById("dl-ver");
+          if (ver) ver.textContent = `${data.tag_name} · MIT 开源 · 安装包未签名`;
+        }
+        if (winBytes) {
+          const size = document.getElementById("win-size");
+          if (size) size.textContent = bytesLabel(winBytes);
+        }
+      } catch (_) {}
+    }
+
+    function highlightOs(os) {
+      document.querySelectorAll(".dl-card").forEach((card) => {
+        card.dataset.current = card.dataset.os === os ? "true" : "false";
+      });
+    }
+
+    (async () => {
+      await hydrateFromGithub();
+      setLink(btnWin, window.DL.win, "下载 Windows", "Windows 安装包还没放上来");
+      const os = detectOs();
+      highlightOs(os);
+      if (os === "mac") applyMacChip(await detectMacChip());
+      else applyMacChip("arm");
+    })();
+
+    document.querySelectorAll(".dl-link").forEach((el) => {
+      el.addEventListener("click", (event) => {
+        if (el.getAttribute("aria-disabled") === "true") {
+          event.preventDefault();
+          msg.textContent = el.textContent;
+          msg.classList.remove("hidden");
+        } else {
+          msg.classList.add("hidden");
+        }
       });
     });
   </script>
