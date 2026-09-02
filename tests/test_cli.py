@@ -149,6 +149,20 @@ class CliTranslateTests(unittest.TestCase):
         self.assertRegex(result.stdout, r"tuyi\s+0\.\d+")
         self.assertNotIn("Traceback", result.stderr)
 
+    def test_dash_o_same_as_input_does_not_replace_source(self):
+        source = self.root / "foo.dxf"
+        shutil.copy(FLOOR, source)
+        original = source.read_bytes()
+        result = _run(["translate", str(source), "-o", str(source)])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(source.read_bytes(), original)
+        written = Path(result.stdout.strip().splitlines()[0])
+        self.assertTrue(written.is_file(), result.stdout)
+        self.assertNotEqual(written.resolve(), source.resolve())
+        self.assertEqual(written.parent.resolve(), source.parent.resolve())
+        self.assertFalse(str(written).lower().endswith(".dxf.dxf"))
+        self.assertIn("reflected ceiling plan", _dxf_texts(written))
+
     def test_two_inputs_reject_dash_o(self):
         other = self.root / "b.dxf"
         shutil.copy(FLOOR, other)

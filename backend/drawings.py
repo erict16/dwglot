@@ -509,7 +509,7 @@ def writeback_rows(
     meta = analyze_source(path)
     if not output_name.strip():
         output_name = f"{output_prefix(mode)}_{Path(path).stem}"
-    output_file = output_path_for(meta, output_dir, output_name.strip())
+    output_file = output_path_for(meta, output_dir, output_name.strip(), mode=mode)
     translator = CADChineseTranslator()
     translator.enable_v02_entities = False
 

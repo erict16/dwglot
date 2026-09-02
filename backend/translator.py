@@ -1710,7 +1710,8 @@ class CADTranslatorGUI:
         try:
             meta = analyze_source(self.input_file.get())
             output_file = output_path_for(
-                meta, self.output_dir.get(), self.output_name.get().strip()
+                meta, self.output_dir.get(), self.output_name.get().strip(),
+                mode=self.translation_mode.get(),
             )
         except ValueError:
             output_file = os.path.join(

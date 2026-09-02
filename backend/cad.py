@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -279,9 +280,55 @@ def analyze_source(path: str) -> SourceCadMeta:
     return meta
 
 
-def output_path_for(meta: SourceCadMeta, output_dir: str, output_name: str) -> str:
-    name = output_name.strip()
-    return os.path.join(output_dir, name + meta.output_ext)
+def paths_are_same(left: str | Path, right: str | Path) -> bool:
+    a, b = Path(left), Path(right)
+    try:
+        if a.exists() and b.exists():
+            return a.resolve().samefile(b.resolve())
+    except OSError:
+        pass
+    try:
+        return os.path.normcase(str(a.resolve())) == os.path.normcase(str(b.resolve()))
+    except OSError:
+        return os.path.normcase(os.path.abspath(str(a))) == os.path.normcase(os.path.abspath(str(b)))
+
+
+def _stem_without_cad_ext(name: str) -> str:
+    text = (name or "").strip()
+    while True:
+        lower = text.lower()
+        if lower.endswith(".dxf") or lower.endswith(".dwg"):
+            text = text[: text.rfind(".")]
+            continue
+        break
+    return text
+
+
+def output_path_for(meta: SourceCadMeta, output_dir: str, output_name: str, *, mode: str = "") -> str:
+    ext = meta.output_ext if str(meta.output_ext).startswith(".") else f".{meta.output_ext}"
+    name = _stem_without_cad_ext(output_name)
+    if not name:
+        name = Path(meta.original_path).stem
+    directory = os.path.abspath(output_dir or os.path.dirname(os.path.abspath(meta.original_path)) or ".")
+    dest = os.path.join(directory, name + ext)
+    source = meta.original_path
+    if not source or not paths_are_same(dest, source):
+        return dest
+    from backend.languages import output_prefix
+
+    prefix = "translated"
+    if mode:
+        try:
+            prefix = output_prefix(mode)
+        except ValueError:
+            pass
+    stem = Path(os.path.abspath(source)).stem
+    ts = datetime.now().strftime("%Hh%M_%d-%m-%y")
+    sibling_dir = os.path.dirname(os.path.abspath(source))
+    dest = os.path.join(sibling_dir, f"{prefix}_{stem}_{ts}{ext}")
+    if paths_are_same(dest, source):
+        dest = os.path.join(sibling_dir, f"{prefix}_{stem}_{ts}_out{ext}")
+    return dest
 
 
 def _macos_odafc_app(executable: str) -> Optional[Path]:

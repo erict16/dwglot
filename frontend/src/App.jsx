@@ -134,6 +134,7 @@ export default function App() {
   const cadInput = useRef(null);
   const glossaryInput = useRef(null);
   const tableInput = useRef(null);
+  const extractSnap = useRef("");
 
   useEffect(() => {
     const shot = new URLSearchParams(window.location.search).get("shot");
@@ -297,9 +298,30 @@ export default function App() {
     }
   }
 
+  function extractKey() {
+    return JSON.stringify({
+      attribs: params.attribs,
+      dims: params.dims,
+      model: params.model,
+      paper: params.paper,
+      frozen: params.frozen,
+      locked: params.locked,
+      off: params.off,
+      numbers: filters.numbers,
+      dupes: filters.dupes,
+      nonsource: filters.nonsource,
+    });
+  }
+
+  function openSheet() {
+    extractSnap.current = extractKey();
+    setSheet(true);
+  }
+
   function closeSheet() {
+    const changed = extractSnap.current !== extractKey();
     setSheet(false);
-    if (current) extractFile(current);
+    if (current && changed) extractFile(current);
   }
 
   async function runTranslate() {
@@ -348,7 +370,7 @@ export default function App() {
             ? "无法连接自定义接口。"
             : "剩下的要填云引擎 Key，或手填译文。";
         setStatus(`${bits.join("，")}。${hint}`);
-        if (engine !== "local") setSheet(true);
+        if (engine !== "local") openSheet();
       } else {
         setStatus(`译完。${bits.join("，")}。可以改译文再写回。`);
       }
@@ -855,7 +877,7 @@ export default function App() {
         <span className="grow" />
         <button type="button" className="tbtn" onClick={openDrawings}>打开图纸</button>
         <button type="button" className="tbtn" onClick={loadGlossary}>加载术语表</button>
-        <button type="button" className={`tbtn${sheet ? " pri" : ""}`} onClick={() => setSheet(true)}>参数</button>
+        <button type="button" className={`tbtn${sheet ? " pri" : ""}`} onClick={openSheet}>参数</button>
         {tab === "export" ? (
           <button type="button" className="tbtn pri" disabled={busy} onClick={startExport}>开始导出</button>
         ) : tab === "import" ? (

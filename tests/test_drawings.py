@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from backend.api import app, service
 from unittest.mock import patch
 
+from backend.cad import analyze_source, output_path_for, paths_are_same
 from backend.drawings import (
     PRINT_TIMEOUT,
     _layout_has_entities,
@@ -220,6 +221,41 @@ class DrawingsLoopTests(unittest.TestCase):
         self.assertIn("\\C1;", mtext.dxf.text)
         attdef = next(entity for entity in doc.blocks.get("TITLE") if entity.dxftype() == "ATTDEF")
         self.assertEqual(attdef.dxf.text, "distribution board")
+
+    def test_output_path_strips_cad_extension(self):
+        meta = analyze_source(str(self.dxf))
+        dest = output_path_for(meta, str(self.root), "out.dxf")
+        self.assertEqual(Path(dest).name, "out.dxf")
+        dest2 = output_path_for(meta, str(self.root), "out.dxf.dxf")
+        self.assertEqual(Path(dest2).name, "out.dxf")
+        dest3 = output_path_for(meta, str(self.root), "out.DXF")
+        self.assertEqual(Path(dest3).name, "out.dxf")
+
+    def test_writeback_does_not_replace_source_file(self):
+        source = self.root / "foo.dxf"
+        source.write_bytes(self.dxf.read_bytes())
+        original = source.read_bytes()
+        preview = extract_preview(str(source), include_attribs=True, include_paper=True)
+        translated = translate_rows(preview["items"], mode="zh_to_en", provider="deepl", engine={})
+        result = writeback_rows(
+            str(source),
+            translated["items"],
+            output_dir=str(self.root),
+            output_name="foo",
+            mode="zh_to_en",
+        )
+        self.assertEqual(source.read_bytes(), original)
+        written = Path(result["path"])
+        self.assertTrue(written.is_file())
+        self.assertFalse(paths_are_same(written, source))
+        self.assertEqual(written.parent.resolve(), source.parent.resolve())
+        self.assertEqual(written.suffix.lower(), ".dxf")
+        self.assertFalse(str(written).lower().endswith(".dxf.dxf"))
+        self.assertTrue(written.name.startswith("en_foo_"))
+        self.assertGreater(result["written"], 0)
+
+        dotted = output_path_for(analyze_source(str(source)), str(self.root), "foo.dxf", mode="zh_to_en")
+        self.assertFalse(paths_are_same(dotted, source))
 
     def test_translate_cad_file_keeps_mtext_codes(self):
         dest = self.root / "en_batch_mtext.dxf"

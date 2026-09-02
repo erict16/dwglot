@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from backend.app_meta import APP_TITLE, APP_VERSION, GITHUB_URL, default_output_dir as dwglot_output_dir
+from backend.app_meta import APP_TITLE, APP_VERSION, DROPPED_FILES_DIR, GITHUB_URL, default_output_dir as dwglot_output_dir
 from backend.providers.azure import AzureFreeQuotaExceededError
 from backend.providers.base import TranslationProviderError
 from backend.queue import BatchQueue
@@ -285,7 +285,7 @@ class TranslationService:
         self._output_lock = threading.Lock()
         self._reserved_outputs: set[str] = set()
         self.language_assets = LanguageAssets()
-        self.dropped_files_dir = Path(CONFIG_PATH).parent / "cad_translator_dropped_files"
+        self.dropped_files_dir = DROPPED_FILES_DIR
         self.dropped_files_dir.mkdir(exist_ok=True)
         self.batch = BatchQueue(self._run_batch, self.emit_log, lambda task: self.load_config().get(f"{task.get('provider', 'deepl')}_key", ""))
         self.cleanup_dropped_files()
@@ -641,7 +641,7 @@ class TranslationService:
             try:
                 meta = analyze_source(body.input_file)
                 output_file = output_path_for(
-                    meta, body.output_dir, body.output_name.strip()
+                    meta, body.output_dir, body.output_name.strip(), mode=body.translation_mode
                 )
                 translator.translate_cad_file(
                     body.input_file,
