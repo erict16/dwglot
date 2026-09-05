@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>A · 蓝邮骨架 — 图译</title>
+  <link rel="icon" href="../../landing/shots/mark.png" />
+  <style>
+    :root {
+      --bg: #fdfbf7;
+      --bg-soft: #f7f3ec;
+      --surface: #fffefb;
+      --ink: #0d0b07;
+      --ink-600: #4c473f;
+      --ink-500: #6f695f;
+      --line: rgba(60, 45, 25, .09);
+      --accent: #007aff;
+      --accent-soft: #e8f1ff;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --ease: cubic-bezier(.16, 1, .3, 1);
+      --shadow: 0 30px 80px -30px rgba(10, 11, 20, .22);
+      --container: 1120px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 17px/1.55 -apple-system, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+    .skip {
+      position: absolute; left: -999px;
+    }
+    .skip:focus { left: 12px; top: 12px; z-index: 80; background: #fff; padding: 8px 12px; }
+    .wrap { width: min(var(--container), calc(100% - 40px)); margin-inline: auto; }
+    .draft {
+      position: sticky; top: 0; z-index: 40;
+      display: flex; gap: 16px; align-items: center; justify-content: space-between;
+      padding: 8px 20px; font-size: 13px;
+      background: #1d1d1f; color: #fff;
+    }
+    .draft a { color: #fff; opacity: .75; }
+    .draft a[aria-current="page"] { opacity: 1; font-weight: 600; }
+    header.nav {
+      position: sticky; top: 36px; z-index: 30;
+      backdrop-filter: saturate(180%) blur(12px);
+      background: rgba(253, 251, 247, .82);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: -.02em; }
+    .brand img { width: 28px; height: 28px; border-radius: 7px; }
+    .nav-links { display: flex; gap: 28px; font-size: 15px; color: var(--ink-600); font-weight: 500; }
+    .nav-links a:hover, .nav-links a.active { color: var(--ink); }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 12px 20px; border-radius: 999px; font-weight: 600; font-size: 15px;
+      transition: transform .25s var(--ease), background .2s;
+      border: 0; cursor: pointer;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-ink { background: var(--ink); color: #fff; }
+    .btn-ink:hover { background: #000; transform: translateY(-1px); }
+    .hero { padding: 72px 0 28px; text-align: center; }
+    .mark {
+      width: 96px; height: 96px; margin: 0 auto 22px; position: relative;
+    }
+    .mark::before {
+      content: ""; position: absolute; inset: -36px;
+      background: radial-gradient(circle, rgba(0,122,255,.28), transparent 68%);
+      filter: blur(18px); z-index: 0;
+    }
+    .mark img { position: relative; width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 18px 40px -18px rgba(0,122,255,.55); }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 999px;
+      font-size: 13px; font-weight: 500; color: #0b5ccc;
+      background: var(--accent-soft); border: 1px solid #d3e4ff;
+    }
+    .eyebrow::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    h1 {
+      margin: 22px auto 0; font-size: clamp(40px, 6.4vw, 80px);
+      letter-spacing: -.045em; line-height: .98; font-weight: 600; max-width: 12ch;
+    }
+    h1 em { font-style: italic; font-weight: 500; color: var(--accent); }
+    .lede { margin: 18px auto 0; max-width: 38em; color: var(--ink-500); font-size: 18px; }
+    .smart { width: min(420px, 100%); margin: 32px auto 0; position: relative; }
+    .smart-bar { display: flex; }
+    .smart-main {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 16px 20px; background: var(--ink); color: #fff;
+      border-radius: 14px 0 0 14px; font-weight: 600;
+      transition: background .2s;
+    }
+    .smart-main:hover { background: #000; }
+    .smart-toggle {
+      width: 52px; background: var(--ink); color: #fff; border: 0;
+      border-left: 1px solid rgba(255,255,255,.16); border-radius: 0 14px 14px 0;
+      cursor: pointer;
+    }
+    .smart-menu {
+      display: none; position: absolute; inset: calc(100% + 8px) 0 auto;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+      box-shadow: var(--shadow); padding: 6px; z-index: 10;
+    }
+    .smart-menu.open { display: flex; flex-direction: column; }
+    .smart-menu a { padding: 10px 12px; border-radius: 10px; font-size: 15px; font-weight: 500; }
+    .smart-menu a:hover { background: var(--bg-soft); }
+    .smart-sub { margin-top: 14px; font-size: 14px; color: var(--ink-500); }
+    .grid-sec { padding: 36px 0 72px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .card {
+      position: relative; background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius-lg); padding: 28px; min-height: 220px;
+      display: flex; flex-direction: column; gap: 14px;
+      transition: transform .4s var(--ease), box-shadow .4s var(--ease);
+    }
+    .card:hover { transform: translateY(-6px); box-shadow: var(--shadow); }
+    .card:active { transform: scale(.98); }
+    .ico {
+      width: 52px; height: 52px; border-radius: 14px;
+      display: grid; place-items: center; background: var(--bg-soft); color: var(--ink);
+    }
+    .card h3 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
+    .sub { font-size: 14px; color: var(--ink-500); }
+    .cta-row { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line); }
+    .cta-row strong { display: block; font-size: 14px; }
+    .cta-row span { font-size: 12px; color: var(--ink-500); font-family: ui-monospace, Menlo, monospace; }
+    .arrow {
+      position: absolute; top: 28px; right: 28px; width: 34px; height: 34px;
+      border-radius: 10px; background: var(--bg-soft); display: grid; place-items: center;
+      transition: background .2s, color .2s, transform .35s var(--ease);
+    }
+    .card:hover .arrow { background: var(--ink); color: #fff; transform: translate(3px, -3px); }
+    .stage { padding: 20px 0 90px; text-align: center; }
+    .stage h2 { font-size: clamp(28px, 4vw, 48px); letter-spacing: -.035em; margin: 14px 0 10px; }
+    .stage h2 em { font-style: italic; color: var(--accent); }
+    .stage .lede { margin-bottom: 28px; }
+    .frame {
+      background: linear-gradient(135deg, #f3f8ff, #eaf1ff);
+      border-radius: 36px; padding: 48px 36px; box-shadow: var(--shadow), 0 0 0 1px var(--line);
+    }
+    .frame img { width: 100%; max-width: 920px; border-radius: 16px; box-shadow: 0 24px 60px -30px rgba(13,11,7,.45); }
+    .faq { padding: 20px 0 90px; }
+    .faq h2 { text-align: center; font-size: clamp(28px, 4vw, 48px); letter-spacing: -.035em; }
+    .faq h2 em { font-style: italic; color: var(--accent); }
+    .faq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 36px; }
+    details {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 22px;
+    }
+    details[open] { border-color: rgba(0,122,255,.28); }
+    summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "+"; font-weight: 300; color: var(--ink-500); }
+    details[open] summary::after { content: "–"; }
+    details p { margin: 12px 0 0; color: var(--ink-500); font-size: 15px; }
+    .banner {
+      margin: 0 20px 80px; border-radius: 32px; overflow: hidden;
+      background: #0b1120; color: #fff; text-align: center; padding: 64px 24px;
+    }
+    .banner h2 { font-size: clamp(28px, 4vw, 48px); letter-spacing: -.035em; margin: 0; }
+    .banner h2 em { font-style: italic; color: #7ab8ff; }
+    .banner p { color: rgba(255,255,255,.7); margin: 12px 0 24px; }
+    footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--ink-500); font-size: 14px; }
+    .foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    footer a:hover { color: var(--ink); }
+    @media (max-width: 800px) {
+      .nav-links { display: none; }
+      .grid, .faq-grid { grid-template-columns: 1fr; }
+      .hero { padding-top: 48px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#download">跳到下载</a>
+  <div class="draft">
+    <span>草稿 A · 蓝邮骨架</span>
+    <span>
+      <a href="index.html">目录</a>
+      <a href="a.html" aria-current="page">A</a>
+      <a href="b.html">B</a>
+      <a href="c.html">C</a>
+    </span>
+  </div>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="a.html"><img src="../../landing/shots/mark.png" alt="" />图译 Tuyi</a>
+      <nav class="nav-links" aria-label="页面">
+        <a href="#download" class="active">下载</a>
+        <a href="#see">怎么用</a>
+        <a href="#faq">常见问题</a>
+        <a href="https://github.com/erict16/tuyi">GitHub</a>
+      </nav>
+      <a class="btn btn-ink" href="#download">下载</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="download">
+      <div class="wrap">
+        <div class="mark"><img src="../../landing/shots/mark.png" alt="图译" /></div>
+        <span class="eyebrow">Windows 和 Mac · 不用 AutoCAD</span>
+        <h1>下载图译 <em>现在。</em></h1>
+        <p class="lede">打开 DWG 或 DXF，译图纸上的字，另存一份。原图不动。</p>
+        <div class="smart" id="smart">
+          <div class="smart-bar">
+            <a class="smart-main" id="smart-main" href="https://github.com/erict16/tuyi/releases">下载图译</a>
+            <button class="smart-toggle" type="button" id="smart-toggle" aria-expanded="false" aria-label="选系统">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
+          <div class="smart-menu" id="smart-menu">
+            <a data-os="win" href="https://github.com/erict16/tuyi/releases">下载 Windows（64 位）</a>
+            <a data-os="mac-arm" href="https://github.com/erict16/tuyi/releases">下载 Mac（Apple 芯片）</a>
+            <a data-os="mac-intel" href="https://github.com/erict16/tuyi/releases">下载 Mac（Intel）</a>
+          </div>
+          <p class="smart-sub">MIT 开源 · 密钥用你自己的 · 安装包还没签名</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid-sec">
+      <div class="wrap grid">
+        <a class="card" href="https://github.com/erict16/tuyi/releases">
+          <div class="ico" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5 10.5 4.5v7H3v-6Zm0 7h7.5v7L3 18.5v-6Zm8.5-8L21 3v9.5h-9.5v-8Zm0 9h9.5V21l-9.5-1.5v-7Z"/></svg>
+          </div>
+          <div>
+            <h3>图译 for Windows</h3>
+            <p class="sub">Windows 10 / 11 · 64 位</p>
+          </div>
+          <div class="cta-row">
+            <strong>直接下 Setup.exe</strong>
+            <span>v0.1.3 · x64 · 约 64 MB</span>
+          </div>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
+        <a class="card" href="https://github.com/erict16/tuyi/releases">
+          <div class="ico">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.94 2.4-4.36 2.51-4.43-1.37-2-3.5-2.28-4.26-2.31-1.81-.19-3.54 1.07-4.46 1.07-.92 0-2.34-1.05-3.85-1.02-1.98.03-3.81 1.15-4.83 2.92-2.06 3.57-.53 8.85 1.49 11.75 1 1.42 2.18 3.01 3.72 2.95 1.49-.06 2.06-.96 3.86-.96 1.79 0 2.31.96 3.88.93 1.6-.03 2.62-1.45 3.6-2.88 1.14-1.65 1.6-3.25 1.62-3.34-.04-.01-3.11-1.19-3.14-4.71Z"/></svg>
+          </div>
+          <div>
+            <h3>图译 for Mac</h3>
+            <p class="sub">Apple 芯片 · M1 及以后</p>
+          </div>
+          <div class="cta-row">
+            <strong>下载 DMG</strong>
+            <span>v0.1.3 · arm64 · macOS 12+</span>
+          </div>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
+        <a class="card" href="https://github.com/erict16/tuyi/releases">
+          <div class="ico">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.94 2.4-4.36 2.51-4.43-1.37-2-3.5-2.28-4.26-2.31-1.81-.19-3.54 1.07-4.46 1.07-.92 0-2.34-1.05-3.85-1.02-1.98.03-3.81 1.15-4.83 2.92-2.06 3.57-.53 8.85 1.49 11.75 1 1.42 2.18 3.01 3.72 2.95 1.49-.06 2.06-.96 3.86-.96 1.79 0 2.31.96 3.88.93 1.6-.03 2.62-1.45 3.6-2.88 1.14-1.65 1.6-3.25 1.62-3.34-.04-.01-3.11-1.19-3.14-4.71Z"/></svg>
+          </div>
+          <div>
+            <h3>图译 for Intel Mac</h3>
+            <p class="sub">Intel 芯 · 不是同一份 DMG</p>
+          </div>
+          <div class="cta-row">
+            <strong>下载 Intel DMG</strong>
+            <span>v0.1.3 · x86_64 · macOS 12+</span>
+          </div>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="stage" id="see">
+      <div class="wrap">
+        <span class="eyebrow">原文 | 译文</span>
+        <h2>打开图纸，<em>字在表里。</em></h2>
+        <p class="lede">左边原文，右边译文，按图层列。改完写出新文件，丢到「文档 / Tuyi output」。</p>
+        <div class="frame">
+          <img src="../../landing/shots/regular.png" alt="图译窗口：左边原文，右边译文，按图层列出" width="1280" height="800" />
+        </div>
+      </div>
+    </section>
+
+    <section class="faq" id="faq">
+      <div class="wrap">
+        <span class="eyebrow" style="display:flex;width:max-content;margin-inline:auto">短答</span>
+        <h2>就这 <em>几句。</em></h2>
+        <div class="faq-grid">
+          <details>
+            <summary>要装 AutoCAD 吗？</summary>
+            <p>不要。图译是独立程序。DXF 直接读；DWG 用你本机的 ODA File Converter。</p>
+          </details>
+          <details>
+            <summary>ODA 打进安装包了吗？</summary>
+            <p>没有，也不会。协议不允许跟软件一起发。只译 DXF 可以先不装。</p>
+          </details>
+          <details>
+            <summary>Windows 哪个版本能用？</summary>
+            <p>Windows 10 或 11，64 位。32 位不行，7 / 8 不行。Win10 缺 WebView2 就装微软那个运行时。</p>
+          </details>
+          <details>
+            <summary>我的 Mac 该下哪一份？</summary>
+            <p>苹果菜单 → 关于本机。写着 M1 / M2 / M3 / M4 就下 Apple 芯片。写着 Intel 就下 Intel。两份不能混。</p>
+          </details>
+          <details>
+            <summary>第一次打不开？</summary>
+            <p>正常，安装包还没买代码签名。Mac：右键图标 → 打开。Windows：更多信息 → 仍要运行。</p>
+          </details>
+          <details>
+            <summary>收费吗？有授权码吗？</summary>
+            <p>没有。MIT。翻译密钥是你自己的 DeepL / Azure / Ollama / 自定义接口。图译不建账号。</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="banner">
+      <h2>原图不动。<em>另存一份。</em></h2>
+      <p>Windows 64 位，Mac Apple 芯片和 Intel，各下一份对的。</p>
+      <a class="btn btn-ink" href="#download" style="background:#fff;color:#0b1120">回到下载</a>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <span>图译 Tuyi · MIT</span>
+      <span>
+        <a href="https://github.com/erict16/tuyi">GitHub</a>
+        · <a href="https://github.com/erict16/tuyi/releases">所有版本</a>
+      </span>
+    </div>
+  </footer>
+
+  <script>
+    const ua = navigator.userAgent;
+    const isMac = /Mac/.test(ua);
+    const isArm = /Mac/.test(ua) && (navigator.userAgentData?.platform === "macOS");
+    const main = document.getElementById("smart-main");
+    if (/Win/.test(ua)) main.textContent = "下载 Windows";
+    else if (isMac) main.textContent = "下载 Mac";
+    const toggle = document.getElementById("smart-toggle");
+    const menu = document.getElementById("smart-menu");
+    toggle.addEventListener("click", () => {
+      const open = menu.classList.toggle("open");
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    document.addEventListener("click", (e) => {
+      if (!document.getElementById("smart").contains(e.target)) menu.classList.remove("open");
+    });
+  </script>
+</body>
+</html>
