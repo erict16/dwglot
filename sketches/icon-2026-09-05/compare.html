@@ -38,32 +38,32 @@
 <body>
   <header>
     <h1>图译 icon · 对照</h1>
-    <p class="hint">纸和字母都会撞上别人。这一轮把现有这只猫做成 Dock 上的实物。点格子切。</p>
+    <p class="hint">奶油黄丢掉。雾灰 / 白 / 炭黑，平面。图纸 + 挖空三角 + 蓝尺寸。点格子切。</p>
   </header>
   <main>
     <div class="stage">
-      <div class="big"><img id="hero" src="cat-toy.jpg" alt="" /></div>
+      <div class="big"><img id="hero" src="flat-mist.jpg" alt="" /></div>
       <div class="meta">
-        <h2 id="title">手办</h2>
-        <p id="blurb">还是这只猫，三角帽子留下。奶油色方块上坐着一个小手办。Ghostty 那套：一个角色，不是一张纸。</p>
+        <h2 id="title">雾灰三角</h2>
+        <p id="blurb">窗口那种灰，不是米黄。三角是图译的标记，后面是图纸，蓝十字是译过的尺寸。32 像素还剩三角。</p>
         <div class="sizes">
-          <div class="sz">128<img id="s128" src="cat-toy.jpg" width="128" height="128" alt="" /></div>
-          <div class="sz">64<img id="s64" src="cat-toy.jpg" width="64" height="64" alt="" /></div>
-          <div class="sz">32<img id="s32" src="cat-toy.jpg" width="32" height="32" alt="" /></div>
+          <div class="sz">128<img id="s128" src="flat-mist.jpg" width="128" height="128" alt="" /></div>
+          <div class="sz">64<img id="s64" src="flat-mist.jpg" width="64" height="64" alt="" /></div>
+          <div class="sz">32<img id="s32" src="flat-mist.jpg" width="32" height="32" alt="" /></div>
         </div>
       </div>
     </div>
 
-    <p class="h">这一轮 · 猫</p>
+    <p class="h">这一轮 · 平面</p>
     <div class="grid" id="row"></div>
   </main>
   <script>
     const items = [
-      { id: "now", src: "00-now.png", title: "现状", blurb: "剪贴画近景。角色对，格式不对，进不了 Dock。" },
-      { id: "toy", src: "cat-toy.jpg", title: "手办", blurb: "还是这只猫，三角帽子留下。奶油色方块上坐着一个小手办。Ghostty 那套：一个角色，不是一张纸。" },
-      { id: "dark", src: "cat-dark.jpg", title: "深底手办", blurb: "同一只猫，炭黑底。小尺寸更清楚。" },
-      { id: "enamel", src: "cat-enamel.jpg", title: "浮雕", blurb: "猫压在方块上，像珐琅。还是原来那套脸和帽子。" },
-      { id: "mist", src: "cat-mist.jpg", title: "雾灰浮雕", blurb: "浮雕换窗口那种灰。软件里的灰，猫还是奶油色。" }
+      { id: "now", src: "00-now.png", title: "现状", blurb: "剪贴画近景。角色在，格式不对。" },
+      { id: "mist", src: "flat-mist.jpg", title: "雾灰三角", blurb: "窗口那种灰，不是米黄。三角是图译的标记，后面是图纸，蓝十字是译过的尺寸。32 像素还剩三角。" },
+      { id: "white", src: "flat-white.jpg", title: "白底斜线", blurb: "白底、黑三角、等轴测盒子、一条蓝线。更招贴。" },
+      { id: "offset", src: "flat-offset.jpg", title: "两框", blurb: "黑框原文，蓝框译文，错开一层。角上一个小三角。" },
+      { id: "dim", src: "flat-dim.jpg", title: "尺寸", blurb: "灰底，房间线稿，底下一条蓝尺寸。三角压在图上。" }
     ];
     const row = document.getElementById("row");
     const hero = document.getElementById("hero");
@@ -74,7 +74,7 @@
     items.forEach((it) => {
       const b = document.createElement("button");
       b.className = "tile"; b.type = "button"; b.dataset.id = it.id;
-      b.setAttribute("aria-selected", it.id === "toy" ? "true" : "false");
+      b.setAttribute("aria-selected", it.id === "mist" ? "true" : "false");
       b.innerHTML = `<img src="${it.src}" alt="" /><span>${it.title}</span>`;
       b.onclick = () => pick(it);
       row.appendChild(b);
