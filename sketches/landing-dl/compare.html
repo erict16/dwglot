@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>图译 landing · 对照</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, "SF Pro Text", "PingFang SC", sans-serif;
+      background: #111; color: #ececec;
+      display: grid; grid-template-rows: auto 1fr;
+    }
+    header {
+      padding: .7rem 1rem .65rem;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      display: flex; flex-wrap: wrap; gap: .55rem 1rem;
+      justify-content: space-between; align-items: center;
+    }
+    h1 { font-size: .92rem; font-weight: 600; }
+    .hint { font-size: .72rem; color: #8b8f98; margin-top: .15rem; }
+    .tabs { display: flex; flex-wrap: wrap; gap: .3rem; }
+    .tabs button {
+      border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.04);
+      color: #b8bcc4; font: inherit; font-size: .72rem;
+      padding: .38rem .7rem; border-radius: 999px; cursor: pointer;
+    }
+    .tabs button[aria-selected="true"] { background: #fff; color: #111; font-weight: 600; }
+    iframe { width: 100%; height: 100%; border: 0; background: #fdfbf7; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>图译 landing · 对照</h1>
+      <p class="hint">顶栏切档。1 现状，2 蓝邮骨架，3 图纸舞台，4 极短。</p>
+    </div>
+    <div class="tabs" role="tablist" aria-label="方案">
+      <button type="button" role="tab" aria-selected="false" data-src="../../landing/index.html" data-key="1">现状</button>
+      <button type="button" role="tab" aria-selected="true" data-src="a.html" data-key="2">蓝邮骨架</button>
+      <button type="button" role="tab" aria-selected="false" data-src="b.html" data-key="3">图纸舞台</button>
+      <button type="button" role="tab" aria-selected="false" data-src="c.html" data-key="4">极短</button>
+    </div>
+  </header>
+  <iframe id="frame" src="a.html" title="方案预览"></iframe>
+  <script>
+    const frame = document.getElementById("frame");
+    const tabs = [...document.querySelectorAll(".tabs button")];
+    function pick(btn) {
+      tabs.forEach((b) => b.setAttribute("aria-selected", b === btn ? "true" : "false"));
+      frame.src = btn.dataset.src;
+    }
+    tabs.forEach((btn) => btn.addEventListener("click", () => pick(btn)));
+    document.addEventListener("keydown", (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const btn = tabs.find((b) => b.dataset.key === e.key);
+      if (btn) { e.preventDefault(); pick(btn); }
+    });
+  </script>
+</body>
+</html>

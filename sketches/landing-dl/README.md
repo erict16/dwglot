@@ -12,5 +12,5 @@
 | `b.html` | 图纸当舞台。先看见窗口，再下。 | Radiant product stage |
 | `c.html` | 极短。图标、一句话、两个包。 | Pocket / mini |
 
-本地看：打开 `index.html`，或分别开 a/b/c。
+本地看：**只开 `compare.html`**（顶栏切 现状 / 蓝邮骨架 / 图纸舞台 / 极短）。
 没改 `landing/index.html`。挑一版再说。

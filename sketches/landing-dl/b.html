@@ -105,10 +105,12 @@
       .plats { grid-template-columns: 1fr; }
       .hero-copy { grid-template-columns: 1fr; padding: 22px 22px 26px; }
     }
+    html.embed .draft { display: none; }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   </style>
 </head>
 <body>
+  <script>if (window.self !== window.top) document.documentElement.classList.add("embed");</script>
   <a class="skip" href="#os">跳到下载</a>
   <div class="draft">
     <span>草稿 B · 图纸当舞台</span>

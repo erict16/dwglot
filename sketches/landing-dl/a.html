@@ -174,12 +174,15 @@
       .grid, .faq-grid { grid-template-columns: 1fr; }
       .hero { padding-top: 48px; }
     }
+    html.embed .draft { display: none; }
+    html.embed header.nav { top: 0; }
     @media (prefers-reduced-motion: reduce) {
       * { transition: none !important; scroll-behavior: auto !important; }
     }
   </style>
 </head>
 <body>
+  <script>if (window.self !== window.top) document.documentElement.classList.add("embed");</script>
   <a class="skip" href="#download">跳到下载</a>
   <div class="draft">
     <span>草稿 A · 蓝邮骨架</span>

@@ -59,10 +59,12 @@
       padding: 16px 20px 24px; text-align: center; font-size: 13px; color: var(--muted);
     }
     @media (max-width: 520px) { .pair { grid-template-columns: 1fr; } h1 { font-size: 36px; } }
+    html.embed .draft { display: none; }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   </style>
 </head>
 <body>
+  <script>if (window.self !== window.top) document.documentElement.classList.add("embed");</script>
   <div class="draft">
     <span>草稿 C · 极短</span>
     <span>
