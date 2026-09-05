@@ -5,128 +5,143 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>图译 icon · 对照</title>
   <style>
+    :root {
+      --win: #e8e8ed; --side: #ececf1; --content: #fff;
+      --text: #1d1d1f; --accent: #007aff; --row: #d6e8ff;
+      --red: #ff5f57; --yel: #febc2e; --grn: #28c840;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font: 15px/1.45 -apple-system, "SF Pro Text", "PingFang SC", sans-serif;
       background: #111; color: #ececec; min-height: 100dvh;
     }
-    header {
-      padding: .7rem 1rem .65rem;
-      border-bottom: 1px solid rgba(255,255,255,.08);
-      display: flex; flex-wrap: wrap; gap: .5rem 1.2rem;
-      justify-content: space-between; align-items: center;
-    }
-    h1 { font-size: .95rem; font-weight: 600; }
-    .hint { font-size: .72rem; color: #8b8f98; margin-top: .12rem; }
-    main { padding: 20px 20px 40px; max-width: 1100px; margin: 0 auto; }
-    .stage {
-      display: grid; grid-template-columns: 280px 1fr; gap: 28px; align-items: start;
-      margin-bottom: 28px;
-    }
-    .big {
-      width: 256px; height: 256px; border-radius: 58px; overflow: hidden;
-      background: #1c1c1e; box-shadow: 0 18px 50px -24px #000;
-    }
-    .big img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .meta h2 { font-size: 1.25rem; letter-spacing: -.02em; margin-bottom: 6px; }
-    .meta p { color: #8b8f98; font-size: .88rem; max-width: 36em; }
-    .sizes { display: flex; gap: 16px; align-items: end; margin-top: 18px; }
-    .sz { text-align: center; color: #8b8f98; font-size: 11px; }
-    .sz img {
-      display: block; margin: 0 auto 6px; border-radius: 22%;
-      background: #fff;
-    }
-    .sz.dark img { background: #2c2c2e; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
-    .h { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8b8f98; margin: 18px 0 8px; }
+    header { padding: .7rem 1rem; border-bottom: 1px solid rgba(255,255,255,.08); }
+    h1 { font-size: .95rem; }
+    .hint { font-size: .72rem; color: #8b8f98; margin-top: .15rem; }
+    main { padding: 20px 20px 48px; max-width: 1080px; margin: 0 auto; }
+    .stage { display: grid; grid-template-columns: 280px 1fr; gap: 28px; margin-bottom: 24px; }
+    .big { width: 256px; height: 256px; border-radius: 58px; overflow: hidden; background: #1c1c1e; }
+    .big img, .big .css-icon { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .meta h2 { font-size: 1.2rem; letter-spacing: -.02em; margin-bottom: 6px; }
+    .meta p { color: #8b8f98; font-size: .88rem; max-width: 38em; }
+    .sizes { display: flex; gap: 16px; align-items: end; margin-top: 16px; }
+    .sz { font-size: 11px; color: #8b8f98; text-align: center; }
+    .sz img, .sz .css-icon { display: block; margin: 0 auto 6px; border-radius: 22%; }
+    .h { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8b8f98; margin: 16px 0 8px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
     button.tile {
       appearance: none; border: 1px solid rgba(255,255,255,.1);
-      background: rgba(255,255,255,.04); color: inherit;
-      border-radius: 16px; padding: 10px 10px 8px; cursor: pointer; text-align: left;
+      background: rgba(255,255,255,.04); color: inherit; border-radius: 16px;
+      padding: 10px; cursor: pointer; text-align: left;
     }
-    button.tile[aria-selected="true"] { background: #fff; color: #111; border-color: #fff; }
-    button.tile img {
-      width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 22%;
-      display: block; background: #fff;
-    }
+    button.tile[aria-selected="true"] { background: #fff; color: #111; }
+    button.tile img, button.tile .css-icon { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 22%; display: block; }
     button.tile span { display: block; margin-top: 7px; font-size: 12px; font-weight: 600; }
-    @media (max-width: 720px) {
-      .stage { grid-template-columns: 1fr; }
-      .big { width: 200px; height: 200px; border-radius: 46px; }
+
+    /* live CSS marks — exact app tokens */
+    .css-icon { position: relative; overflow: hidden; background: var(--win); }
+    .css-icon .lights { position: absolute; top: 7%; left: 8%; display: flex; gap: 5%; width: 22%; }
+    .css-icon .lights i { flex: 1; aspect-ratio: 1; border-radius: 50%; }
+    .css-icon .r { background: var(--red); } .css-icon .y { background: var(--yel); } .css-icon .g { background: var(--grn); }
+    .css-icon .side { position: absolute; left: 0; top: 16%; bottom: 0; width: 22%; background: var(--side); }
+    .css-icon .chip { position: absolute; left: 8%; top: 22%; width: 14%; height: 6%; background: var(--accent); border-radius: 3px; }
+    .css-icon .plan {
+      position: absolute; left: 26%; top: 18%; right: 8%; height: 48%;
+      background: var(--content); border: 1px solid rgba(0,0,0,.08);
     }
+    .css-icon .plan svg { width: 100%; height: 100%; }
+    .css-icon .tb {
+      position: absolute; left: 26%; right: 8%; top: 68%; height: 24%;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: rgba(0,0,0,.08);
+    }
+    .css-icon .tb b { background: var(--content); display: flex; flex-direction: column; justify-content: space-evenly; padding: 8% 10%; }
+    .css-icon .tb b i { display: block; height: 12%; background: #1d1d1f; opacity: .55; }
+    .css-icon .tb b i:nth-child(2) { width: 70%; } .css-icon .tb b i:nth-child(3) { width: 85%; }
+    .css-icon .pill { position: absolute; right: 8%; top: 7%; width: 16%; height: 7%; background: var(--accent); border-radius: 99px; }
+
+    @media (max-width: 720px) { .stage { grid-template-columns: 1fr; } .big { width: 200px; height: 200px; border-radius: 44px; } }
   </style>
 </head>
 <body>
   <header>
-    <div>
-      <h1>图译 icon · 对照</h1>
-      <p class="hint">点格子切。方案 1 构图留下了，下面三档是按产品色换的。</p>
-    </div>
+    <h1>图译 icon · 对照</h1>
+    <p class="hint">穿 App 的灰和蓝，里头是图纸 + 两列对照。点格子切。</p>
   </header>
   <main>
     <div class="stage">
-      <div class="big"><img id="hero" src="01a-mist.jpg" alt="" /></div>
+      <div class="big" id="hero-wrap"><img id="hero" src="mix-plan.jpg" alt="" /></div>
       <div class="meta">
-        <h2 id="title">1a · 雾灰</h2>
-        <p id="blurb">方案 1 的构图，底改成软件窗口那种灰，蓝只留在图框顶上一道。我会先用这个。</p>
+        <h2 id="title">图纸 + 对照</h2>
+        <p id="blurb">平面图画在软件那种灰底上，底下两列原文/译文，蓝只做一颗按钮。我会先用这个。</p>
         <div class="sizes">
-          <div class="sz">128<img id="s128" src="01a-mist.jpg" width="128" height="128" alt="" /></div>
-          <div class="sz">64<img id="s64" src="01a-mist.jpg" width="64" height="64" alt="" /></div>
-          <div class="sz">32<img id="s32" src="01a-mist.jpg" width="32" height="32" alt="" /></div>
-          <div class="sz dark">32 暗<img id="s32d" src="01a-mist.jpg" width="32" height="32" alt="" /></div>
+          <div class="sz">128<img id="s128" src="mix-plan.jpg" width="128" height="128" alt="" /></div>
+          <div class="sz">64<img id="s64" src="mix-plan.jpg" width="64" height="64" alt="" /></div>
+          <div class="sz">32<img id="s32" src="mix-plan.jpg" width="32" height="32" alt="" /></div>
         </div>
       </div>
     </div>
 
-    <p class="h">方案 1 换色</p>
-    <div class="grid" id="row1"></div>
-    <p class="h">其余方向</p>
-    <div class="grid" id="row2"></div>
+    <p class="h">这一轮 · 图纸 + App 色</p>
+    <div class="grid" id="row"></div>
+    <p class="h">色值原样（CSS，跟窗口同一个变量）</p>
+    <div class="grid" id="cssrow"></div>
   </main>
+
+  <template id="mark-a">
+    <div class="css-icon">
+      <span class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+      <span class="pill"></span>
+      <span class="side"></span><span class="chip"></span>
+      <div class="plan">
+        <svg viewBox="0 0 80 48" fill="none" stroke="#1d1d1f" stroke-width="1.2">
+          <rect x="4" y="4" width="72" height="40"/>
+          <path d="M4 24h72M28 4v40M52 24v20"/>
+        </svg>
+      </div>
+      <div class="tb"><b><i></i><i></i><i></i></b><b><i></i><i></i><i></i></b></div>
+    </div>
+  </template>
+
   <script>
+    const planSvg = document.getElementById("mark-a").innerHTML;
     const items = [
-      { id: "now", src: "00-now.png", title: "现状", blurb: "戴三角帽的小狗。缩到 Dock 上看不出是译图纸。" },
-      { id: "1", src: "01-blue.jpg", title: "1 · 原蓝", blurb: "构图可以：图纸、两列、上面探出平面。整块蓝太跳，不像这个软件。" },
-      { id: "1a", src: "01a-mist.jpg", title: "1a · 雾灰", blurb: "方案 1 的构图，底改成软件窗口那种灰，蓝只留在图框顶上一道。我会先用这个。" },
-      { id: "1b", src: "01b-cream.jpg", title: "1b · 纸色", blurb: "跟现在小狗一个暖纸色。顶栏蓝只剩半截，有点脏。" },
-      { id: "1c", src: "01c-white.jpg", title: "1c · 白底", blurb: "跟 landing 一样干净。蓝还是只做顶条。" },
-      { id: "2", src: "02-paper.jpg", title: "2 · 图框", blurb: "平面图 + 底下两列对照。最像图纸本身。" },
-      { id: "3", src: "03-charcoal.jpg", title: "3 · 炭灰", blurb: "深底上搁一张纸。Dock 上更抢，偏工具软件。" },
-      { id: "4", src: "04-blueprint.jpg", title: "4 · 蓝图", blurb: "晒图蓝。好看，不像图译窗口。" },
-      { id: "5", src: "05-minimal.jpg", title: "5 · 极简", blurb: "就两列横条。32 像素清楚，但容易看成词典。" },
-      { id: "6", src: "06-iso.jpg", title: "6 · 斜放", blurb: "一张斜放的图，图框两列。专业，略复杂。" },
-      { id: "7", src: "07-fold.jpg", title: "7 · 折角", blurb: "折角 + 深浅两列。翻译对比最直。" },
-      { id: "8", src: "08-stamp.jpg", title: "8 · 章", blurb: "红圈太像瞄准，不像翻译。" },
-      { id: "9", src: "09-plan.jpg", title: "9 · 平面", blurb: "上图下对照。底下符号有点花。" },
-      { id: "10", src: "10-split.jpg", title: "10 · 对开", blurb: "左原图右译后。意思对，32 像素会糊。" }
+      { id: "now", src: "00-now.png", title: "现状", blurb: "小狗。跟窗口不是一套东西。" },
+      { id: "plan", src: "mix-plan.jpg", title: "图纸 + 对照", blurb: "平面图画在软件那种灰底上，底下两列原文/译文，蓝只做一颗按钮。我会先用这个。" },
+      { id: "sheet", src: "mix-sheet.jpg", title: "灰底图框", blurb: "方案 1 那张图，换成窗口灰。图纸还在，两列还在。" },
+      { id: "win", src: "mix-win.jpg", title: "窗口里的图", blurb: "侧栏 + 平面图 + 图框对照。一眼是这个软件，也一眼是图纸。" },
+      { id: "chrome", src: "mix-chrome.jpg", title: "窗口对照", blurb: "红绿灯和侧栏都在，主区是图不是表。" }
     ];
-    const row1 = document.getElementById("row1");
-    const row2 = document.getElementById("row2");
+    const row = document.getElementById("row");
+    const cssrow = document.getElementById("cssrow");
     const hero = document.getElementById("hero");
+    const wrap = document.getElementById("hero-wrap");
     const title = document.getElementById("title");
     const blurb = document.getElementById("blurb");
-    const sizes = ["s128", "s64", "s32", "s32d"].map((id) => document.getElementById(id));
+    const sizes = ["s128","s64","s32"].map((id) => document.getElementById(id));
 
-    function tile(item) {
+    function addTile(parent, item, selected) {
       const b = document.createElement("button");
-      b.className = "tile";
-      b.type = "button";
-      b.dataset.id = item.id;
-      b.setAttribute("aria-selected", item.id === "1a" ? "true" : "false");
-      b.innerHTML = `<img src="${item.src}" alt="" /><span>${item.title}</span>`;
-      b.onclick = () => pick(item.id);
-      return b;
+      b.className = "tile"; b.type = "button"; b.dataset.id = item.id;
+      b.setAttribute("aria-selected", selected ? "true" : "false");
+      if (item.html) b.innerHTML = item.html + `<span>${item.title}</span>`;
+      else b.innerHTML = `<img src="${item.src}" alt="" /><span>${item.title}</span>`;
+      b.onclick = () => pick(item);
+      parent.appendChild(b);
     }
-    items.slice(0, 5).forEach((it) => row1.appendChild(tile(it)));
-    items.slice(5).forEach((it) => row2.appendChild(tile(it)));
+    items.forEach((it, i) => addTile(row, it, it.id === "plan"));
+    addTile(cssrow, { id: "css", html: planSvg, title: "窗口色值", blurb: "跟 App.css 同一个灰、蓝、侧栏。主区是简化平面图 + 两列，不是表格行。" }, false);
 
-    function pick(id) {
-      const item = items.find((x) => x.id === id);
-      document.querySelectorAll("button.tile").forEach((t) => t.setAttribute("aria-selected", t.dataset.id === id ? "true" : "false"));
-      hero.src = item.src;
-      sizes.forEach((img) => { img.src = item.src; });
+    function pick(item) {
+      document.querySelectorAll("button.tile").forEach((t) => t.setAttribute("aria-selected", t.dataset.id === item.id ? "true" : "false"));
       title.textContent = item.title;
       blurb.textContent = item.blurb;
+      if (item.html) {
+        wrap.innerHTML = item.html;
+        sizes.forEach((el) => { el.replaceWith(el.cloneNode(false)); });
+      } else {
+        wrap.innerHTML = `<img id="hero" src="${item.src}" alt="" />`;
+        sizes.forEach((img) => { img.src = item.src; });
+      }
     }
   </script>
 </body>
