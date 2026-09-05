@@ -5,11 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>图译 icon · 对照</title>
   <style>
-    :root {
-      --win: #e8e8ed; --side: #ececf1; --content: #fff;
-      --text: #1d1d1f; --accent: #007aff; --row: #d6e8ff;
-      --red: #ff5f57; --yel: #febc2e; --grn: #28c840;
-    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font: 15px/1.45 -apple-system, "SF Pro Text", "PingFang SC", sans-serif;
@@ -21,12 +16,12 @@
     main { padding: 20px 20px 48px; max-width: 1080px; margin: 0 auto; }
     .stage { display: grid; grid-template-columns: 280px 1fr; gap: 28px; margin-bottom: 24px; }
     .big { width: 256px; height: 256px; border-radius: 58px; overflow: hidden; background: #1c1c1e; }
-    .big img, .big .css-icon { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .big img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .meta h2 { font-size: 1.2rem; letter-spacing: -.02em; margin-bottom: 6px; }
     .meta p { color: #8b8f98; font-size: .88rem; max-width: 38em; }
     .sizes { display: flex; gap: 16px; align-items: end; margin-top: 16px; }
     .sz { font-size: 11px; color: #8b8f98; text-align: center; }
-    .sz img, .sz .css-icon { display: block; margin: 0 auto 6px; border-radius: 22%; }
+    .sz img { display: block; margin: 0 auto 6px; border-radius: 22%; }
     .h { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8b8f98; margin: 16px 0 8px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
     button.tile {
@@ -35,113 +30,63 @@
       padding: 10px; cursor: pointer; text-align: left;
     }
     button.tile[aria-selected="true"] { background: #fff; color: #111; }
-    button.tile img, button.tile .css-icon { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 22%; display: block; }
+    button.tile img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 22%; display: block; background: #1c1c1e; }
     button.tile span { display: block; margin-top: 7px; font-size: 12px; font-weight: 600; }
-
-    /* live CSS marks — exact app tokens */
-    .css-icon { position: relative; overflow: hidden; background: var(--win); }
-    .css-icon .lights { position: absolute; top: 7%; left: 8%; display: flex; gap: 5%; width: 22%; }
-    .css-icon .lights i { flex: 1; aspect-ratio: 1; border-radius: 50%; }
-    .css-icon .r { background: var(--red); } .css-icon .y { background: var(--yel); } .css-icon .g { background: var(--grn); }
-    .css-icon .side { position: absolute; left: 0; top: 16%; bottom: 0; width: 22%; background: var(--side); }
-    .css-icon .chip { position: absolute; left: 8%; top: 22%; width: 14%; height: 6%; background: var(--accent); border-radius: 3px; }
-    .css-icon .plan {
-      position: absolute; left: 26%; top: 18%; right: 8%; height: 48%;
-      background: var(--content); border: 1px solid rgba(0,0,0,.08);
-    }
-    .css-icon .plan svg { width: 100%; height: 100%; }
-    .css-icon .tb {
-      position: absolute; left: 26%; right: 8%; top: 68%; height: 24%;
-      display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: rgba(0,0,0,.08);
-    }
-    .css-icon .tb b { background: var(--content); display: flex; flex-direction: column; justify-content: space-evenly; padding: 8% 10%; }
-    .css-icon .tb b i { display: block; height: 12%; background: #1d1d1f; opacity: .55; }
-    .css-icon .tb b i:nth-child(2) { width: 70%; } .css-icon .tb b i:nth-child(3) { width: 85%; }
-    .css-icon .pill { position: absolute; right: 8%; top: 7%; width: 16%; height: 7%; background: var(--accent); border-radius: 99px; }
-
     @media (max-width: 720px) { .stage { grid-template-columns: 1fr; } .big { width: 200px; height: 200px; border-radius: 44px; } }
   </style>
 </head>
 <body>
   <header>
     <h1>图译 icon · 对照</h1>
-    <p class="hint">穿 App 的灰和蓝，里头是图纸 + 两列对照。点格子切。</p>
+    <p class="hint">纸和字母都会撞上别人。这一轮把现有这只猫做成 Dock 上的实物。点格子切。</p>
   </header>
   <main>
     <div class="stage">
-      <div class="big" id="hero-wrap"><img id="hero" src="mix-plan.jpg" alt="" /></div>
+      <div class="big"><img id="hero" src="cat-toy.jpg" alt="" /></div>
       <div class="meta">
-        <h2 id="title">图纸 + 对照</h2>
-        <p id="blurb">平面图画在软件那种灰底上，底下两列原文/译文，蓝只做一颗按钮。我会先用这个。</p>
+        <h2 id="title">手办</h2>
+        <p id="blurb">还是这只猫，三角帽子留下。奶油色方块上坐着一个小手办。Ghostty 那套：一个角色，不是一张纸。</p>
         <div class="sizes">
-          <div class="sz">128<img id="s128" src="mix-plan.jpg" width="128" height="128" alt="" /></div>
-          <div class="sz">64<img id="s64" src="mix-plan.jpg" width="64" height="64" alt="" /></div>
-          <div class="sz">32<img id="s32" src="mix-plan.jpg" width="32" height="32" alt="" /></div>
+          <div class="sz">128<img id="s128" src="cat-toy.jpg" width="128" height="128" alt="" /></div>
+          <div class="sz">64<img id="s64" src="cat-toy.jpg" width="64" height="64" alt="" /></div>
+          <div class="sz">32<img id="s32" src="cat-toy.jpg" width="32" height="32" alt="" /></div>
         </div>
       </div>
     </div>
 
-    <p class="h">这一轮 · 图纸 + App 色</p>
+    <p class="h">这一轮 · 猫</p>
     <div class="grid" id="row"></div>
-    <p class="h">色值原样（CSS，跟窗口同一个变量）</p>
-    <div class="grid" id="cssrow"></div>
   </main>
-
-  <template id="mark-a">
-    <div class="css-icon">
-      <span class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></span>
-      <span class="pill"></span>
-      <span class="side"></span><span class="chip"></span>
-      <div class="plan">
-        <svg viewBox="0 0 80 48" fill="none" stroke="#1d1d1f" stroke-width="1.2">
-          <rect x="4" y="4" width="72" height="40"/>
-          <path d="M4 24h72M28 4v40M52 24v20"/>
-        </svg>
-      </div>
-      <div class="tb"><b><i></i><i></i><i></i></b><b><i></i><i></i><i></i></b></div>
-    </div>
-  </template>
-
   <script>
-    const planSvg = document.getElementById("mark-a").innerHTML;
     const items = [
-      { id: "now", src: "00-now.png", title: "现状", blurb: "小狗。跟窗口不是一套东西。" },
-      { id: "plan", src: "mix-plan.jpg", title: "图纸 + 对照", blurb: "平面图画在软件那种灰底上，底下两列原文/译文，蓝只做一颗按钮。我会先用这个。" },
-      { id: "sheet", src: "mix-sheet.jpg", title: "灰底图框", blurb: "方案 1 那张图，换成窗口灰。图纸还在，两列还在。" },
-      { id: "win", src: "mix-win.jpg", title: "窗口里的图", blurb: "侧栏 + 平面图 + 图框对照。一眼是这个软件，也一眼是图纸。" },
-      { id: "chrome", src: "mix-chrome.jpg", title: "窗口对照", blurb: "红绿灯和侧栏都在，主区是图不是表。" }
+      { id: "now", src: "00-now.png", title: "现状", blurb: "剪贴画近景。角色对，格式不对，进不了 Dock。" },
+      { id: "toy", src: "cat-toy.jpg", title: "手办", blurb: "还是这只猫，三角帽子留下。奶油色方块上坐着一个小手办。Ghostty 那套：一个角色，不是一张纸。" },
+      { id: "dark", src: "cat-dark.jpg", title: "深底手办", blurb: "同一只猫，炭黑底。小尺寸更清楚。" },
+      { id: "enamel", src: "cat-enamel.jpg", title: "浮雕", blurb: "猫压在方块上，像珐琅。还是原来那套脸和帽子。" },
+      { id: "mist", src: "cat-mist.jpg", title: "雾灰浮雕", blurb: "浮雕换窗口那种灰。软件里的灰，猫还是奶油色。" }
     ];
     const row = document.getElementById("row");
-    const cssrow = document.getElementById("cssrow");
     const hero = document.getElementById("hero");
-    const wrap = document.getElementById("hero-wrap");
     const title = document.getElementById("title");
     const blurb = document.getElementById("blurb");
     const sizes = ["s128","s64","s32"].map((id) => document.getElementById(id));
 
-    function addTile(parent, item, selected) {
+    items.forEach((it) => {
       const b = document.createElement("button");
-      b.className = "tile"; b.type = "button"; b.dataset.id = item.id;
-      b.setAttribute("aria-selected", selected ? "true" : "false");
-      if (item.html) b.innerHTML = item.html + `<span>${item.title}</span>`;
-      else b.innerHTML = `<img src="${item.src}" alt="" /><span>${item.title}</span>`;
-      b.onclick = () => pick(item);
-      parent.appendChild(b);
-    }
-    items.forEach((it, i) => addTile(row, it, it.id === "plan"));
-    addTile(cssrow, { id: "css", html: planSvg, title: "窗口色值", blurb: "跟 App.css 同一个灰、蓝、侧栏。主区是简化平面图 + 两列，不是表格行。" }, false);
+      b.className = "tile"; b.type = "button"; b.dataset.id = it.id;
+      b.setAttribute("aria-selected", it.id === "toy" ? "true" : "false");
+      b.innerHTML = `<img src="${it.src}" alt="" /><span>${it.title}</span>`;
+      b.onclick = () => pick(it);
+      row.appendChild(b);
+    });
 
     function pick(item) {
-      document.querySelectorAll("button.tile").forEach((t) => t.setAttribute("aria-selected", t.dataset.id === item.id ? "true" : "false"));
+      document.querySelectorAll("button.tile").forEach((t) =>
+        t.setAttribute("aria-selected", t.dataset.id === item.id ? "true" : "false"));
       title.textContent = item.title;
       blurb.textContent = item.blurb;
-      if (item.html) {
-        wrap.innerHTML = item.html;
-        sizes.forEach((el) => { el.replaceWith(el.cloneNode(false)); });
-      } else {
-        wrap.innerHTML = `<img id="hero" src="${item.src}" alt="" />`;
-        sizes.forEach((img) => { img.src = item.src; });
-      }
+      hero.src = item.src;
+      sizes.forEach((img) => { img.src = item.src; });
     }
   </script>
 </body>
